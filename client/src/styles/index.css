@@ -1,0 +1,512 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Tailwind directives - IDE warnings are false positives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand */
+  --color-primary: #16a34a;
+  --color-secondary: #C8A96E;
+  --font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+
+  /* Typographie */
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Surfaces (thème clair par défaut — pages publiques épurées) */
+  --surface-base: #FAFAF8;
+  --surface-raised: #FFFFFF;
+  --surface-overlay: #F5F5F0;
+  --surface-hover: #EFEFE8;
+
+  /* Bordures */
+  --border-subtle: #E8E4DE;
+  --border-default: #D4D0C8;
+
+  /* Sémantique */
+  --color-success: #16a34a;
+  --color-danger: #DC2626;
+  --color-warning: #D97706;
+  --color-info: #2563EB;
+
+  /* Texte */
+  --text-primary: #0F1117;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
+
+  /* Shadows douces et élégantes */
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.08);
+
+  /* Animations fluides */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Radius arrondis modernes */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Alias thème clair pour compatibilité dark: */
+  --bg-primary: #FAFAF8;
+  --bg-secondary: #F1F5F9;
+  --card-bg: #FFFFFF;
+  --border-color: #E2E8F0;
+}
+
+/* ===== THÈME CLAIR — Interface Admin / Staff ===== */
+[data-theme="admin"] {
+  --color-primary: #16a34a;
+  --color-secondary: #0d9488;
+
+  /* Surfaces claires */
+  --surface-base: #f1f5f9;
+  --surface-raised: #ffffff;
+  --surface-overlay: #f8fafc;
+  --surface-hover: #f1f5f9;
+  --surface-active: #e2e8f0;
+
+  /* Bordures claires */
+  --border-subtle: #e2e8f0;
+  --border-default: #cbd5e1;
+
+  /* Texte très contrasté */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  /* Sémantique */
+  --color-success: #16a34a;
+  --color-danger: #dc2626;
+  --color-warning: #d97706;
+  --color-info: #2563eb;
+
+  /* Shadows douces */
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.06);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.10);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 14px; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+/* Scrollbar minimaliste */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Sélection */
+::selection {
+  background: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  color: var(--text-primary);
+}
+
+/* Focus visible uniforme */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Transition globale liens */
+a {
+  transition: color var(--transition-fast), opacity var(--transition-fast);
+}
+
+/* Monospace pour les chiffres */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Animation shimmer pour skeleton */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-raised) 25%,
+    var(--surface-hover) 50%,
+    var(--surface-raised) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* Animation d'entrée fadeUp */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-up {
+  animation: fadeUp var(--transition-slow) both;
+}
+
+.fade-up-1 { animation-delay: 60ms; }
+.fade-up-2 { animation-delay: 120ms; }
+.fade-up-3 { animation-delay: 180ms; }
+.fade-up-4 { animation-delay: 240ms; }
+
+/* Pulse pour alertes critiques */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 40%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.pulse-danger { animation: pulse-ring 2s ease-out infinite; }
+
+/* Slide-in drawer */
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Modal enter animation */
+@keyframes modalEnter {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-modal-enter {
+  animation: modalEnter 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Float animation for hero cards */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Page transition */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.page-transition-enter {
+  animation: pageEnter 180ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* Pulse dot */
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-dot {
+  animation: dotPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Print styles for receipts */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+}
+
+/* Form styles — adaptatifs au thème */
+input, select, textarea {
+  font-family: var(--font-sans);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+/* Grain texture helper */
+.texture-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+/* Offline indicator */
+.offline-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--color-danger);
+  color: white;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: var(--shadow-dropdown);
+}
+
+/* Legacy helpers kept for compatibility */
+.text-primary { color: var(--color-primary); }
+.bg-primary { background-color: var(--color-primary); }
+.text-secondary { color: var(--color-secondary); }
+.bg-secondary { background-color: var(--color-secondary); }
+.font-mono { font-family: var(--font-mono); }
+
+/* Card hover utility */
+.card-hover {
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+/* Badge colors */
+.badge-success-light { background-color: #dcfce7; color: #166534; }
+.badge-warning-light { background-color: #fef3c7; color: #92400e; }
+.badge-danger-light  { background-color: #fee2e2; color: #991b1b; }
+.badge-info-light    { background-color: #dbeafe; color: #1e40af; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   THÈME SOMBRE — html.dark  (toutes les interfaces)
+   Redéfinit les custom properties à la racine → tous les var() suivent
+   ═══════════════════════════════════════════════════════════════════ */
+html.dark {
+  /* Neutralise le thème clair "admin" au niveau :root */
+  --surface-base:    #0d1117;
+  --surface-raised:  #161b22;
+  --surface-overlay: #1c2230;
+  --surface-hover:   #21262d;
+  --surface-active:  #2d333b;
+
+  --border-subtle:  #30363d;
+  --border-default: #3d444d;
+
+  --text-primary:   #e6edf3;
+  --text-secondary: #8d96a0;
+  --text-muted:     #6e7681;
+
+  --shadow-card:    0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.3);
+  --shadow-modal:   0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.4);
+
+  /* Alias thème sombre pour compatibilité dark: */
+  --bg-primary: #0F1117;
+  --bg-secondary: #161B27;
+  --card-bg: #1C2333;
+  --border-color: #2D3748;
+
+  color-scheme: dark;
+}
+
+/* Réapplique les vars dark sur le sélecteur [data-theme="admin"]
+   (priorité CSS : html.dark [data-theme] > [data-theme] seul) */
+html.dark [data-theme="admin"] {
+  --surface-base:    #0d1117;
+  --surface-raised:  #161b22;
+  --surface-overlay: #1c2230;
+  --surface-hover:   #21262d;
+  --surface-active:  #2d333b;
+  --border-subtle:   #30363d;
+  --border-default:  #3d444d;
+  --text-primary:    #e6edf3;
+  --text-secondary:  #8d96a0;
+  --text-muted:      #6e7681;
+}
+
+/* ── SuperAdmin Panel : couleurs hardcodées overrides ── */
+html.dark .superadmin-panel   { background: #0d1117 !important; color: #e6edf3 !important; }
+html.dark .superadmin-header  { background: #161b22 !important; border-bottom-color: #30363d !important; }
+html.dark .superadmin-nav     { background: #161b22 !important; border-bottom-color: #30363d !important; }
+
+/* Cards / surfaces blanches hardcodées dans superadmin */
+html.dark .superadmin-panel [style*="background: white"],
+html.dark .superadmin-panel [style*="background: #fff"],
+html.dark .superadmin-panel [style*="background: #FFF"],
+html.dark .superadmin-panel [style*="background:#fff"],
+html.dark .superadmin-panel [style*="background:#FFF"],
+html.dark .superadmin-panel [style*="background: #ffffff"],
+html.dark .superadmin-panel [style*="background: #FFFFFF"],
+html.dark .superadmin-panel [style*="background: #F8FAFC"],
+html.dark .superadmin-panel [style*="background: #f8fafc"],
+html.dark .superadmin-panel [style*="background: #FAFAFA"],
+html.dark .superadmin-panel [style*="background: #F9FAFB"],
+html.dark .superadmin-panel [style*="background: rgb(255, 255, 255)"],
+html.dark .superadmin-panel [style*="background: rgb(248, 250, 252)"] {
+  background: #161b22 !important;
+}
+
+/* Textes sombres hardcodés */
+html.dark .superadmin-panel [style*="color: #0F172A"],
+html.dark .superadmin-panel [style*="color: #1E293B"],
+html.dark .superadmin-panel [style*="color: #334155"],
+html.dark .superadmin-panel [style*="color: #475569"],
+html.dark .superadmin-panel [style*="color: #64748B"],
+html.dark .superadmin-panel [style*="color: #94A3B8"] {
+  color: #e6edf3 !important;
+}
+
+/* Bordures claires hardcodées */
+html.dark .superadmin-panel [style*="border-bottom: 1px solid #E2E8F0"],
+html.dark .superadmin-panel [style*="border: 1px solid #E2E8F0"],
+html.dark .superadmin-panel [style*="borderColor: #E2E8F0"],
+html.dark .superadmin-panel [style*="border-color: #e2e8f0"] {
+  border-color: #30363d !important;
+}
+
+/* Tables dans superadmin */
+html.dark .superadmin-panel table     { background: transparent !important; }
+html.dark .superadmin-panel thead tr  { background: #1c2230 !important; }
+html.dark .superadmin-panel tbody tr  { border-color: #30363d !important; }
+html.dark .superadmin-panel tbody tr:hover { background: #21262d !important; }
+html.dark .superadmin-panel td,
+html.dark .superadmin-panel th        { color: #e6edf3 !important; border-color: #30363d !important; }
+
+/* Inputs dans superadmin */
+html.dark .superadmin-panel input,
+html.dark .superadmin-panel select,
+html.dark .superadmin-panel textarea {
+  background: #1c2230 !important;
+  color: #e6edf3 !important;
+  border-color: #30363d !important;
+}
+
+/* ── Admin pages (KPI cards, tables) inline style overrides ── */
+html.dark [data-theme="admin"] body,
+html.dark [data-theme="admin"] {
+  background-color: var(--surface-base) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Eléments avec background blanc inline dans les pages admin */
+html.dark [data-theme="admin"] [style*="background: white"],
+html.dark [data-theme="admin"] [style*="background: #ffffff"],
+html.dark [data-theme="admin"] [style*="background: #FFFFFF"],
+html.dark [data-theme="admin"] [style*="background:#ffffff"],
+html.dark [data-theme="admin"] [style*="background: rgb(255, 255, 255)"],
+html.dark [data-theme="admin"] [style*="background: #F8FAFC"],
+html.dark [data-theme="admin"] [style*="background: #f8fafc"],
+html.dark [data-theme="admin"] [style*="background: #F1F5F9"],
+html.dark [data-theme="admin"] [style*="background: #f1f5f9"] {
+  background: var(--surface-raised) !important;
+}
+
+/* Dropdown profil admin (fond blanc hardcodé) */
+html.dark [data-theme="admin"] [style*="background: #ffffff"],
+html.dark [data-theme="admin"] [style*="background: #FFFFFF"] {
+  background: var(--surface-raised) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* ── Wizard création SuperAdmin : classes Tailwind hardcodées ── */
+html.dark .superadmin-panel .bg-white  { background-color: #161b22 !important; }
+html.dark .superadmin-panel .bg-slate-50 { background-color: #1c2230 !important; }
+html.dark .superadmin-panel .bg-slate-100 { background-color: #21262d !important; }
+html.dark .superadmin-panel .bg-slate-200 { background-color: #2d333b !important; }
+html.dark .superadmin-panel .border-slate-200 { border-color: #30363d !important; }
+html.dark .superadmin-panel .border-slate-100 { border-color: #30363d !important; }
+html.dark .superadmin-panel .text-slate-900 { color: #e6edf3 !important; }
+html.dark .superadmin-panel .text-slate-700 { color: #c9d1d9 !important; }
+html.dark .superadmin-panel .text-slate-600 { color: #8d96a0 !important; }
+html.dark .superadmin-panel .text-slate-500 { color: #6e7681 !important; }
+html.dark .superadmin-panel .text-slate-400 { color: #6e7681 !important; }
+html.dark .superadmin-panel .hover\:bg-slate-100:hover { background-color: #21262d !important; }
+html.dark .superadmin-panel .hover\:bg-slate-50:hover  { background-color: #1c2230 !important; }
+
+/* Inputs Tailwind dans wizard dark */
+html.dark .superadmin-panel input.bg-slate-50,
+html.dark .superadmin-panel select.bg-slate-50,
+html.dark .superadmin-panel textarea.bg-slate-50 {
+  background-color: #1c2230 !important;
+  color: #e6edf3 !important;
+  border-color: #30363d !important;
+}
+
+/* Loader initial */
+html.dark .superadmin-panel > .min-h-screen {
+  background: #0d1117 !important;
+}
+
+/* ── Compatibilité ancien sélecteur ── */
+[data-color-scheme="dark"] [data-theme="admin"] {
+  --surface-base:    #0d1117;
+  --surface-raised:  #161b22;
+  --surface-overlay: #1c2230;
+  --surface-hover:   #21262d;
+  --surface-active:  #2d333b;
+  --border-subtle:   #30363d;
+  --border-default:  #3d444d;
+  --text-primary:    #e6edf3;
+  --text-secondary:  #8d96a0;
+  --text-muted:      #6e7681;
+}
+
+/* ===== Admin-specific component overrides ===== */
+[data-theme="admin"] body,
+[data-theme="admin"] {
+  background-color: var(--surface-base);
+  color: var(--text-primary);
+}
+
+/* Admin forms */
+[data-theme="admin"] input,
+[data-theme="admin"] select,
+[data-theme="admin"] textarea {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+
+[data-theme="admin"] input::placeholder,
+[data-theme="admin"] textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Admin tables */
+[data-theme="admin"] table {
+  color: var(--text-primary);
+}
+
+[data-theme="admin"] thead th {
+  background-color: var(--surface-overlay);
+  color: var(--text-secondary);
+}
+
+[data-theme="admin"] tbody tr:hover {
+  background-color: var(--surface-hover);
+}
+
+[data-theme="admin"] tbody tr {
+  border-color: var(--border-subtle);
+}

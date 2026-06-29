@@ -1,0 +1,69 @@
+# Dépendances
+node_modules/
+.pnp
+.pnp.js
+
+# Environnement (NE JAMAIS COMMITER)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+server/.env
+client/.env
+
+# Build
+dist/
+build/
+client/dist/
+.vite/
+dist-ssr
+*.local
+
+# Uploads (fichiers utilisateurs)
+server/uploads/*
+!server/uploads/.gitkeep
+!server/uploads/logos/.gitkeep
+!server/uploads/ordonnances/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Tests
+coverage/
+.nyc_output/
+
+# Docker
+.docker/
+
+# Database
+*.db
+*.db-journal
+
+# Misc
+*.tgz
+*.tar.gz
+.cache
+.temp
+.tmp
+*.lcov
+test-results/

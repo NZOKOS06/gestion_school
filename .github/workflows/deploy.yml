@@ -1,0 +1,21 @@
+name: Deploy GestPharma
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environnement cible'
+        required: true
+        type: choice
+        options: [staging, production]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        run: echo "Déploiement sur ${{ inputs.environment }} — configurer SSH dans les secrets GitHub"

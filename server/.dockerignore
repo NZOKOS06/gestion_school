@@ -1,0 +1,83 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+!.env.example
+dist
+coverage
+uploads
+*.test.js
+*.spec.js
+.git
+.gitignore
+README.md
+prisma/*.db
+prisma/*.db-journal
+# NOTE : prisma/migrations est REQUIS pour npx prisma migrate deploy
+.vscode
+.idea
+.DS_Store
+*.log
+logs
+tmp
+temp
+.cache
+*.local
+*.tmp
+*.swp
+*.swo
+*~
+
+# Fichiers de dev
+.eslint*
+.prettier*
+.husky
+.github
+playwright.config.*
+*.test.*
+*.spec.*
+__tests__
+__mocks__
+jest.config.*
+.coverage
+coverage
+test-results
+
+# Docker
+Dockerfile*
+docker-compose*
+.docker
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+render.yaml
+vercel.json
+
+# Documentation
+*.md
+CHANGELOG*
+LICENSE*
+
+# Autres
+Makefile
+scripts
+tools
+setup.*
+
+# Debug
+*.tgz
+*.tar.gz
+*.zip
+*.rar
+
+# Node
+.nyc_output
+.grunt
+.lock-wscript
+build/Release
+node_modules/.cache
+yarn.lock
+pnpm-lock.yaml
+bun.lockb

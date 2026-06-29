@@ -1,0 +1,37 @@
+import { defineConfig } from 'vitest/config'
+import dotenv from 'dotenv'
+import path from 'path'
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env.test') })
+
+const DB_URL = process.env.DATABASE_URL_TEST || 'postgresql://postgres:postgres@localhost:5432/gestpharma_test'
+const JWT_S  = process.env.JWT_SECRET        || 'test-secret-for-testing-only-not-production'
+const JWT_R  = process.env.JWT_REFRESH_SECRET|| 'test-refresh-secret-different'
+
+// Expose immediately so setupFiles (PrismaClient) can read them at module load time
+process.env.DATABASE_URL       = DB_URL
+process.env.DATABASE_URL_TEST  = DB_URL
+process.env.JWT_SECRET         = JWT_S
+process.env.JWT_REFRESH_SECRET = JWT_R
+process.env.NODE_ENV           = 'test'
+process.env.PORT               = '3001'
+process.env.FRONTEND_URL       = 'http://localhost:5173'
+
+export default defineConfig({
+  test: {
+    environment: 'node',
+    globals: true,
+    fileParallelism: false,
+    coverage: { reporter: ['text', 'lcov'] },
+    setupFiles: ['./src/tests/setup.js'],
+    env: {
+      DATABASE_URL: process.env.DATABASE_URL_TEST || 'postgresql://postgres:postgres@localhost:5432/gestpharma_test',
+      DATABASE_URL_TEST: process.env.DATABASE_URL_TEST || 'postgresql://postgres:postgres@localhost:5432/gestpharma_test',
+      JWT_SECRET: process.env.JWT_SECRET || 'test-secret-for-testing-only-not-production',
+      JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'test-refresh-secret-different',
+      NODE_ENV: 'test',
+      PORT: '3001',
+      FRONTEND_URL: 'http://localhost:5173',
+    }
+  }
+})
