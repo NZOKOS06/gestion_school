@@ -119,7 +119,7 @@ export const update = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
-    const { classeId, statut } = req.body;
+    const { classeId, statut, decisionFinAnnee } = req.body;
 
     const existing = await prisma.inscription.findFirst({ where: { id, tenantId } });
     if (!existing) {
@@ -129,10 +129,11 @@ export const update = async (req, res) => {
     const data = {};
     if (classeId !== undefined) data.classeId = classeId;
     if (statut !== undefined) data.statut = statut;
+    if (decisionFinAnnee !== undefined) data.decisionFinAnnee = decisionFinAnnee;
 
     const inscription = await prisma.inscription.update({ where: { id }, data });
 
-    await logAudit(req, 'inscription_updated', 'Inscription', inscription.id, { statut });
+    await logAudit(req, 'inscription_updated', 'Inscription', inscription.id, { statut, decisionFinAnnee });
 
     res.json(inscription);
   } catch (error) {

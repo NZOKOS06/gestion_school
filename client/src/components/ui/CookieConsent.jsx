@@ -4,7 +4,7 @@ import { useI18n } from '../../contexts/I18nContext';
 import { Link } from 'react-router-dom';
 import { X, Cookie } from 'lucide-react';
 
-const STORAGE_KEY = 'gestpharma_cookie_consent';
+const STORAGE_KEY = 'GestSchool_cookie_consent';
 
 export const CookieConsent = () => {
   const { config } = useTenant();

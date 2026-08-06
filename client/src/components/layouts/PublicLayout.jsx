@@ -9,9 +9,7 @@ const PublicLayout = () => {
   const { pathname } = useLocation();
   const pageAutonome =
     pathname === '/' ||
-    pathname === '/catalogue' ||
-    pathname === '/commander' ||
-    pathname.startsWith('/suivi/');
+    pathname.startsWith('/e/');
 
   if (loading) {
     return (
@@ -24,7 +22,7 @@ const PublicLayout = () => {
     );
   }
 
-  // Accueil et catalogue gèrent leur propre navigation
+  // Accueil et pages école gèrent leur propre navigation
   if (pageAutonome) {
     return <Outlet />;
   }
@@ -52,13 +50,13 @@ const PublicLayout = () => {
                 className="text-xl font-semibold"
                 style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
               >
-                {config?.nomApp || 'GestPharma'}
+                {config?.nomApp || 'GestSchool'}
               </span>
             </a>
 
             <nav className="hidden md:flex items-center gap-4">
               <a href="/" className="text-sm font-medium transition-colors hover:text-[var(--color-primary)]" style={{ color: 'var(--text-secondary)' }}>Accueil</a>
-              <a href="/catalogue" className="text-sm font-medium transition-colors hover:text-[var(--color-primary)]" style={{ color: 'var(--text-secondary)' }}>Catalogue</a>
+              <a href="/actualites" className="text-sm font-medium transition-colors hover:text-[var(--color-primary)]" style={{ color: 'var(--text-secondary)' }}>Actualités</a>
               <ThemeToggle />
               <Link to="/login" className="inline-flex items-center px-5 py-2 text-sm font-medium rounded-full text-white transition-all hover:shadow-md hover:-translate-y-0.5" style={{ backgroundColor: 'var(--color-primary)' }}>Connexion</Link>
             </nav>
@@ -78,10 +76,10 @@ const PublicLayout = () => {
                 className="font-semibold mb-3"
                 style={{ fontFamily: 'var(--font-display)' }}
               >
-                {config?.nomApp || 'GestPharma'}
+                {config?.nomApp || 'GestSchool'}
               </h3>
               <p className="text-gray-400 text-sm">
-                {config?.messageAccueil || 'Votre pharmacie en ligne'}
+                {config?.messageAccueil || 'Plateforme de gestion scolaire'}
               </p>
             </div>
 
@@ -121,7 +119,7 @@ const PublicLayout = () => {
           </div>
 
           <div className="border-t border-gray-800 mt-8 pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-500">
-            <span>© 2026 {config?.nomApp || 'GestPharma'}. Tous droits réservés.</span>
+            <span>© 2026 {config?.nomApp || 'GestSchool'}. Tous droits réservés.</span>
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link to="/politique-confidentialite" className="hover:text-white transition-colors">
                 Confidentialité

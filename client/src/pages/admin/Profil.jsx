@@ -21,14 +21,13 @@ import { useI18n } from '../../contexts/I18nContext';
 import { Button, Card, Badge, PageHeader } from '../../components/ui';
 
 const ROLE_LABELS = {
-  pharmacien: 'Pharmacien',
-  admin: 'Administrateur',
   super_admin: 'Super Admin',
-  vendeur: 'Vendeur',
-  preparateur: 'Préparateur',
-  caissier: 'Caissier',
-  livreur: 'Livreur',
-  client: 'Client',
+  directeur: 'Directeur',
+  secretaire: 'Secrétaire',
+  enseignant: 'Enseignant',
+  surveillant: 'Surveillant',
+  comptable: 'Comptable',
+  parent: 'Parent',
 };
 
 const formatDate = (dateStr) => {

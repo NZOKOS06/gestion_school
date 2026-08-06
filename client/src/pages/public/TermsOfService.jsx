@@ -5,7 +5,7 @@ import PublicLayout from '../../components/layouts/PublicLayout';
 const TermsOfService = () => {
   const { config } = useTenant();
   const { t } = useI18n();
-  const nomApp = config?.nomApp || 'GestPharma';
+  const nomApp = config?.nomApp || 'GestSchool';
 
   return (
     <PublicLayout>
@@ -26,7 +26,7 @@ const TermsOfService = () => {
           <h2 className="text-xl font-semibold mb-3">{t('terms_service_title') || 'Description du service'}</h2>
           <p className="leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             {t('terms_service_text') ||
-              `${nomApp} est une plateforme SaaS dédiée à la gestion de pharmacie et à la vente en ligne de produits de santé.`}
+              `${nomApp} est une plateforme SaaS dédiée à la gestion scolaire et à l\'accompagnement des établissements éducatifs.`}
           </p>
         </section>
 
@@ -42,7 +42,7 @@ const TermsOfService = () => {
           <h2 className="text-xl font-semibold mb-3">{t('terms_responsibility_title') || 'Responsabilités'}</h2>
           <p className="leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             {t('terms_responsibility_text') ||
-              'Les informations fournies sur la plateforme ne remplacent pas l\'avis d\'un professionnel de santé. En cas de doute, consultez votre pharmacien ou médecin.'}
+              'Les informations fournies sur la plateforme sont à titre indicatif. En cas de besoin, contactez l\'administration de l\'établissement.'}
           </p>
         </section>
 

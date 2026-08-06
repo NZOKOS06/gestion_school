@@ -117,6 +117,12 @@ export const optionalTenantMiddleware = async (req, res, next) => {
   }
 };
 
+const MODULE_KEY_ALIASES = {
+  absences: 'modulePresences',
+  presences: 'modulePresences',
+  emploiDuTemps: 'moduleEmploiDuTemps',
+};
+
 export const requireModule = (moduleName) => {
   return (req, res, next) => {
     const config = req.tenant?.config;
@@ -128,8 +134,14 @@ export const requireModule = (moduleName) => {
       });
     }
 
-    const moduleKey = `module${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)}`;
-    
+    const moduleKey = MODULE_KEY_ALIASES[moduleName]
+      || `module${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)}`;
+
+    // Modules without a schema flag (e.g. actualites) stay enabled by default
+    if (!(moduleKey in config)) {
+      return next();
+    }
+
     if (!config[moduleKey]) {
       return res.status(403).json({
         error: 'Module disabled',

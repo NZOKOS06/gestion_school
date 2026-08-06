@@ -5,7 +5,7 @@ import PublicLayout from '../../components/layouts/PublicLayout';
 const CookiePolicy = () => {
   const { config } = useTenant();
   const { t } = useI18n();
-  const nomApp = config?.nomApp || 'GestPharma';
+  const nomApp = config?.nomApp || 'GestSchool';
 
   return (
     <PublicLayout>

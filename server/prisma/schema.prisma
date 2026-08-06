@@ -17,6 +17,8 @@ model Tenant {
   plan               String   @default("basique") // basique | premium | pro
   actif              Boolean  @default(true)
   numeroAutorisation String?
+  pays               String   @default("CG") // CG | CM | CI | SN | CD
+  typeEtablissement  String   @default("primaire") // maternelle | primaire | ceg | lycee_general | lycee_technique | lycee_pro | centre_formation | universite
   contact            Json? // {adresse, telephone, email}
   modeMaintenance    Boolean  @default(false)
   createdAt          DateTime @default(now())
@@ -35,13 +37,23 @@ model Tenant {
   classes         Classe[]
   matieres        Matiere[]
   inscriptions    Inscription[]
+  echeances       Echeance[]
   evaluations     Evaluation[]
   bulletins       Bulletin[]
   paiements       Paiement[]
   emploisDuTemps  EmploiDuTemps[]
   absences        Absence[]
   sanctions       Sanction[]
+  certificats     Certificat[]
+  notifications   Notification[]
   actualites      Actualite[]
+  enseignantClasses EnseignantClasse[]
+  salles          Salle[]
+  calendrier      CalendrierScolaire[]
+  cahierDeTextes  CahierDeTextes[]
+  conseils        ConseilDeClasse[]
+  messages        Message[]
+  heuresEnseignees HeureEnseignee[]
 
   @@index([slug])
 }
@@ -78,6 +90,7 @@ model TenantConfig {
   notationSur           Int     @default(20) // Notes sur 20 ou sur 100
   seuilReussite         Decimal @default(10.00) @db.Decimal(5, 2) // Moyenne minimale pour passer
   nombrePeriodes        Int     @default(3) // 3 pour Trimestres, 2 pour Semestres
+  conventionPeriode     String  @default("trimestre") // trimestre | semestre
   joursEcole            Json? // ex: ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]
   heureDebut            String  @default("08:00")
   heureFin              String  @default("17:00")
@@ -86,7 +99,7 @@ model TenantConfig {
   fraisInscriptionDefault Decimal @default(0.00) @db.Decimal(12, 2)
   fraisScolariteDefault   Decimal @default(0.00) @db.Decimal(12, 2)
 
-  // Modules SaaS activables/désactivables (12)
+  // Modules SaaS activables/désactivables (16)
   moduleNotes         Boolean @default(true)
   moduleBulletins     Boolean @default(true)
   modulePresences     Boolean @default(true)
@@ -99,6 +112,10 @@ model TenantConfig {
   moduleCantine       Boolean @default(false)
   moduleTransport     Boolean @default(false)
   moduleCertificats   Boolean @default(true)
+  moduleClasses       Boolean @default(true)
+  moduleInscriptions  Boolean @default(true)
+  modulePersonnel     Boolean @default(true)
+  moduleRapports      Boolean @default(true)
 
   // Sécurité & sessions
   dureeSessionMinutes Int     @default(480)
@@ -129,6 +146,9 @@ model Staff {
   nom                String
   prenom             String
   telephone          String?
+  typeContrat        TypeContrat @default(titulaire) // titulaire | vacataire | stagiaire | contractuel
+  heuresHebdo        Int?      // Cahier de charge — heures par semaine (pour vacataires)
+  tauxHoraire        Decimal?  @db.Decimal(10, 2) // Taux horaire pour vacataires
   mustChangePassword Boolean   @default(true)
   actif              Boolean   @default(true)
   derniereConnexion  DateTime?
@@ -143,6 +163,16 @@ model Staff {
   enseignantClasses EnseignantClasse[]
   emploisDuTemps    EmploiDuTemps[]
   paiementsRecus    Paiement[]         @relation("RecuPar")
+  certificatsDelivres Certificat[]     @relation("DelivrePar")
+  notesSaisies      Note[]             @relation("SaisiPar")
+  absencesSaisies   Absence[]          @relation("SaisiPar")
+  notifications     Notification[]     @relation("StaffDestinataire")
+  cahierDeTextes    CahierDeTextes[]
+  heuresEnseignees  HeureEnseignee[]
+  messagesEnvoyes   Message[]          @relation("MessageExpediteur")
+  messagesRecus     Message[]          @relation("MessageDestinataireStaff")
+  conseilParticipants ConseilParticipant[]
+  conseilsPresides  ConseilDeClasse[]  @relation("ConseilPresident")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -171,6 +201,12 @@ model User {
   // Un parent peut avoir plusieurs enfants (élèves) dans l'école
   enfants Eleve[]
 
+  // Notifications destinées au parent
+  notifications Notification[] @relation("UserDestinataire")
+
+  // Messagerie
+  messagesRecus Message[] @relation("MessageDestinataireUser")
+
   @@unique([tenantId, email])
   @@index([tenantId])
 }
@@ -190,7 +226,7 @@ model PasswordResetToken {
   id        String    @id @default(uuid())
   email     String
   token     String    @unique
-  userType  String    @default("staff") // staff | client
+  userType  String    @default("staff") // staff | parent
   tenantId  String?
   expiresAt DateTime
   usedAt    DateTime?
@@ -205,7 +241,7 @@ model EmailVerificationToken {
   id        String    @id @default(uuid())
   email     String
   token     String    @unique
-  userType  String    @default("staff") // staff | client
+  userType  String    @default("staff") // staff | parent
   tenantId  String?
   expiresAt DateTime
   usedAt    DateTime?
@@ -236,7 +272,7 @@ model CookieConsent {
   @@index([sessionId])
 }
 
-// ==================== MODÈLES MÉTIER SCOLAIRE ====================
+// ==================== MODÈLES MÉTIER SCOLAIRES ====================
 
 model AnneeScolaire {
   id        String   @id @default(uuid())
@@ -254,6 +290,9 @@ model AnneeScolaire {
   inscriptions Inscription[]
   bulletins    Bulletin[]
   evaluations  Evaluation[]
+  certificats  Certificat[]
+  calendrier   CalendrierScolaire[]
+  conseils     ConseilDeClasse[]
 
   @@unique([tenantId, libelle])
   @@index([tenantId])
@@ -266,6 +305,7 @@ model Classe {
   anneeScolaireId String
   nom             String // ex: "6ème A", "Terminale S1"
   niveau          String // ex: "6eme", "terminale" (pour regroupement)
+  cycle           CycleEnseignement // prescolaire | primaire | college | lycee
   filiere         String? // ex: "Scientifique", "Littéraire", "Générale"
   capacite        Int      @default(40)
   fraisScolarite  Decimal  @db.Decimal(12, 2) // Spécifique à la classe
@@ -280,10 +320,14 @@ model Classe {
   evaluations    Evaluation[]
   emploisDuTemps EmploiDuTemps[]
   bulletins      Bulletin[]
+  cahierDeTextes CahierDeTextes[]
+  conseils       ConseilDeClasse[]
+  heuresEnseignees HeureEnseignee[]
 
   @@unique([tenantId, anneeScolaireId, nom])
   @@index([tenantId])
   @@index([anneeScolaireId])
+  @@index([cycle])
 }
 
 model Matiere {
@@ -299,8 +343,11 @@ model Matiere {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  evaluations    Evaluation[]
-  emploisDuTemps EmploiDuTemps[]
+  evaluations     Evaluation[]
+  emploisDuTemps  EmploiDuTemps[]
+  enseignantClasses EnseignantClasse[]
+  cahierDeTextes  CahierDeTextes[]
+  heuresEnseignees HeureEnseignee[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -310,7 +357,7 @@ model Eleve {
   id            String   @id @default(uuid())
   tenantId      String
   parentId      String? // Relation vers le Parent (User) connecté
-  matricule     String   @unique // Code unique de l'élève ex: "GS-2026-0089"
+  matricule     String   @unique // Code unique global ex: "GS-2026-0089"
   nom           String
   prenom        String
   dateNaissance DateTime
@@ -331,10 +378,31 @@ model Eleve {
   bulletins    Bulletin[]
   absences     Absence[]
   sanctions    Sanction[]
+  certificats  Certificat[]
 
   @@index([tenantId])
   @@index([matricule])
   @@index([nom, prenom])
+}
+
+model EnseignantClasse {
+  // Liaison Staff(enseignant) ↔ Classe ↔ Matiere
+  // Un enseignant enseigne UNE matière dans UNE classe
+  id           String @id @default(uuid())
+  tenantId     String
+  enseignantId String // Référence à Staff (rôle enseignant)
+  classeId     String
+  matiereId    String
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  enseignant  Staff       @relation(fields: [enseignantId], references: [id], onDelete: Cascade)
+  classe      Classe      @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  matiere     Matiere     @relation(fields: [matiereId], references: [id], onDelete: Cascade)
+
+  @@unique([enseignantId, classeId, matiereId])
+  @@index([tenantId])
+  @@index([classeId])
+  @@index([matiereId])
 }
 
 model Inscription {
@@ -345,6 +413,7 @@ model Inscription {
   anneeScolaireId String
   dateInscription DateTime          @default(now())
   statut          StatutInscription @default(validee)
+  decisionFinAnnee DecisionFinAnnee? // passage | redoublement | orientation | exclusion | null (non décidée)
   soldeScolarite  Decimal           @default(0.00) @db.Decimal(12, 2) // Montant restant à payer
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -354,7 +423,8 @@ model Inscription {
   classe        Classe        @relation(fields: [classeId], references: [id], onDelete: Cascade)
   anneeScolaire AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Cascade)
 
-  paiements Paiement[]
+  paiements  Paiement[]
+  echeances  Echeance[]
 
   @@unique([tenantId, anneeScolaireId, eleveId]) // Un élève est inscrit dans une seule classe par an
   @@index([tenantId])
@@ -363,15 +433,28 @@ model Inscription {
   @@index([anneeScolaireId])
 }
 
-model EnseignantClasse {
-  id           String @id @default(uuid())
-  enseignantId String // Référence à Staff (rôle enseignant)
-  classeId     String
+model Echeance {
+  // Tranche de paiement liée à une Inscription
+  // Indispensable pour les relances automatiques d'impayés
+  id              String         @id @default(uuid())
+  tenantId        String
+  inscriptionId   String
+  libelle         String // ex: "Tranche 1", "Frais d'inscription"
+  montantAttendu  Decimal        @db.Decimal(12, 2)
+  dateEcheance    DateTime // Date limite de paiement
+  montantPaye     Decimal        @default(0.00) @db.Decimal(12, 2)
+  statut          StatutEcheance @default(en_attente)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  enseignant Staff  @relation(fields: [enseignantId], references: [id], onDelete: Cascade)
-  classe     Classe @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inscription Inscription @relation(fields: [inscriptionId], references: [id], onDelete: Cascade)
+  paiements   Paiement[]
 
-  @@unique([enseignantId, classeId])
+  @@index([tenantId])
+  @@index([inscriptionId])
+  @@index([statut])
+  @@index([dateEcheance])
 }
 
 model Evaluation {
@@ -398,40 +481,46 @@ model Evaluation {
 
   @@index([tenantId])
   @@index([classeId, matiereId])
+  @@index([anneeScolaireId])
 }
 
 model Note {
   id           String   @id @default(uuid())
+  tenantId     String
   eleveId      String
   evaluationId String
   valeur       Decimal  @db.Decimal(5, 2) // La note obtenue (ex: 14.50)
   appreciation String? // Commentaire de l'enseignant (ex: "Très bon travail")
-  saisiParId   String? // Id de l'enseignant
+  saisiParId   String? // Id de l'enseignant (Staff)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   eleve      Eleve      @relation(fields: [eleveId], references: [id], onDelete: Cascade)
   evaluation Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  saisiPar   Staff?     @relation("SaisiPar", fields: [saisiParId], references: [id], onDelete: SetNull)
 
   @@unique([eleveId, evaluationId]) // Un élève a une seule note par évaluation
+  @@index([tenantId])
   @@index([eleveId])
   @@index([evaluationId])
 }
 
 model Bulletin {
-  id              String   @id @default(uuid())
+  id              String         @id @default(uuid())
   tenantId        String
   eleveId         String
   classeId        String
   anneeScolaireId String
   periodeIndex    Int // 1 = 1er Trimestre / Semestre
-  moyenneGenerale Decimal  @db.Decimal(5, 2)
+  moyenneGenerale Decimal        @db.Decimal(5, 2)
   rang            Int
   effectifClasse  Int
+  mention         MentionBulletin @default(aucune)
   decisionConseil String? // ex: "Passage au niveau supérieur", "Avertissement travail"
   absencesHeures  Int      @default(0)
   notesDetaillees Json // Structure JSON contenant le détail des moyennes par matière
   pdfUrl          String? // Copie archivée sur Cloudinary du bulletin généré
+  qrCodeHash      String?  @unique // Hash anti-falsification pour vérification QR code
   valide          Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -444,30 +533,8 @@ model Bulletin {
   @@unique([tenantId, anneeScolaireId, classeId, periodeIndex, eleveId])
   @@index([tenantId])
   @@index([eleveId])
-}
-
-model Paiement {
-  id            String       @id @default(uuid())
-  tenantId      String
-  inscriptionId String
-  recuParId     String // Comptable / caissier qui a perçu les fonds
-  numeroRecu    Int // Auto-incrémenté par tenant pour l'impression
-  montant       Decimal      @db.Decimal(12, 2)
-  typePaiement  TypePaiement @default(scolarite)
-  modePaiement  ModePaiement
-  reference     String? // ID de transaction Mobile Money, chèque ou virement
-  datePaiement  DateTime     @default(now())
-  motif         String? // ex: "Frais de Scolarité - Tranche 1"
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  inscription Inscription @relation(fields: [inscriptionId], references: [id], onDelete: Cascade)
-  recuPar     Staff       @relation("RecuPar", fields: [recuParId], references: [id])
-
-  @@unique([tenantId, numeroRecu])
-  @@index([tenantId])
-  @@index([inscriptionId])
+  @@index([classeId])
+  @@index([anneeScolaireId])
 }
 
 model EmploiDuTemps {
@@ -476,10 +543,11 @@ model EmploiDuTemps {
   classeId     String
   matiereId    String
   enseignantId String // Staff (role: enseignant)
+  salleId      String? // Lien vers Salle (optionnel)
   jourSemaine  Int // 1=Lundi, 2=Mardi... 7=Dimanche
   heureDebut   String // format "HH:MM" (ex: "08:00")
   heureFin     String // format "HH:MM" (ex: "10:00")
-  salle        String? // Nom ou numéro de la salle de cours
+  salle        String? // Nom ou numéro de la salle (legacy, remplacé par salleId)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -487,12 +555,16 @@ model EmploiDuTemps {
   classe     Classe  @relation(fields: [classeId], references: [id], onDelete: Cascade)
   matiere    Matiere @relation(fields: [matiereId], references: [id], onDelete: Cascade)
   enseignant Staff   @relation(fields: [enseignantId], references: [id], onDelete: Cascade)
+  salleRef   Salle?  @relation(fields: [salleId], references: [id], onDelete: SetNull)
 
   absences Absence[]
+  cahierDeTextes CahierDeTextes[]
 
   @@index([tenantId])
   @@index([classeId])
   @@index([enseignantId])
+  @@index([jourSemaine])
+  @@index([salleId])
 }
 
 model Absence {
@@ -501,6 +573,7 @@ model Absence {
   eleveId         String
   emploiDuTempsId String? // Lié au cours manqué
   dateAbsence     DateTime @default(now())
+  typeAbsence     TypeAbsence @default(absent) // absent | retard | depart_anticipe
   justifiee       Boolean  @default(false)
   motifJustif     String? // Justification médicale ou parentale
   pieceJustifUrl  String? // Image d'un mot de médecin ou document justificatif
@@ -511,6 +584,7 @@ model Absence {
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   eleve         Eleve          @relation(fields: [eleveId], references: [id], onDelete: Cascade)
   emploiDuTemps EmploiDuTemps? @relation(fields: [emploiDuTempsId], references: [id], onDelete: SetNull)
+  saisiePar     Staff?         @relation("SaisiPar", fields: [saisieParId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([eleveId])
@@ -534,6 +608,86 @@ model Sanction {
 
   @@index([tenantId])
   @@index([eleveId])
+  @@index([type])
+}
+
+model Paiement {
+  id            String       @id @default(uuid())
+  tenantId      String
+  inscriptionId String
+  echeanceId    String? // Lien optionnel vers une échéance spécifique
+  recuParId     String // Comptable / caissier qui a perçu les fonds
+  numeroRecu    Int // Auto-incrémenté par tenant pour l'impression
+  montant       Decimal      @db.Decimal(12, 2)
+  typePaiement  TypePaiement @default(scolarite)
+  modePaiement  ModePaiement
+  reference     String? // ID de transaction Mobile Money, chèque ou virement
+  datePaiement  DateTime     @default(now())
+  motif         String? // ex: "Frais de Scolarité - Tranche 1"
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inscription Inscription @relation(fields: [inscriptionId], references: [id], onDelete: Cascade)
+  echeance    Echeance?   @relation(fields: [echeanceId], references: [id], onDelete: SetNull)
+  recuPar     Staff       @relation("RecuPar", fields: [recuParId], references: [id])
+
+  @@unique([tenantId, numeroRecu])
+  @@index([tenantId])
+  @@index([inscriptionId])
+  @@index([echeanceId])
+  @@index([datePaiement])
+}
+
+model Certificat {
+  // Certificats et attestations délivrés aux élèves
+  id              String          @id @default(uuid())
+  tenantId        String
+  eleveId         String
+  anneeScolaireId String?
+  type            TypeCertificat
+  numeroSerie     String // Numéro unique par tenant pour traçabilité
+  pdfUrl          String? // Copie archivée sur Cloudinary
+  delivreParId    String // Staff qui a délivré le certificat
+  valide          Boolean         @default(true)
+  dateDelivrance  DateTime        @default(now())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve         Eleve         @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  anneeScolaire AnneeScolaire? @relation(fields: [anneeScolaireId], references: [id], onDelete: SetNull)
+  delivrePar    Staff         @relation("DelivrePar", fields: [delivreParId], references: [id])
+
+  @@unique([tenantId, numeroSerie])
+  @@index([tenantId])
+  @@index([eleveId])
+  @@index([type])
+}
+
+model Notification {
+  // Persistance des alertes Socket.IO quand l'utilisateur est hors ligne
+  id        String            @id @default(uuid())
+  tenantId  String
+  userId    String? // Destinataire = Parent (User)
+  staffId   String? // Destinataire = Staff
+  type      TypeNotification
+  titre     String
+  contenu   String
+  lu        Boolean           @default(false)
+  lien      String? // Lien d'action (ex: "/bulletins/123")
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation("UserDestinataire", fields: [userId], references: [id], onDelete: Cascade)
+  staff  Staff? @relation("StaffDestinataire", fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([staffId])
+  @@index([lu])
+  @@index([createdAt])
 }
 
 model Actualite {
@@ -563,6 +717,13 @@ enum StaffRole {
   comptable // Équivalent Caissier : encaissements, facturation scolaires
 }
 
+enum CycleEnseignement {
+  prescolaire
+  primaire
+  college
+  lycee
+}
+
 enum StatutInscription {
   en_attente
   validee
@@ -570,11 +731,28 @@ enum StatutInscription {
   suspendue
 }
 
+enum StatutEcheance {
+  en_attente
+  payee
+  en_retard
+  annulee
+}
+
 enum TypeEvaluation {
   devoir
   interrogation
   examen
   rattrapage
+  pratique // TP, stage pour filières technique et pro
+}
+
+enum MentionBulletin {
+  felicitations
+  tableau_honneur
+  encouragements
+  avertissement_travail
+  avertissement_conduite
+  aucune
 }
 
 enum TypePaiement {
@@ -584,6 +762,7 @@ enum TypePaiement {
   examen_officiel
   bibliotheque
   cantine
+  transport
   uniforme
   autre
 }
@@ -602,6 +781,29 @@ enum TypeSanction {
   retenue
   exclusion_temporaire
   exclusion_definitive
+}
+
+enum TypeCertificat {
+  scolarite
+  inscription
+  fin_etudes
+  attestation_inscription
+  releve_notes
+  carte_scolaire
+  convocation_examen
+  autre
+}
+
+enum TypeNotification {
+  note
+  absence
+  sanction
+  paiement
+  bulletin
+  actualite
+  message
+  relance_impaye
+  systeme
 }
 
 // ==================== MODÈLE AUDIT ====================
@@ -623,7 +825,12 @@ enum AuditAction {
   paiement_encaisse
   absence_saisie
   sanction_attribuee
+  certificat_genere
   password_changed
+  conseil_classe_tenu
+  cahier_de_textes_saisi
+  message_envoye
+  decision_fin_annee
 }
 
 model AuditLog {
@@ -644,5 +851,201 @@ model AuditLog {
   @@index([tenantId])
   @@index([action])
   @@index([actorId])
+  @@index([createdAt])
+}
+
+// ==================== NOUVEAUX MODÈLES MÉTIER ====================
+
+enum TypeAbsence {
+  absent
+  retard
+  depart_anticipe
+}
+
+enum DecisionFinAnnee {
+  passage
+  redoublement
+  orientation
+  exclusion
+}
+
+enum TypeContrat {
+  titulaire
+  vacataire
+  stagiaire
+  contractuel
+}
+
+enum TypeEvenementCalendrier {
+  rentree
+  vacances
+  examen
+  jour_ferie
+  conseil_classe
+  evenement_scolaire
+  composition
+}
+
+// --- Salle de cours ---
+model Salle {
+  id        String   @id @default(uuid())
+  tenantId  String
+  nom       String   // ex: "A12", "Labo Sciences"
+  batiment  String?
+  capacite  Int      @default(40)
+  type      String   @default("cours") // cours | labo | informatique | sport | reunion
+  actif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  emploisDuTemps EmploiDuTemps[]
+
+  @@unique([tenantId, nom])
+  @@index([tenantId])
+}
+
+// --- Calendrier scolaire ---
+model CalendrierScolaire {
+  id              String                @id @default(uuid())
+  tenantId        String
+  anneeScolaireId String
+  titre           String                // ex: "Rentrée scolaire", "Vacances de Noël", "Composition 1er trimestre"
+  type            TypeEvenementCalendrier
+  dateDebut       DateTime
+  dateFin         DateTime?
+  description     String?
+  concerneCycles  Json?                 // ex: ["primaire", "college"] — null = tous les cycles
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  anneeScolaire AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([anneeScolaireId])
+  @@index([type])
+  @@index([dateDebut])
+}
+
+// --- Cahier de textes (obligatoire pour l'inspection) ---
+model CahierDeTextes {
+  id           String   @id @default(uuid())
+  tenantId     String
+  enseignantId String   // Staff (role: enseignant)
+  classeId     String
+  matiereId    String
+  emploiDuTempsId String? // Lien optionnel vers le créneau de cours
+  dateCours    DateTime
+  lecon        String   @db.Text // Contenu de la leçon enseignée
+  devoirsDonnes String? @db.Text // Devoirs donnés aux élèves
+  observations String?  // Remarques pédagogiques
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  enseignant  Staff       @relation(fields: [enseignantId], references: [id], onDelete: Cascade)
+  classe      Classe      @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  matiere     Matiere     @relation(fields: [matiereId], references: [id], onDelete: Cascade)
+  emploiDuTemps EmploiDuTemps? @relation(fields: [emploiDuTempsId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([enseignantId])
+  @@index([classeId])
+  @@index([matiereId])
+  @@index([dateCours])
+}
+
+// --- Conseil de classe (processus collectif formel) ---
+model ConseilDeClasse {
+  id              String   @id @default(uuid())
+  tenantId        String
+  classeId        String
+  anneeScolaireId String
+  periodeIndex    Int      // Trimestre/Semestre concerné
+  dateConseil     DateTime
+  presidentId     String   // Staff (généralement le directeur ou surveillant général)
+  compteRendu     String?  @db.Text // Compte-rendu général de la réunion
+  cloture         Boolean  @default(false) // true = décisions figées et bulletins validés
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  classe        Classe        @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  anneeScolaire AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Cascade)
+  president     Staff         @relation("ConseilPresident", fields: [presidentId], references: [id], onDelete: Cascade)
+
+  participants ConseilParticipant[]
+
+  @@unique([tenantId, anneeScolaireId, classeId, periodeIndex])
+  @@index([tenantId])
+  @@index([classeId])
+  @@index([anneeScolaireId])
+}
+
+model ConseilParticipant {
+  id           String @id @default(uuid())
+  conseilId    String
+  staffId      String
+  present      Boolean @default(true)
+  observations String?
+
+  conseil     ConseilDeClasse @relation(fields: [conseilId], references: [id], onDelete: Cascade)
+  staff       Staff           @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([conseilId, staffId])
+  @@index([conseilId])
+}
+
+// --- Heures enseignées (pour la paie des vacataires) ---
+model HeureEnseignee {
+  id           String   @id @default(uuid())
+  tenantId     String
+  enseignantId String   // Staff (role: enseignant, typeContrat: vacataire)
+  classeId     String?
+  matiereId    String?
+  date         DateTime
+  heureDebut   String   // "HH:MM"
+  heureFin     String   // "HH:MM"
+  dureeHeures  Decimal  @db.Decimal(5, 2) // Durée calculée en heures
+  validee      Boolean  @default(false) // Validée par la direction pour la paie
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  enseignant  Staff    @relation(fields: [enseignantId], references: [id], onDelete: Cascade)
+  classe      Classe?  @relation(fields: [classeId], references: [id], onDelete: SetNull)
+  matiere     Matiere? @relation(fields: [matiereId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([enseignantId])
+  @@index([date])
+  @@index([validee])
+}
+
+// --- Messagerie interne ---
+model Message {
+  id           String   @id @default(uuid())
+  tenantId     String
+  expediteurId String   // Staff qui envoie
+  destinataireStaffId String? // Staff destinataire (si staff ↔ staff)
+  destinataireUserId  String? // User (parent) destinataire (si staff ↔ parent)
+  sujet        String
+  contenu      String   @db.Text
+  lu           Boolean  @default(false)
+  dateLecture  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant              Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  expediteur          Staff   @relation("MessageExpediteur", fields: [expediteurId], references: [id], onDelete: Cascade)
+  destinataireStaff   Staff?  @relation("MessageDestinataireStaff", fields: [destinataireStaffId], references: [id], onDelete: Cascade)
+  destinataireUser    User?   @relation("MessageDestinataireUser", fields: [destinataireUserId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([expediteurId])
+  @@index([destinataireStaffId])
+  @@index([destinataireUserId])
+  @@index([lu])
   @@index([createdAt])
 }

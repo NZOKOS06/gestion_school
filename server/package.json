@@ -14,7 +14,7 @@
     "db:seed": "node prisma/seed.js",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
-    "test:integration": "vitest run src/tests/flux-*.test.js src/tests/securite-*.test.js"
+    "test:integration": "vitest run src/middleware/tenantMiddleware.test.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

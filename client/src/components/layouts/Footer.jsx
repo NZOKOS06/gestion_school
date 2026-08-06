@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Pill, MapPin, Phone, Mail, Clock, Shield, Heart,
+  GraduationCap, MapPin, Phone, Mail, Clock, Shield,
   Facebook, Instagram, MessageCircle, ArrowRight,
 } from 'lucide-react';
 import { useTenant } from '../../contexts/TenantContext';
@@ -16,21 +16,19 @@ const Footer = () => {
   const [subscribed, setSubscribed] = useState(false);
   const year = new Date().getFullYear();
 
-  const nomApp = config?.nomApp || 'GestPharma';
-  const slogan = config?.sloganApp || 'Votre santé, notre priorité';
+  const nomApp = config?.nomApp || 'GestSchool';
+  const slogan = config?.sloganApp || 'L\'excellence éducative au service de votre avenir';
 
   const navLinks = [
-    { label: t('nav_home'), to: '/' },
-    { label: t('nav_catalogue'), to: '/catalogue' },
-    { label: t('btn_order'), to: '/commander' },
-    { label: t('stat_delivery'), to: '/suivi' },
-    { label: t('nav_login'), to: '/login' },
+    { label: 'Accueil', to: '/' },
+    { label: 'Actualités', to: '/actualites' },
+    { label: 'Connexion', to: '/login' },
   ];
 
   const legalLinks = [
-    { label: t('footer_legal'), to: '/mentions-legales' },
-    { label: t('footer_privacy'), to: '/confidentialite' },
-    { label: t('footer_terms'), to: '/cgu' },
+    { label: 'Confidentialité', to: '/politique-confidentialite' },
+    { label: 'Conditions d\'utilisation', to: '/conditions-utilisation' },
+    { label: 'Cookies', to: '/politique-cookies' },
   ];
 
   const horaires = config?.horaireOuverture
@@ -48,7 +46,7 @@ const Footer = () => {
 
   return (
     <footer className="bg-gray-900 dark:bg-[#0A0D14] text-gray-300">
-      {/* Bande CTA urgence */}
+      {/* Bande CTA contact */}
       {config?.telephone && (
         <div
           className="border-b"
@@ -60,10 +58,10 @@ const Footer = () => {
                 className="h-9 w-9 rounded-full flex items-center justify-center shrink-0"
                 style={{ background: 'color-mix(in srgb, var(--color-primary) 20%, transparent)' }}
               >
-                <Heart className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+                <GraduationCap className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">{t('footer_emergency')}</p>
+                <p className="text-sm font-semibold text-white">Contactez l'établissement</p>
                 <p className="text-xs text-gray-400">{config.nom || nomApp}</p>
               </div>
             </div>
@@ -74,7 +72,7 @@ const Footer = () => {
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 <Phone className="h-4 w-4" />
-                {t('footer_call_now')}
+                Appeler
               </a>
               <a
                 href={`https://wa.me/${config.telephone?.replace(/[^0-9]/g, '')}`}
@@ -84,7 +82,7 @@ const Footer = () => {
                 style={{ backgroundColor: '#25D366' }}
               >
                 <MessageCircle className="h-4 w-4" />
-                {t('footer_whatsapp')}
+                WhatsApp
               </a>
             </div>
           </div>
@@ -103,7 +101,7 @@ const Footer = () => {
                   className="w-9 h-9 rounded-lg flex items-center justify-center"
                   style={{ background: 'var(--color-primary)' }}
                 >
-                  <Pill size={18} className="text-white" />
+                  <GraduationCap size={18} className="text-white" />
                 </div>
               )}
               <span className="text-white font-bold text-lg">{nomApp}</span>
@@ -267,15 +265,15 @@ const Footer = () => {
                 <div className="flex items-center gap-2">
                   <Shield className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
                   <span className="text-xs text-gray-400">
-                    {t('footer_auth_number')} : {config.numeroAutorisation}
+                    Agrément : {config.numeroAutorisation}
                   </span>
                 </div>
               )}
-              {config?.nomPharmacien && (
+              {config?.nomDirecteur && (
                 <div className="flex items-center gap-2">
-                  <Pill className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+                  <GraduationCap className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
                   <span className="text-xs text-gray-400">
-                    {config.nomPharmacien}
+                    {config.nomDirecteur}
                   </span>
                 </div>
               )}
@@ -306,7 +304,7 @@ const Footer = () => {
           <p className="text-xs text-gray-600">
             {t('footer_powered_by')}{' '}
             <span style={{ color: 'var(--color-primary)' }} className="font-medium">
-              GestPharma
+              GestSchool
             </span>
           </p>
         </div>

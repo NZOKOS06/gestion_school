@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { useAxios } from '../../hooks/useAxios';
 import {
@@ -23,24 +23,24 @@ import {
 } from 'lucide-react';
 
 const roleConfig = {
-  pharmacien: {
+  directeur: {
     color: 'bg-violet-500',
     badge: 'bg-violet-100 text-violet-700',
-    label: 'Pharmacien',
+    label: 'Directeur',
   },
   admin: { color: 'bg-[color-mix(in_srgb,#3B82F6_12%,transparent)]0', badge: 'bg-[color-mix(in_srgb,#3B82F6_12%,transparent)] text-[#3B82F6]', label: 'Admin' },
-  vendeur: { color: 'bg-[color-mix(in_srgb,#10B981_12%,transparent)]0', badge: 'bg-[color-mix(in_srgb,#10B981_12%,transparent)] text-[#10B981]', label: 'Vendeur' },
-  preparateur: {
+  enseignant: { color: 'bg-[color-mix(in_srgb,#10B981_12%,transparent)]0', badge: 'bg-[color-mix(in_srgb,#10B981_12%,transparent)] text-[#10B981]', label: 'Enseignant' },
+  secretaire: {
     color: 'bg-cyan-500',
     badge: 'bg-cyan-100 text-cyan-700',
-    label: 'Préparateur',
+    label: 'Secrétaire',
   },
-  caissier: {
+  comptable: {
     color: 'bg-[color-mix(in_srgb,#F59E0B_12%,transparent)]0',
     badge: 'bg-[color-mix(in_srgb,#F59E0B_12%,transparent)] text-[#F59E0B]',
-    label: 'Caissier',
+    label: 'Comptable',
   },
-  livreur: { color: 'bg-[var(--surface-hover)]0', badge: 'bg-[var(--surface-hover)] text-[var(--text-secondary)]', label: 'Livreur' },
+  surveillant: { color: 'bg-[var(--surface-hover)]0', badge: 'bg-[var(--surface-hover)] text-[var(--text-secondary)]', label: 'Surveillant' },
 };
 
 const ROLES = Object.keys(roleConfig);
@@ -65,6 +65,9 @@ const PersonnelMgmt = () => {
     email: '',
     role: '',
     telephone: '',
+    typeContrat: 'titulaire',
+    heuresHebdo: '',
+    tauxHoraire: '',
   });
 
   const [resultModal, setResultModal] = useState({
@@ -115,7 +118,7 @@ const PersonnelMgmt = () => {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ nom: '', prenom: '', email: '', role: '', telephone: '' });
+    setForm({ nom: '', prenom: '', email: '', role: '', telephone: '', typeContrat: 'titulaire', heuresHebdo: '', tauxHoraire: '' });
     setModalOpen(true);
   };
 
@@ -127,6 +130,9 @@ const PersonnelMgmt = () => {
       email: member.email || '',
       role: member.role || '',
       telephone: member.telephone || '',
+      typeContrat: member.typeContrat || 'titulaire',
+      heuresHebdo: member.heuresHebdo || '',
+      tauxHoraire: member.tauxHoraire || '',
     });
     setModalOpen(true);
   };
@@ -200,7 +206,7 @@ const PersonnelMgmt = () => {
       key: 'avatar',
       label: '',
       render: (_, row) => {
-        const cfg = roleConfig[row.role] || roleConfig.livreur;
+        const cfg = roleConfig[row.role] || roleConfig.enseignant;
         return (
           <div
             className={`h-10 w-10 rounded-full ${cfg.color} flex items-center justify-center text-white text-sm font-bold`}
@@ -220,7 +226,7 @@ const PersonnelMgmt = () => {
       key: 'role',
       label: 'Rôle',
       render: (val) => {
-        const cfg = roleConfig[val] || roleConfig.livreur;
+        const cfg = roleConfig[val] || roleConfig.enseignant;
         return (
           <span
             className={`inline-flex items-center rounded-full text-xs font-medium px-2.5 py-0.5 ${cfg.badge}`}
@@ -228,6 +234,15 @@ const PersonnelMgmt = () => {
             {cfg.label}
           </span>
         );
+      },
+    },
+    {
+      key: 'typeContrat',
+      label: 'Contrat',
+      render: (val) => {
+        const labels = { titulaire: 'Titulaire', vacataire: 'Vacataire', stagiaire: 'Stagiaire', contractuel: 'Contractuel' };
+        const variants = { titulaire: 'success', vacataire: 'warning', stagiaire: 'neutral', contractuel: 'neutral' };
+        return <Badge variant={variants[val] || 'neutral'}>{labels[val] || val || '—'}</Badge>;
       },
     },
     {
@@ -427,6 +442,47 @@ const PersonnelMgmt = () => {
               className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Type de contrat
+            </label>
+            <select
+              value={form.typeContrat}
+              onChange={(e) => setForm({ ...form, typeContrat: e.target.value })}
+              className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            >
+              <option value="titulaire">Titulaire</option>
+              <option value="vacataire">Vacataire</option>
+              <option value="stagiaire">Stagiaire</option>
+              <option value="contractuel">Contractuel</option>
+            </select>
+          </div>
+          {form.typeContrat === 'vacataire' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                  Heures / semaine
+                </label>
+                <input
+                  type="number"
+                  value={form.heuresHebdo}
+                  onChange={(e) => setForm({ ...form, heuresHebdo: e.target.value })}
+                  className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                  Taux horaire (FCFA)
+                </label>
+                <input
+                  type="number"
+                  value={form.tauxHoraire}
+                  onChange={(e) => setForm({ ...form, tauxHoraire: e.target.value })}
+                  className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                />
+              </div>
+            </div>
+          )}
         </form>
       </Modal>
 

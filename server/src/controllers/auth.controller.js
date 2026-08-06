@@ -860,3 +860,42 @@ export const verifyEmail = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const getMe = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
+
+    let profile;
+    if (role === 'parent') {
+      profile = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          tenant: { include: { config: true } },
+          enfants: { select: { id: true, matricule: true, nom: true, prenom: true } },
+        },
+      });
+    } else if (role === 'super_admin') {
+      profile = await rawPrisma.staff.findUnique({
+        where: { id: userId },
+        include: { tenant: { include: { config: true } } },
+      });
+    } else {
+      profile = await prisma.staff.findUnique({
+        where: { id: userId },
+        include: { tenant: { include: { config: true } } },
+      });
+    }
+
+    if (!profile) {
+      return res.status(404).json({ error: 'Utilisateur introuvable' });
+    }
+
+    const { passwordHash, ...safeProfile } = profile;
+    res.json(safeProfile);
+  } catch (error) {
+    captureError(error, { action: 'getMe' });
+    log.error({ err: error }, 'Get me error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

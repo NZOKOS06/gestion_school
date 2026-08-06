@@ -46,8 +46,8 @@ export function useNotifications() {
       stockAlerte: (data) =>
         add({
           type: 'stock',
-          title: 'Alerte stock',
-          message: `${data.medicament || data.dci} — stock critique (${data.stockTotal} unités)`,
+          title: 'Alerte effectif',
+          message: `${data.classe || data.eleve} — effectif critique (${data.effectif} élèves)`,
           icon: 'Package',
           color: 'danger',
         }),
@@ -55,36 +55,36 @@ export function useNotifications() {
       peremptionAlerte: (data) =>
         add({
           type: 'peremption',
-          title: 'Péremption proche',
-          message: `Lot ${data.numeroLot} de ${data.medicament} expire dans ${data.joursRestants} jours`,
+          title: 'Échéance proche',
+          message: `Échéance de ${data.eleve} — ${data.joursRestants} jours restants`,
           icon: 'Clock',
           color: 'warning',
         }),
 
       nouvelleOrdonnance: (data) =>
         add({
-          type: 'ordonnance',
-          title: 'Nouvelle ordonnance',
-          message: `Ordonnance de ${data.nomClient || 'un client'} en attente de validation`,
+          type: 'inscription',
+          title: 'Nouvelle inscription',
+          message: `Inscription de ${data.nomEleve || 'un élève'} en attente de validation`,
           icon: 'FileText',
           color: 'info',
         }),
 
       nouvelleVente: (data) =>
         add({
-          type: 'vente',
-          title: 'Nouvelle vente',
-          message: `Vente #${data.numeroVente} — ${data.montantTotal} FCFA`,
+          type: 'paiement',
+          title: 'Nouveau paiement',
+          message: `Paiement #${data.numeroPaiement} — ${data.montantTotal} FCFA`,
           icon: 'ShoppingCart',
           color: 'success',
         }),
 
       livraisonMAJ: (data) =>
         add({
-          type: 'livraison',
-          title: 'Livraison mise à jour',
-          message: `Livraison #${data.livraisonId} → ${data.statut}`,
-          icon: 'MapPin',
+          type: 'communication',
+          title: 'Communication mise à jour',
+          message: `Message #${data.messageId} → ${data.statut}`,
+          icon: 'MessageCircle',
           color: 'info',
         }),
     };

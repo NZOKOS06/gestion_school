@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import {
@@ -17,24 +17,24 @@ import {
   AlertTriangle,
   Check,
   Building2,
-  ShoppingBag,
-  Truck,
+  GraduationCap,
+  CalendarDays,
   Users,
   FileBarChart,
   ClipboardList,
-  Globe,
-  HeartPulse,
-  FlaskConical,
-  Gift,
-  Warehouse,
+  Wallet,
+  BookOpen,
+  FileText,
+  Award,
+  Gavel,
   Layers
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const palettes = [
-  { name: 'Santé Verte', primary: '#16A34A', secondary: '#0D9488' },
-  { name: 'Bleu Médical', primary: '#2563EB', secondary: '#0EA5E9' },
-  { name: 'Blanc Clinique', primary: '#0F172A', secondary: '#475569' },
+  { name: 'Émeraude Scolaire', primary: '#16A34A', secondary: '#0D9488' },
+  { name: 'Bleu Académique', primary: '#2563EB', secondary: '#0EA5E9' },
+  { name: 'Ardoise Pro', primary: '#0F172A', secondary: '#475569' },
   { name: 'Or Prestige', primary: '#B45309', secondary: '#D97706' },
   { name: 'Congo Vert', primary: '#15803D', secondary: '#166534' },
   { name: 'Nuit Professionnelle', primary: '#1E1B4B', secondary: '#4338CA' }
@@ -45,19 +45,18 @@ const polices = ['DM Sans', 'Inter', 'Poppins', 'Roboto'];
 const devises = ['FCFA', 'XOF', 'USD', 'EUR', 'CDF'];
 
 const moduleDefinitions = [
-  { key: 'moduleCatalogue', label: 'Catalogue', description: 'Gestion du catalogue médicaments', icon: ClipboardList, locked: true },
-  { key: 'moduleStock', label: 'Stock', description: 'Suivi des stocks et lots', icon: Warehouse },
-  { key: 'moduleVentes', label: 'Ventes', description: 'Encaissement et historique', icon: ShoppingBag },
-  { key: 'moduleOrdonnances', label: 'Ordonnances', description: 'Réception et validation', icon: ClipboardList },
-  { key: 'moduleFournisseurs', label: 'Fournisseurs', description: 'Répertoire et commandes', icon: Building2 },
+  { key: 'moduleEleves', label: 'Élèves', description: 'Inscriptions et dossiers élèves', icon: GraduationCap, locked: true },
+  { key: 'moduleClasses', label: 'Classes', description: 'Classes, niveaux et cycles', icon: Building2, locked: true },
+  { key: 'moduleMatieres', label: 'Matières', description: 'Matières et coefficients', icon: BookOpen },
+  { key: 'moduleNotes', label: 'Notes & Bulletins', description: 'Saisie des notes et génération de bulletins', icon: FileText },
+  { key: 'moduleEmploiDuTemps', label: 'Emploi du temps', description: 'Planification des cours', icon: CalendarDays },
+  { key: 'moduleAbsences', label: 'Absences', description: 'Appel et suivi des absences', icon: ClipboardList },
+  { key: 'moduleSanctions', label: 'Sanctions', description: 'Discipline et sanctions', icon: Gavel },
+  { key: 'modulePaiements', label: 'Paiements', description: 'Scolarités et échéances', icon: Wallet },
+  { key: 'moduleCertificats', label: 'Certificats', description: 'Attestations et certificats', icon: Award },
   { key: 'modulePersonnel', label: 'Personnel', description: 'Comptes et rôles', icon: Users },
   { key: 'moduleRapports', label: 'Rapports', description: 'Statistiques et analytics', icon: FileBarChart },
-  { key: 'moduleLivraison', label: 'Livraison', description: 'Livraison à domicile', icon: Truck },
-  { key: 'moduleCommandeEnLigne', label: 'Commande en ligne', description: 'Passage de commandes web', icon: Globe },
-  { key: 'modulePatients', label: 'Patients', description: 'Dossiers patients', icon: HeartPulse },
-  { key: 'moduleInteractions', label: 'Interactions', description: 'Vérification médicamenteuse', icon: FlaskConical },
-  { key: 'moduleFidelite', label: 'Fidélité', description: 'Programme de fidélité', icon: Gift },
-  { key: 'moduleMultiDepot', label: 'Multi-dépôt', description: 'Gestion multi-sites', icon: Layers }
+  { key: 'moduleActualites', label: 'Actualités', description: 'Publications et communication', icon: Layers }
 ];
 
 const Configuration = () => {
@@ -75,36 +74,32 @@ const Configuration = () => {
 
   // Form state
   const [form, setForm] = useState({
-    nomApp: 'GestPharma',
+    nomApp: 'GestSchool',
     nom: '',
     messageAccueil: '',
     adresse: '',
     telephone: '',
     email: '',
     numeroAutorisation: '',
-    nomPharmacien: '',
+    nomDirecteur: '',
     horaireOuverture: {},
     couleurPrimaire: '#16A34A',
     couleurSecondaire: '#0D9488',
     police: 'DM Sans',
     devise: 'FCFA',
     tauxTVA: 0,
-    fraisLivraison: 0,
-    seuilAlerteStock: 10,
-    joursAlertePeremption: 90,
-    moduleCatalogue: true,
-    moduleStock: true,
-    moduleVentes: true,
-    moduleOrdonnances: true,
-    moduleFournisseurs: true,
+    moduleEleves: true,
+    moduleClasses: true,
+    moduleMatieres: true,
+    moduleNotes: true,
+    moduleEmploiDuTemps: true,
+    moduleAbsences: true,
+    moduleSanctions: false,
+    modulePaiements: true,
+    moduleCertificats: true,
     modulePersonnel: true,
     moduleRapports: true,
-    moduleLivraison: false,
-    moduleCommandeEnLigne: false,
-    modulePatients: false,
-    moduleInteractions: false,
-    moduleFidelite: false,
-    moduleMultiDepot: false
+    moduleActualites: false
   });
 
   useEffect(() => {
@@ -155,29 +150,24 @@ const Configuration = () => {
         telephone: form.telephone,
         email: form.email,
         numeroAutorisation: form.numeroAutorisation,
-        nomPharmacien: form.nomPharmacien,
+        nomDirecteur: form.nomDirecteur,
         horaireOuverture: form.horaireOuverture,
         couleurPrimaire: form.couleurPrimaire,
         couleurSecondaire: form.couleurSecondaire,
         police: form.police,
         devise: form.devise,
         tauxTVA: parseFloat(form.tauxTVA) || 0,
-        fraisLivraison: parseFloat(form.fraisLivraison) || 0,
-        seuilAlerteStock: parseInt(form.seuilAlerteStock) || 10,
-        joursAlertePeremption: parseInt(form.joursAlertePeremption) || 90,
-        moduleCatalogue: form.moduleCatalogue,
-        moduleStock: form.moduleStock,
-        moduleVentes: form.moduleVentes,
-        moduleOrdonnances: form.moduleOrdonnances,
-        moduleFournisseurs: form.moduleFournisseurs,
+        moduleEleves: form.moduleEleves,
+        moduleClasses: form.moduleClasses,
+        moduleMatieres: form.moduleMatieres,
+        moduleNotes: form.moduleNotes,
+        moduleEmploiDuTemps: form.moduleEmploiDuTemps,
+        modulePresences: form.moduleAbsences,
+        moduleSanctions: form.moduleSanctions,
+        modulePaiements: form.modulePaiements,
+        moduleCertificats: form.moduleCertificats,
         modulePersonnel: form.modulePersonnel,
         moduleRapports: form.moduleRapports,
-        moduleLivraison: form.moduleLivraison,
-        moduleCommandeEnLigne: form.moduleCommandeEnLigne,
-        modulePatients: form.modulePatients,
-        moduleInteractions: form.moduleInteractions,
-        moduleFidelite: form.moduleFidelite,
-        moduleMultiDepot: form.moduleMultiDepot
       };
 
       await put(`/api/config/${slug}`, payload);
@@ -230,7 +220,7 @@ const Configuration = () => {
     <div className="space-y-6 pb-24">
       <PageHeader
         title="Configuration"
-        subtitle="Paramétrage de l identité, de l apparence et des modules de la pharmacie"
+        subtitle="Paramétrage de l identité, de l apparence et des modules de l établissement"
         icon={Settings}
       />
 
@@ -273,7 +263,7 @@ const Configuration = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Nom de la pharmacie</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Nom de l'établissement</label>
               <input
                 type="text"
                 value={form.nom || ''}
@@ -288,7 +278,7 @@ const Configuration = () => {
                 value={form.messageAccueil || ''}
                 onChange={e => updateForm('messageAccueil', e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[var(--color-primary)]"
-                placeholder="Votre santé, notre priorité..."
+                placeholder="L'excellence éducative au service de votre avenir..."
               />
             </div>
             <div>
@@ -321,7 +311,7 @@ const Configuration = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Numéro d autorisation</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Numéro d'agrément</label>
               <input
                 type="text"
                 value={form.numeroAutorisation || ''}
@@ -330,11 +320,11 @@ const Configuration = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Nom du pharmacien titulaire</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Nom du directeur</label>
               <input
                 type="text"
-                value={form.nomPharmacien || ''}
-                onChange={e => updateForm('nomPharmacien', e.target.value)}
+                value={form.nomDirecteur || ''}
+                onChange={e => updateForm('nomDirecteur', e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[var(--color-primary)]"
               />
             </div>
@@ -544,36 +534,14 @@ const Configuration = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Frais de livraison</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Année scolaire courante</label>
               <input
-                type="number"
-                min="0"
-                value={form.fraisLivraison}
-                onChange={e => updateForm('fraisLivraison', e.target.value)}
+                type="text"
+                value={form.anneeScolaire || ''}
+                onChange={e => updateForm('anneeScolaire', e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
+                placeholder="2025-2026"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Seuil alerte stock (unités)</label>
-              <input
-                type="number"
-                min="0"
-                value={form.seuilAlerteStock}
-                onChange={e => updateForm('seuilAlerteStock', e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
-              <p className="text-xs text-[var(--text-muted)] mt-1">Alerte si stock  cette valeur</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Jours alerte péremption</label>
-              <input
-                type="number"
-                min="1"
-                value={form.joursAlertePeremption}
-                onChange={e => updateForm('joursAlertePeremption', e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
-              <p className="text-xs text-[var(--text-muted)] mt-1">Alerte si péremption dans X jours</p>
             </div>
           </div>
         </div>
@@ -583,7 +551,7 @@ const Configuration = () => {
       {activeTab === 'modules' && (
         <div className="bg-[var(--surface-raised)] rounded-xl shadow-sm p-6 space-y-4">
           <p className="text-sm text-[var(--text-muted)]">
-            Activez ou désactivez les fonctionnalités SaaS disponibles pour votre pharmacie.
+            Activez ou désactivez les fonctionnalités SaaS disponibles pour votre établissement.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {moduleDefinitions.map(mod => {

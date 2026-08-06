@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
@@ -12,15 +12,14 @@ import {
 } from 'recharts';
 import {
   TrendingUp,
-  ShoppingCart,
-  PiggyBank,
+  Wallet,
+  GraduationCap,
   Percent,
   Download,
   FileText,
   Banknote,
   Smartphone,
   CreditCard,
-  Wallet,
   BarChart3,
 } from 'lucide-react';
 import { useAxios } from '../../hooks/useAxios';
@@ -38,7 +37,7 @@ const MODE_LABELS = {
   especes: 'Espèces',
   mobile_money: 'Mobile Money',
   carte: 'Carte bancaire',
-  credit: 'Crédit client',
+  credit: 'Crédit',
 };
 
 const MODE_ICONS = {
@@ -82,7 +81,7 @@ function CustomTooltip({ active, payload, label, formatPrice }) {
         {formatPrice(payload[0].value)}
       </p>
       {payload[0].payload?.nb != null && (
-        <p style={{ color: '#94a3b8' }}>{payload[0].payload.nb} vente(s)</p>
+        <p style={{ color: '#94a3b8' }}>{payload[0].payload.nb} paiement(s)</p>
       )}
     </div>
   );
@@ -169,9 +168,9 @@ const Rapports = () => {
     }
   };
 
-  const maxCaMedic = useMemo(() => {
-    if (!data?.top_medicaments?.length) return 1;
-    return Math.max(...data.top_medicaments.map((m) => m.ca));
+  const maxRecetteClasse = useMemo(() => {
+    if (!data?.top_classes?.length) return 1;
+    return Math.max(...data.top_classes.map((c) => c.montant));
   }, [data]);
 
   const totalPaiements = useMemo(() => {
@@ -180,7 +179,7 @@ const Rapports = () => {
   }, [data]);
 
   const chartData = useMemo(() => {
-    return (data?.ventes_par_jour || []).map((j) => ({
+    return (data?.paiements_par_jour || data?.ventes_par_jour || []).map((j) => ({
       date: j.date,
       montant: Math.round(j.montant),
       nb: j.nb,
@@ -190,34 +189,32 @@ const Rapports = () => {
   const kpiCards = data
     ? [
         {
-          label: 'CA total',
-          value: formatPrice(data.ca_total),
+          label: 'Scolarités perçues',
+          value: formatPrice(data.ca_total || data.total_paiements || 0),
           icon: TrendingUp,
           trend: data.ca_evolution_pct,
           delay: 0,
           color: 'primary',
         },
         {
-          label: 'Nombre de ventes',
-          value: data.nb_ventes.toLocaleString('fr-FR'),
-          icon: ShoppingCart,
+          label: 'Nombre de paiements',
+          value: (data.nb_ventes || data.nb_paiements || 0).toLocaleString('fr-FR'),
+          icon: Wallet,
           trend: data.nb_ventes_evolution_pct,
           delay: 60,
           color: 'blue',
         },
         {
-          label: 'Marge totale',
-          value: formatPrice(data.marge_totale),
-          icon: PiggyBank,
-          trend: data.marge_evolution_pct,
+          label: 'Scolarités attendues',
+          value: formatPrice(data.total_attendu || 0),
+          icon: GraduationCap,
           delay: 120,
           color: 'green',
         },
         {
-          label: 'Marge %',
-          value: `${data.marge_pct} %`,
+          label: 'Taux de recouvrement',
+          value: `${data.taux_recouvrement || 0} %`,
           icon: Percent,
-          trend: data.marge_pct_evolution_pct,
           delay: 180,
           color: 'orange',
         },
@@ -235,51 +232,44 @@ const Rapports = () => {
       ),
     },
     {
-      key: 'dci',
-      label: 'DCI',
+      key: 'nom',
+      label: 'Classe',
       render: (val) => (
         <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{val}</span>
       ),
     },
     {
-      key: 'nomCommercial',
-      label: 'Nom commercial',
-      render: (val) => (
-        <span style={{ color: 'var(--text-secondary)' }}>{val}</span>
-      ),
-    },
-    {
-      key: 'quantite',
-      label: 'Qté vendue',
+      key: 'nb_eleves',
+      label: 'Élèves',
       render: (val) => (
         <span className="mono" style={{ color: 'var(--text-primary)' }}>{val}</span>
       ),
     },
     {
-      key: 'ca',
-      label: 'CA généré',
+      key: 'montant',
+      label: 'Scolarités perçues',
       render: (val, row) => (
         <div className="min-w-[140px]">
           <span className="mono font-medium" style={{ color: 'var(--color-primary)' }}>
             {formatPrice(val)}
           </span>
-          <ProgressBar value={val} max={maxCaMedic} />
+          <ProgressBar value={val} max={maxRecetteClasse} />
         </div>
       ),
     },
     {
-      key: 'marge',
-      label: 'Marge',
+      key: 'taux_recouvrement',
+      label: 'Taux recouvrement',
       render: (val) => (
         <span className="mono" style={{ color: 'var(--text-secondary)' }}>
-          {formatPrice(val)}
+          {val ? `${val} %` : '-'}
         </span>
       ),
     },
   ];
 
-  const topData = (data?.top_medicaments || []).map((m, i) => ({
-    ...m,
+  const topData = (data?.top_classes || []).map((c, i) => ({
+    ...c,
     rang: i + 1,
   }));
 
@@ -287,7 +277,7 @@ const Rapports = () => {
     <div data-testid={data ? 'rapports-loaded' : undefined} className="space-y-8">
       <PageHeader
         title="Rapports & Analyses"
-        subtitle="Chiffre d'affaires, marges et performance commerciale"
+        subtitle="Scolarités, paiements et taux de recouvrement"
         actions={
           <>
             <Button
@@ -401,8 +391,8 @@ const Rapports = () => {
             ))}
       </div>
 
-      {/* Graphique CA par jour */}
-      <Card title="Chiffre d'affaires par jour" icon={BarChart3}>
+      {/* Graphique paiements par jour */}
+      <Card title="Scolarités perçues par jour" icon={BarChart3}>
         {loading && !data ? (
           <div className="flex items-center justify-center" style={{ height: 280 }}>
             <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent" />
@@ -442,18 +432,18 @@ const Rapports = () => {
             className="flex items-center justify-center text-sm"
             style={{ height: 280, color: 'var(--text-muted)' }}
           >
-            Aucune vente sur cette période
+            Aucun paiement sur cette période
           </div>
         )}
       </Card>
 
-      {/* Top 10 médicaments */}
-      <Card title="Top 10 médicaments" subtitle="Classés par chiffre d'affaires généré">
+      {/* Top classes par recettes */}
+      <Card title="Top classes par scolarités perçues" subtitle="Classées par montant encaissé">
         <DataTable
           columns={topColumns}
           data={topData}
           loading={loading && !data}
-          emptyMessage="Aucune vente sur cette période"
+          emptyMessage="Aucun paiement sur cette période"
         />
       </Card>
 

@@ -52,7 +52,7 @@ const Register = () => {
     }
   };
 
-  const nomApp = config?.nomApp || 'GestPharma';
+  const nomApp = config?.nomApp || 'GestSchool';
   const labelClass = 'block text-sm font-medium mb-2';
   const iconClass = 'absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none';
   const inputClass = 'w-full rounded-lg text-sm transition-all pl-10 pr-3 h-11';

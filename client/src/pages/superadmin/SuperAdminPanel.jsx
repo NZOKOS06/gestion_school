@@ -5,14 +5,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useI18n, LANGUAGES } from '../../contexts/I18nContext';
 import {
-  Building2, Users, Package, ShoppingCart, TrendingUp, CheckCircle,
+  Building2, Users, ShoppingCart, TrendingUp, CheckCircle,
   Plus, Edit2, Trash2, LogOut, Settings, ExternalLink, X,
-  Pill, FileText, Truck, BarChart2, MapPin, Heart,
-  AlertTriangle, Star, Copy, ChevronLeft, ChevronRight,
+  GraduationCap, BookOpen, FileText, BarChart2, Award,
+  AlertTriangle, Copy, ChevronLeft, ChevronRight,
   Upload, UserPlus, ArrowRight, Building,
   PauseCircle, PlayCircle, Shield, LayoutDashboard, Store, Sparkles,
   Globe, Sun, Moon, ChevronDown, Smartphone, Link2, QrCode, History,
-  Filter, Calendar, ArrowDown, ArrowUp, Cookie
+  Filter, Calendar, ArrowDown, ArrowUp, Cookie, ClipboardList
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
@@ -34,28 +34,27 @@ const PLANS = {
 };
 
 const PALETTES = [
-  { id: 'sante',   label: 'Santé Verte',    primary: '#16A34A', second: '#15803D', texte: '#FFFFFF' },
-  { id: 'medical', label: 'Bleu Médical',   primary: '#2563EB', second: '#1D4ED8', texte: '#FFFFFF' },
-  { id: 'clinique',label: 'Blanc Clinique', primary: '#0F172A', second: '#1E293B', texte: '#FFFFFF' },
-  { id: 'prestige',label: 'Or Prestige',    primary: '#B45309', second: '#92400E', texte: '#FFFFFF' },
-  { id: 'congo',   label: 'Congo Vert',     primary: '#15803D', second: '#166534', texte: '#FFFFFF' },
-  { id: 'nuit',    label: 'Nuit Pro',       primary: '#1E1B4B', second: '#312E81', texte: '#FFFFFF' },
+  { id: 'emeraude',  label: 'Émeraude Scolaire', primary: '#16A34A', second: '#15803D', texte: '#FFFFFF' },
+  { id: 'academique',label: 'Bleu Académique',   primary: '#2563EB', second: '#1D4ED8', texte: '#FFFFFF' },
+  { id: 'ardoise',   label: 'Ardoise Pro',       primary: '#0F172A', second: '#1E293B', texte: '#FFFFFF' },
+  { id: 'prestige',  label: 'Or Prestige',       primary: '#B45309', second: '#92400E', texte: '#FFFFFF' },
+  { id: 'congo',     label: 'Congo Vert',        primary: '#15803D', second: '#166534', texte: '#FFFFFF' },
+  { id: 'nuit',      label: 'Nuit Pro',          primary: '#1E1B4B', second: '#312E81', texte: '#FFFFFF' },
 ];
 
 const MODULES_CONFIG = [
-  { key: 'moduleCatalogue',      label: 'Catalogue',       icon: Pill,           desc: 'Catalogue médicaments',  locked: true,  planMinimum: 'starter',     required: true },
-  { key: 'moduleStock',          label: 'Stock',           icon: Package,        desc: 'Stocks et lots FEFO',    locked: true,  planMinimum: 'starter',     required: true },
-  { key: 'moduleVentes',         label: 'Ventes',          icon: ShoppingCart,   desc: 'Ventes et caisse',       locked: true,  planMinimum: 'starter',     required: true },
-  { key: 'moduleOrdonnances',    label: 'Ordonnances',     icon: FileText,       desc: 'Ordonnances',            locked: false, planMinimum: 'basique',     required: false },
-  { key: 'moduleFournisseurs',   label: 'Fournisseurs',    icon: Truck,          desc: 'Commandes fournisseurs', locked: false, planMinimum: 'basique',     required: false },
-  { key: 'modulePersonnel',      label: 'Personnel',       icon: Users,          desc: 'Gestion du staff',       locked: false, planMinimum: 'basique',     required: false },
-  { key: 'moduleRapports',       label: 'Rapports',        icon: BarChart2,      desc: 'Statistiques',           locked: false, planMinimum: 'pro',         required: false },
-  { key: 'moduleLivraison',      label: 'Livraison',       icon: MapPin,         desc: 'Livraison à domicile',   locked: false, planMinimum: 'pro',         required: false },
-  { key: 'moduleCommandeEnLigne',label: 'En ligne',        icon: Globe,          desc: 'Vitrine + commandes',    locked: false, planMinimum: 'pro',         required: false },
-  { key: 'modulePatients',       label: 'Patients',        icon: Heart,          desc: 'Dossiers patients',      locked: false, planMinimum: 'pro',         required: false },
-  { key: 'moduleInteractions',   label: 'Interactions',    icon: AlertTriangle,  desc: 'Alertes interactions',   locked: false, planMinimum: 'enterprise',  required: false },
-  { key: 'moduleFidelite',       label: 'Fidélité',        icon: Star,           desc: 'Points fidélité',        locked: false, planMinimum: 'enterprise',  required: false },
-  { key: 'moduleMultiDepot',     label: 'Multi-dépôt',     icon: Building,       desc: 'Plusieurs points vente', locked: false, planMinimum: 'enterprise',  required: false },
+  { key: 'moduleEleves',          label: 'Élèves',          icon: GraduationCap,  desc: 'Inscriptions et dossiers élèves', locked: true,  planMinimum: 'starter',     required: true },
+  { key: 'moduleClasses',         label: 'Classes',         icon: Building2,      desc: 'Classes, niveaux et cycles',      locked: true,  planMinimum: 'starter',     required: true },
+  { key: 'modulePaiements',       label: 'Paiements',       icon: ShoppingCart,   desc: 'Scolarités et échéances',         locked: true,  planMinimum: 'starter',     required: true },
+  { key: 'moduleMatieres',        label: 'Matières',        icon: BookOpen,       desc: 'Matières et coefficients',        locked: false, planMinimum: 'basique',     required: false },
+  { key: 'moduleNotes',           label: 'Notes & Bulletins', icon: FileText,     desc: 'Saisie des notes et bulletins',   locked: false, planMinimum: 'basique',     required: false },
+  { key: 'modulePersonnel',       label: 'Personnel',       icon: Users,          desc: 'Comptes et rôles',                locked: false, planMinimum: 'basique',     required: false },
+  { key: 'moduleRapports',        label: 'Rapports',        icon: BarChart2,      desc: 'Statistiques',                    locked: false, planMinimum: 'pro',         required: false },
+  { key: 'moduleEmploiDuTemps',   label: 'Emploi du temps', icon: Calendar,       desc: 'Planification des cours',         locked: false, planMinimum: 'pro',         required: false },
+  { key: 'moduleAbsences',        label: 'Absences',        icon: ClipboardList,  desc: 'Appel et suivi des absences',     locked: false, planMinimum: 'pro',         required: false },
+  { key: 'moduleActualites',      label: 'Actualités',      icon: Globe,          desc: 'Publications et communication',   locked: false, planMinimum: 'pro',         required: false },
+  { key: 'moduleSanctions',       label: 'Sanctions',       icon: AlertTriangle,  desc: 'Discipline et sanctions',         locked: false, planMinimum: 'enterprise',  required: false },
+  { key: 'moduleCertificats',     label: 'Certificats',     icon: Award,          desc: 'Attestations et certificats',     locked: false, planMinimum: 'enterprise',  required: false },
 ];
 
 const PLAN_ORDER = { starter: 1, basique: 2, pro: 3, enterprise: 4 };
@@ -84,7 +83,7 @@ const DEFAULT_CONFIG = {
   email: '',
   numeroAutorisation: '',
   numeroTVA: '',
-  nomPharmacien: '',
+  nomDirecteur: '',
   horaireOuverture: {},
   facebookUrl: '',
   instagramUrl: '',
@@ -117,12 +116,8 @@ const DEFAULT_CONFIG = {
   devise: 'FCFA',
   modePrix: 'TTC',
   tauxTVA: 0,
-  seuilAlerteStock: 10,
-  joursAlertePeremption: 30,
-  fraisLivraison: 0,
-  seuilLivraisonGratuite: 0,
-  zonesLivraison: [],
-  modesPaiement: ['especes'],
+  anneeScolaire: '',
+  modesPaiement: ['especes', 'mobile_money'],
   metaTitle: '',
   metaDescription: '',
   metaKeywords: '',
@@ -136,19 +131,18 @@ const DEFAULT_CONFIG = {
   cookieBannerText: '',
   cookieBannerEnabled: true,
   analyticsEnabled: false,
-  moduleCatalogue: true,
-  moduleStock: true,
-  moduleVentes: true,
-  moduleOrdonnances: false,
-  moduleFournisseurs: false,
+  moduleEleves: true,
+  moduleClasses: true,
+  modulePaiements: true,
+  moduleMatieres: false,
+  moduleNotes: false,
   modulePersonnel: false,
   moduleRapports: true,
-  moduleLivraison: false,
-  moduleCommandeEnLigne: false,
-  modulePatients: false,
-  moduleInteractions: false,
-  moduleFidelite: false,
-  moduleMultiDepot: false,
+  moduleEmploiDuTemps: false,
+  moduleAbsences: false,
+  moduleActualites: false,
+  moduleSanctions: false,
+  moduleCertificats: false,
 };
 
 const JOURS_SEMAINE_CONFIG = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
@@ -371,7 +365,7 @@ const PreviewCard = ({ config, nom }) => (
           color: 'var(--text-primary)',
         }}
       >
-        {nom || 'Votre Pharmacie'}
+        {nom || 'Votre Établissement'}
       </h4>
       <div className="flex items-center gap-2">
         <button
@@ -531,7 +525,7 @@ const TenantAccessSection = ({ tenant }) => {
     // Base de production : VITE_FRONTEND_URL en priorité, sinon on déduit depuis VITE_API_URL
     let base = frontendBase;
     if (!base && apiBase) {
-      // ex: https://gestpharma-api.onrender.com → https://gestpharma-two.vercel.app
+      // ex: https://GestSchool-api.onrender.com → https://GestSchool-two.vercel.app
       try {
         const apiOrigin = new URL(apiBase).origin;
         // Remplace le pattern -api.onrender.com par -two.vercel.app si possible
@@ -624,7 +618,7 @@ const TenantAccessSection = ({ tenant }) => {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-700">Mode maintenance</p>
-            <p className="text-xs text-slate-500">Ferme l'accès public au site de la pharmacie.</p>
+            <p className="text-xs text-slate-500">Ferme l'accès public au site de l'établissement.</p>
           </div>
           <button
             onClick={() => setMaintenance(v => !v)}
@@ -636,7 +630,7 @@ const TenantAccessSection = ({ tenant }) => {
         </div>
         <div>
           <label className="block text-xs font-medium mb-1 text-slate-500">Domaine personnalisé</label>
-          <input type="text" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="pharmacie-client.com" className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900" />
+          <input type="text" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="école-client.com" className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900" />
         </div>
         <div className="flex justify-end">
           <Button variant="primary" onClick={saveAccessSettings} loading={saving} size="sm">Enregistrer</Button>
@@ -709,7 +703,7 @@ const TenantAccessSection = ({ tenant }) => {
               <p className="text-sm font-semibold text-green-900">📱 QR Code d'accès direct</p>
               <p className="text-xs text-green-700">
                 Scannez ce QR code depuis n'importe où dans le monde pour accéder directement
-                à la page de connexion de la pharmacie <strong>{tenant?.nom}</strong>.
+                à la page de connexion de l'établissement <strong>{tenant?.nom}</strong>.
               </p>
               <p className="text-xs text-green-600 font-mono break-all">{prodUrl}</p>
               {prodQr && (
@@ -867,7 +861,7 @@ const SuperAdminPanel = () => {
   const [logoPreview, setLogoPreview] = useState(null);
 
   const [staffModalOpen, setStaffModalOpen] = useState(false);
-  const [staffForm, setStaffForm] = useState({ nom: '', prenom: '', email: '', role: 'pharmacien' });
+  const [staffForm, setStaffForm] = useState({ nom: '', prenom: '', email: '', role: 'directeur' });
   const [createdStaff, setCreatedStaff] = useState(null);
   const [staffList, setStaffList] = useState([]);
   const [viewStaffModalOpen, setViewStaffModalOpen] = useState(false);
@@ -890,7 +884,7 @@ const SuperAdminPanel = () => {
     numeroAutorisation: '',
   });
   const [createConfig, setCreateConfig] = useState(DEFAULT_CONFIG);
-  const [createStaff, setCreateStaff] = useState({ nom: '', prenom: '', email: '', role: 'pharmacien' });
+  const [createStaff, setCreateStaff] = useState({ nom: '', prenom: '', email: '', role: 'directeur' });
   const [skipStaffCreation, setSkipStaffCreation] = useState(false);
   const [createdTenantResult, setCreatedTenantResult] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -991,7 +985,7 @@ const SuperAdminPanel = () => {
         ...tenant,
         actif: !tenant.actif
       });
-      toast.success(tenant.actif ? 'Pharmacie désactivée' : 'Pharmacie activée');
+      toast.success(tenant.actif ? 'Établissement désactivé' : 'Établissement activé');
       fetchData();
     } catch (error) {
       toast.error('Erreur lors du changement de statut');
@@ -1002,7 +996,7 @@ const SuperAdminPanel = () => {
     if (!tenantToDelete) return;
     try {
       await del(`/api/superadmin/tenants/${tenantToDelete.id}`);
-      toast.success('Pharmacie supprimée');
+      toast.success('Établissement supprimé');
       setDeleteModalOpen(false);
       setTenantToDelete(null);
       fetchData();
@@ -1026,7 +1020,7 @@ const SuperAdminPanel = () => {
   const handleEditSubmit = async () => {
     try {
       await put(`/api/superadmin/tenants/${editingTenant.id}`, editForm);
-      toast.success('Pharmacie mise à jour');
+      toast.success('Établissement mis à jour');
       setEditModalOpen(false);
       fetchData();
     } catch (error) {
@@ -1095,7 +1089,7 @@ const SuperAdminPanel = () => {
 
   const openStaffModal = (tenant) => {
     setSelectedTenant(tenant);
-    setStaffForm({ nom: '', prenom: '', email: '', role: 'pharmacien' });
+    setStaffForm({ nom: '', prenom: '', email: '', role: 'directeur' });
     setCreatedStaff(null);
     setStaffModalOpen(true);
   };
@@ -1136,7 +1130,7 @@ const SuperAdminPanel = () => {
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // WIZARD CRÉATION PHARMACIE
+  // WIZARD CRÉATION ÉTABLISSEMENT
   // ─────────────────────────────────────────────────────────────────────────────
 
   const handleCreateTenant = async () => {
@@ -1195,7 +1189,7 @@ const SuperAdminPanel = () => {
       staff: newStaff,
     });
 
-    toast.success('Pharmacie créée avec succès !');
+    toast.success('Établissement créé avec succès !');
   };
 
   const resetCreateWizard = () => {
@@ -1210,7 +1204,7 @@ const SuperAdminPanel = () => {
       numeroAutorisation: '',
     });
     setCreateConfig(DEFAULT_CONFIG);
-    setCreateStaff({ nom: '', prenom: '', email: '', role: 'pharmacien' });
+    setCreateStaff({ nom: '', prenom: '', email: '', role: 'directeur' });
     setSkipStaffCreation(false);
     setCreatedTenantResult(null);
   };
@@ -1263,10 +1257,10 @@ const SuperAdminPanel = () => {
               className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
               style={{ background: 'linear-gradient(135deg, #16A34A, #15803D)' }}
             >
-              <Pill className="h-5 w-5 text-white" />
+              <GraduationCap className="h-5 w-5 text-white" />
             </div>
             <span className="text-base md:text-lg font-bold" style={{ color: C.text, fontFamily: 'var(--font-sans, "Plus Jakarta Sans", sans-serif)' }}>
-              GestPharma
+              GestSchool
             </span>
             <Badge variant="info"><span className="hidden sm:inline">Super Admin</span><span className="sm:hidden">SA</span></Badge>
           </div>
@@ -1307,7 +1301,7 @@ const SuperAdminPanel = () => {
             style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text }}
           >
             <option value="dashboard">📊 Dashboard</option>
-            <option value="pharmacies">🏪 Pharmacies</option>
+            <option value="etablissements">🏪 Établissements</option>
             <option value="creation">✨ Création</option>
             <option value="audit">📋 Audit</option>
           </select>
@@ -1323,12 +1317,12 @@ const SuperAdminPanel = () => {
                 {t('dashboard')}
               </TabButton>
               <TabButton
-                active={activeTab === 'pharmacies'}
-                onClick={() => setActiveTab('pharmacies')}
+                active={activeTab === 'etablissements'}
+                onClick={() => setActiveTab('etablissements')}
                 icon={Store}
-                data-testid="tab-pharmacies"
+                data-testid="tab-etablissements"
               >
-                {t('pharmacies')}
+                {t('établissements')}
               </TabButton>
               <TabButton
                 active={activeTab === 'creation'}
@@ -1362,14 +1356,14 @@ const SuperAdminPanel = () => {
             {stats && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <KpiCard
-                  label="Total pharmacies"
+                  label="Total établissements"
                   value={stats?.totalTenants ?? stats?.total_tenants ?? 0}
                   icon={Building2}
                   color="blue"
                   delay={0}
                 />
                 <KpiCard
-                  label="Pharmacies actives"
+                  label="Établissements actifs"
                   value={stats?.tenantsActifs ?? stats?.tenants_actifs ?? 0}
                   icon={CheckCircle}
                   color="green"
@@ -1383,21 +1377,21 @@ const SuperAdminPanel = () => {
                   delay={200}
                 />
                 <KpiCard
-                  label="Total médicaments"
-                  value={stats?.totalMedicaments ?? stats?.total_medicaments ?? 0}
-                  icon={Pill}
+                  label="Total élèves"
+                  value={stats?.totalEleves ?? stats?.total_eleves ?? 0}
+                  icon={GraduationCap}
                   color="cyan"
                   delay={300}
                 />
                 <KpiCard
-                  label="Total ventes"
-                  value={stats?.totalVentes ?? stats?.total_ventes ?? 0}
+                  label="Total paiements"
+                  value={stats?.totalPaiements ?? stats?.total_paiements ?? 0}
                   icon={ShoppingCart}
                   color="orange"
                   delay={400}
                 />
                 <KpiCard
-                  label="CA Global"
+                  label="Scolarités perçues"
                   value={formatCurrency(stats?.caGlobal ?? stats?.ca_global ?? 0)}
                   icon={TrendingUp}
                   color="primary"
@@ -1406,7 +1400,7 @@ const SuperAdminPanel = () => {
               </div>
             )}
 
-            {/* Tableau des pharmacies — desktop */}
+            {/* Tableau des établissements — desktop */}
             <div
               className="rounded-xl overflow-hidden"
               style={{
@@ -1418,15 +1412,15 @@ const SuperAdminPanel = () => {
               <div className="px-4 md:px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${C.border}` }}>
                 <div>
                   <h2 className="text-base md:text-lg font-semibold" style={{ color: C.text }}>
-                    Vue d'ensemble des pharmacies
+                    Vue d'ensemble des établissements
                   </h2>
                   <p className="text-sm" style={{ color: C.textMuted }}>
-                    {totalTenants} pharmacies enregistrées
+                    {totalTenants} établissements enregistrés
                   </p>
                 </div>
                 <Button variant="primary" icon={Plus} onClick={() => { resetCreateWizard(); setActiveTab('creation'); }}>
-                  <span className="hidden sm:inline">Nouvelle pharmacie</span>
-                  <span className="sm:hidden">Nouvelle</span>
+                  <span className="hidden sm:inline">Nouvel établissement</span>
+                  <span className="sm:hidden">Nouvel</span>
                 </Button>
               </div>
 
@@ -1435,7 +1429,7 @@ const SuperAdminPanel = () => {
                 <table className="w-full text-sm">
                   <thead>
                     <tr style={{ background: C.surface2 }}>
-                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.textMuted }}>PHARMACIE</th>
+                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.textMuted }}>ÉTABLISSEMENT</th>
                       <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.textMuted }}>SLUG</th>
                       <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.textMuted }}>PLAN</th>
                       <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.textMuted }}>MODULES</th>
@@ -1447,7 +1441,7 @@ const SuperAdminPanel = () => {
                     {tenants.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-6 py-12 text-center" style={{ color: C.textMuted }}>
-                          Aucune pharmacie enregistrée
+                          Aucune établissement enregistrée
                         </td>
                       </tr>
                     ) : (
@@ -1528,7 +1522,7 @@ const SuperAdminPanel = () => {
               {/* Cards mobile */}
               <div className="md:hidden divide-y" style={{ borderColor: C.border }}>
                 {tenants.length === 0 ? (
-                  <p className="px-4 py-12 text-center" style={{ color: C.textMuted }}>Aucune pharmacie enregistrée</p>
+                  <p className="px-4 py-12 text-center" style={{ color: C.textMuted }}>Aucune établissement enregistrée</p>
                 ) : (
                   tenants.slice(0, 10).map((tenant) => {
                     const activeCount = countActiveModules(tenant.config);
@@ -1562,8 +1556,8 @@ const SuperAdminPanel = () => {
 
               {tenants.length > 10 && (
                 <div className="px-4 md:px-6 py-3 flex justify-center" style={{ borderTop: `1px solid ${C.border}` }}>
-                  <Button variant="ghost" onClick={() => setActiveTab('pharmacies')}>
-                    Voir toutes les pharmacies →
+                  <Button variant="ghost" onClick={() => setActiveTab('etablissements')}>
+                    Voir tous les établissements →
                   </Button>
                 </div>
               )}
@@ -1572,9 +1566,9 @@ const SuperAdminPanel = () => {
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════════
-            ONGLET 2 — GESTION PHARMACIES
+            ONGLET 2 — GESTION ÉTABLISSEMENTS
            ═══════════════════════════════════════════════════════════════════════ */}
-        {activeTab === 'pharmacies' && (
+        {activeTab === 'etablissements' && (
           <div className="space-y-6">
             {/* Filtres */}
             <div className="flex flex-col sm:flex-row gap-3">
@@ -1582,7 +1576,7 @@ const SuperAdminPanel = () => {
                 <SearchInput
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher une pharmacie..."
+                  placeholder="Rechercher un établissement..."
                 />
               </div>
               <select
@@ -1618,7 +1612,7 @@ const SuperAdminPanel = () => {
                 <option value="inactive">Inactifs</option>
               </select>
               <Button variant="primary" icon={Plus} onClick={() => { resetCreateWizard(); setActiveTab('creation'); }}>
-                Nouvelle pharmacie
+                Nouvel établissement
               </Button>
             </div>
 
@@ -1746,8 +1740,8 @@ const SuperAdminPanel = () => {
             {filteredTenants.length === 0 && (
               <div className="text-center py-16">
                 <Store className="h-12 w-12 mx-auto mb-4" style={{ color: '#94A3B8' }} />
-                <p className="text-lg font-medium" style={{ color: '#64748B' }}>Aucune pharmacie trouvée</p>
-                <p className="text-sm" style={{ color: '#94A3B8' }}>Modifiez vos filtres ou créez une nouvelle pharmacie</p>
+                <p className="text-lg font-medium" style={{ color: '#64748B' }}>Aucun établissement trouvé</p>
+                <p className="text-sm" style={{ color: '#94A3B8' }}>Modifiez vos filtres ou créez un nouvel établissement</p>
               </div>
             )}
           </div>
@@ -1761,7 +1755,7 @@ const SuperAdminPanel = () => {
                 <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center bg-green-100">
                   <CheckCircle className="h-8 w-8 text-green-600" />
                 </div>
-                <h2 className="text-xl font-bold mb-2 text-slate-900">Pharmacie créée avec succès !</h2>
+                <h2 className="text-xl font-bold mb-2 text-slate-900">Établissement créé avec succès !</h2>
                 <p className="text-lg mb-1 text-slate-700">{createdTenantResult.tenant.nom}</p>
                 <p className="text-sm mb-4 text-slate-500">Slug : {createdTenantResult.tenant.slug}</p>
                 {createdTenantResult.staff && (
@@ -1789,7 +1783,7 @@ const SuperAdminPanel = () => {
                   </div>
                 )}
                 <div className="flex justify-center gap-3">
-                  <Button data-testid="btn-ouvrir-pharmacie" variant="primary" icon={ExternalLink} onClick={() => window.open(`/p/${createdTenantResult.tenant.slug}/login`, '_blank')}>Ouvrir</Button>
+                  <Button data-testid="btn-ouvrir-etablissement" variant="primary" icon={ExternalLink} onClick={() => window.open(`/p/${createdTenantResult.tenant.slug}/login`, '_blank')}>Ouvrir</Button>
                   <Button variant="secondary" icon={Plus} onClick={resetCreateWizard}>Créer une autre</Button>
                 </div>
               </div>
@@ -1833,7 +1827,7 @@ const SuperAdminPanel = () => {
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium mb-1 text-slate-700">Nom *</label>
-                        <input data-testid="nom-pharmacie" type="text" value={createForm.nom} onChange={(e) => setCreateForm({ ...createForm, nom: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
+                        <input data-testid="nom-etablissement" type="text" value={createForm.nom} onChange={(e) => setCreateForm({ ...createForm, nom: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-1 text-slate-700">Slug *</label>
@@ -1902,12 +1896,12 @@ const SuperAdminPanel = () => {
                           <div><label className="block text-sm font-medium mb-1 text-slate-700">Prénom *</label><input data-testid="prenom-gerant" type="text" value={createStaff.prenom} onChange={(e) => setCreateStaff({ ...createStaff, prenom: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" /></div>
                         </div>
                         <div><label className="block text-sm font-medium mb-1 text-slate-700">Email *</label><input data-testid="email-gerant" type="email" value={createStaff.email} onChange={(e) => setCreateStaff({ ...createStaff, email: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" /></div>
-                        <div><label className="block text-sm font-medium mb-1 text-slate-700">Rôle</label><select value={createStaff.role} onChange={(e) => setCreateStaff({ ...createStaff, role: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900"><option value="pharmacien">Pharmacien</option><option value="admin">Admin</option></select></div>
+                        <div><label className="block text-sm font-medium mb-1 text-slate-700">Rôle</label><select value={createStaff.role} onChange={(e) => setCreateStaff({ ...createStaff, role: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900"><option value="directeur">Directeur</option><option value="admin">Admin</option></select></div>
                       </div>
                     )}
                     <div className="flex justify-between">
                       <Button variant="ghost" icon={ChevronLeft} onClick={() => setCreateStep(2)}>Précédent</Button>
-                      <Button data-testid="btn-creer-pharmacie" variant="primary" icon={CheckCircle} onClick={handleCreateTenant} loading={loading} disabled={!skipStaffCreation && (!createStaff.nom || !createStaff.prenom || !createStaff.email)}>Créer</Button>
+                      <Button data-testid="btn-creer-etablissement" variant="primary" icon={CheckCircle} onClick={handleCreateTenant} loading={loading} disabled={!skipStaffCreation && (!createStaff.nom || !createStaff.prenom || !createStaff.email)}>Créer</Button>
                     </div>
                   </div>
                 )}
@@ -1925,24 +1919,24 @@ const SuperAdminPanel = () => {
             {auditStats && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
                 <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                  <p className="text-xs text-slate-500">Mouvements stock</p>
+                  <p className="text-xs text-slate-500">Mouvements</p>
                   <p className="text-xl font-bold text-slate-900">{auditStats.totalMouvements?.toLocaleString('fr-FR') || 0}</p>
                 </div>
                 <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                  <p className="text-xs text-slate-500">Ventes</p>
-                  <p className="text-xl font-bold text-slate-900">{auditStats.totalVentes?.toLocaleString('fr-FR') || 0}</p>
+                  <p className="text-xs text-slate-500">Paiements</p>
+                  <p className="text-xl font-bold text-slate-900">{auditStats.totalPaiements?.toLocaleString('fr-FR') || 0}</p>
                 </div>
                 <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                  <p className="text-xs text-slate-500">Commandes</p>
-                  <p className="text-xl font-bold text-slate-900">{auditStats.totalCommandes?.toLocaleString('fr-FR') || 0}</p>
+                  <p className="text-xs text-slate-500">Inscriptions</p>
+                  <p className="text-xl font-bold text-slate-900">{auditStats.totalInscriptions?.toLocaleString('fr-FR') || 0}</p>
                 </div>
                 <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                  <p className="text-xs text-slate-500">Livraisons</p>
-                  <p className="text-xl font-bold text-slate-900">{auditStats.totalLivraisons?.toLocaleString('fr-FR') || 0}</p>
+                  <p className="text-xs text-slate-500">Communications</p>
+                  <p className="text-xl font-bold text-slate-900">{auditStats.totalCommunications?.toLocaleString('fr-FR') || 0}</p>
                 </div>
                 <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                  <p className="text-xs text-slate-500">Ordonnances</p>
-                  <p className="text-xl font-bold text-slate-900">{auditStats.totalOrdonnances?.toLocaleString('fr-FR') || 0}</p>
+                  <p className="text-xs text-slate-500">Inscriptions</p>
+                  <p className="text-xl font-bold text-slate-900">{auditStats.totalInscriptions?.toLocaleString('fr-FR') || 0}</p>
                 </div>
                 <div
                   className="p-4 rounded-lg bg-green-50 border border-green-200 cursor-pointer hover:bg-green-100 transition-colors shadow-sm"
@@ -1983,7 +1977,7 @@ const SuperAdminPanel = () => {
                           <th className="px-2 py-1.5 text-left font-medium">Nom complet</th>
                           <th className="px-2 py-1.5 text-left font-medium">Email</th>
                           <th className="px-2 py-1.5 text-left font-medium">Rôle</th>
-                          <th className="px-2 py-1.5 text-left font-medium">Pharmacie</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Établissement</th>
                           <th className="px-2 py-1.5 text-left font-medium">Type</th>
                         </tr>
                       </thead>
@@ -1997,7 +1991,7 @@ const SuperAdminPanel = () => {
                                 {user.role}
                               </span>
                             </td>
-                            <td className="px-2 py-1.5 font-medium text-slate-700">{user.pharmacy}</td>
+                            <td className="px-2 py-1.5 font-medium text-slate-700">{user.etablissement}</td>
                             <td className="px-2 py-1.5">
                               <span className={`px-1.5 py-0.5 rounded text-[10px] ${user.type === 'Staff' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
                                 {user.type}
@@ -2018,7 +2012,7 @@ const SuperAdminPanel = () => {
                 <SearchInput
                   value={auditSearch}
                   onChange={setAuditSearch}
-                  placeholder="Rechercher par pharmacie, produit, référence, action..."
+                  placeholder="Rechercher par établissement, référence, action..."
                 />
               </div>
               <select
@@ -2026,7 +2020,7 @@ const SuperAdminPanel = () => {
                 onChange={(e) => { setAuditTenantFilter(e.target.value); setAuditPage(1); }}
                 className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-900"
               >
-                <option value="">Toutes les pharmacies</option>
+                <option value="">Tous les établissements</option>
                 {tenants.map(t => (
                   <option key={t.id} value={t.id}>{t.nom}</option>
                 ))}
@@ -2039,11 +2033,10 @@ const SuperAdminPanel = () => {
                 <option value="all">Tous les types d'opération</option>
                 <option value="action_admin">Actions admin</option>
                 <option value="session">Sessions (Connexions)</option>
-                <option value="mouvement_stock">Mouvements stock</option>
-                <option value="vente">Ventes</option>
-                <option value="commande">Commandes fournisseurs</option>
-                <option value="livraison">Livraisons</option>
-                <option value="ordonnance">Ordonnances</option>
+                <option value="paiement">Paiements</option>
+                <option value="inscription">Inscriptions</option>
+                <option value="communication">Communications</option>
+                <option value="note">Notes & Bulletins</option>
               </select>
               <input
                 type="date"
@@ -2068,7 +2061,7 @@ const SuperAdminPanel = () => {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="px-4 py-3 text-left font-medium text-slate-600">Date</th>
-                      <th className="px-4 py-3 text-left font-medium text-slate-600">Pharmacie</th>
+                      <th className="px-4 py-3 text-left font-medium text-slate-600">Établissement</th>
                       <th className="px-4 py-3 text-left font-medium text-slate-600">Type</th>
                       <th className="px-4 py-3 text-left font-medium text-slate-600">Entité</th>
                       <th className="px-4 py-3 text-left font-medium text-slate-600">Référence</th>
@@ -2101,11 +2094,11 @@ const SuperAdminPanel = () => {
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <Badge variant={log.color || 'neutral'}>
-                              {log.type === 'mouvement_stock' ? 'Stock' :
-                               log.type === 'vente' ? 'Vente' :
-                               log.type === 'commande' ? 'Commande' :
-                               log.type === 'livraison' ? 'Livraison' :
-                               log.type === 'ordonnance' ? 'Ordonnance' : log.type}
+                              {log.type === 'action_admin' ? 'Admin' :
+                               log.type === 'paiement' ? 'Paiement' :
+                               log.type === 'inscription' ? 'Inscription' :
+                               log.type === 'communication' ? 'Communication' :
+                               log.type === 'note' ? 'Note' : log.type}
                             </Badge>
                             {log.subType && log.subType !== log.type && (
                               <span className="ml-1 text-xs text-slate-500">({log.subType})</span>
@@ -2157,7 +2150,7 @@ const SuperAdminPanel = () => {
       </main>
 
       {/* MODALES */}
-      <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} title="Modifier la pharmacie" footer={<><Button variant="ghost" onClick={() => setEditModalOpen(false)}>Annuler</Button><Button variant="primary" onClick={handleEditSubmit} loading={loading}>Sauvegarder</Button></>}>
+      <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} title="Modifier la établissement" footer={<><Button variant="ghost" onClick={() => setEditModalOpen(false)}>Annuler</Button><Button variant="primary" onClick={handleEditSubmit} loading={loading}>Sauvegarder</Button></>}>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1 text-slate-700">Nom</label>
@@ -2175,7 +2168,7 @@ const SuperAdminPanel = () => {
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="actif" checked={editForm.actif} onChange={(e) => setEditForm({ ...editForm, actif: e.target.checked })} />
-            <label htmlFor="actif" className="text-sm text-slate-700">Pharmacie active</label>
+            <label htmlFor="actif" className="text-sm text-slate-700">Établissement actif</label>
           </div>
         </div>
       </Modal>
@@ -2201,20 +2194,20 @@ const SuperAdminPanel = () => {
               <input type="text" value={tenantConfig.nomApp} onChange={(e) => setTenantConfig({ ...tenantConfig, nomApp: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1 text-slate-700">Nom de la pharmacie</label>
+              <label className="block text-sm font-medium mb-1 text-slate-700">Nom de l'établissement</label>
               <input type="text" value={tenantConfig.nom || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, nom: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1 text-slate-700">Slogan / Message d&apos;accueil</label>
-              <input type="text" value={tenantConfig.messageAccueil || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, messageAccueil: e.target.value })} placeholder="Votre santé, notre priorité..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
+              <input type="text" value={tenantConfig.messageAccueil || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, messageAccueil: e.target.value })} placeholder="L'excellence éducative au service de votre avenir..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1 text-slate-700">Description longue (À propos)</label>
-              <textarea value={tenantConfig.descriptionAbout || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, descriptionAbout: e.target.value })} rows={3} placeholder="Présentation officielle de la pharmacie..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
+              <textarea value={tenantConfig.descriptionAbout || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, descriptionAbout: e.target.value })} rows={3} placeholder="Présentation officielle de l'établissement..." className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1 text-slate-700">Nom du pharmacien titulaire</label>
-              <input type="text" value={tenantConfig.nomPharmacien || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, nomPharmacien: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
+              <label className="block text-sm font-medium mb-1 text-slate-700">Nom du directeur</label>
+              <input type="text" value={tenantConfig.nomDirecteur || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, nomDirecteur: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1 text-slate-700">Adresse</label>
@@ -2231,7 +2224,7 @@ const SuperAdminPanel = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1 text-slate-700">N° d&apos;autorisation</label>
+              <label className="block text-sm font-medium mb-1 text-slate-700">N° d&apos;agrément</label>
               <input type="text" value={tenantConfig.numeroAutorisation || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, numeroAutorisation: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
             </div>
             <div>
@@ -2919,8 +2912,7 @@ const SuperAdminPanel = () => {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className="block text-xs font-medium mb-1 text-slate-500">Taux TVA (%)</label><input type="number" value={tenantConfig.tauxTVA} onChange={(e) => setTenantConfig({ ...tenantConfig, tauxTVA: parseFloat(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900" /></div>
-                <div><label className="block text-xs font-medium mb-1 text-slate-500">Frais livraison</label><input type="number" value={tenantConfig.fraisLivraison} onChange={(e) => setTenantConfig({ ...tenantConfig, fraisLivraison: parseFloat(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900" /></div>
-                <div><label className="block text-xs font-medium mb-1 text-slate-500">Seuil livraison gratuite</label><input type="number" value={tenantConfig.seuilLivraisonGratuite} onChange={(e) => setTenantConfig({ ...tenantConfig, seuilLivraisonGratuite: parseFloat(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900" /></div>
+                <div><label className="block text-xs font-medium mb-1 text-slate-500">Année scolaire courante</label><input type="text" value={tenantConfig.anneeScolaire || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, anneeScolaire: e.target.value })} placeholder="2025-2026" className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900" /></div>
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1 text-slate-500">Modes de paiement acceptés</label>
@@ -2943,13 +2935,9 @@ const SuperAdminPanel = () => {
               </div>
             </div>
 
-            {/* Stock & alertes */}
+            {/* Année scolaire & alertes */}
             <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 space-y-3">
-              <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Stock & Alertes</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-xs font-medium mb-1 text-slate-500">Seuil alerte stock</label><input type="number" value={tenantConfig.seuilAlerteStock} onChange={(e) => setTenantConfig({ ...tenantConfig, seuilAlerteStock: parseInt(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900" /></div>
-                <div><label className="block text-xs font-medium mb-1 text-slate-500">Jours alerte péremption</label><input type="number" value={tenantConfig.joursAlertePeremption} onChange={(e) => setTenantConfig({ ...tenantConfig, joursAlertePeremption: parseInt(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900" /></div>
-              </div>
+              <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Alertes & Notifications</h4>
               <div>
                 <label className="block text-xs font-medium mb-1 text-slate-500">Email de réception des alertes</label>
                 <input type="email" value={tenantConfig.emailAlertes || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, emailAlertes: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900" />
@@ -3026,7 +3014,7 @@ const SuperAdminPanel = () => {
                 </div>
               )}
             </div>
-            <Button variant="secondary" onClick={() => { setCreatedStaff(null); setStaffForm({ nom: '', prenom: '', email: '', role: 'pharmacien' }); }}>Créer un autre</Button>
+            <Button variant="secondary" onClick={() => { setCreatedStaff(null); setStaffForm({ nom: '', prenom: '', email: '', role: 'directeur' }); }}>Créer un autre</Button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -3035,7 +3023,7 @@ const SuperAdminPanel = () => {
               <div><label className="block text-sm font-medium mb-1 text-slate-700">Prénom *</label><input type="text" value={staffForm.prenom} onChange={(e) => setStaffForm({ ...staffForm, prenom: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" /></div>
             </div>
             <div><label className="block text-sm font-medium mb-1 text-slate-700">Email *</label><input type="email" value={staffForm.email} onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" /></div>
-            <div><label className="block text-sm font-medium mb-1 text-slate-700">Rôle</label><select value={staffForm.role} onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900"><option value="pharmacien">Pharmacien</option><option value="admin">Admin</option></select></div>
+            <div><label className="block text-sm font-medium mb-1 text-slate-700">Rôle</label><select value={staffForm.role} onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900"><option value="directeur">Directeur</option><option value="admin">Admin</option></select></div>
           </div>
         )}
       </Modal>

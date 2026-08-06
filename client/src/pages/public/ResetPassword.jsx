@@ -21,7 +21,7 @@ const ResetPassword = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const nomApp = config?.nomApp || 'GestPharma';
+  const nomApp = config?.nomApp || 'GestSchool';
 
   useEffect(() => {
     if (!token) {

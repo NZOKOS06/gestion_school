@@ -14,7 +14,7 @@ const ForgotPassword = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const nomApp = config?.nomApp || 'GestPharma';
+  const nomApp = config?.nomApp || 'GestSchool';
 
   const handleSubmit = async (e) => {
     e.preventDefault();

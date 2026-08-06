@@ -4,23 +4,31 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 import {
   LayoutDashboard,
-  Package,
-  Pill,
-  Truck,
-  ShoppingCart,
+  GraduationCap,
+  School,
+  ClipboardList,
+  BookOpen,
+  CalendarDays,
+  CalendarX,
+  Gavel,
+  Wallet,
   FileText,
-  Users,
+  Award,
   BarChart3,
+  Users,
   Settings,
   LogOut,
   Menu,
   X,
   ChevronRight,
-  Layers,
-  FileCheck,
   Bell,
   User,
   KeyRound,
+  NotebookPen,
+  Users2,
+  DoorOpen,
+  CalendarRange,
+  Mail,
 } from 'lucide-react';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -32,52 +40,79 @@ const SIDEBAR_WIDTH = 256;
 
 const ROUTE_LABELS = {
   '/admin/dashboard': 'Tableau de bord',
-  '/admin/catalogue': 'Catalogue',
-  '/admin/stock': 'Stock',
-  '/admin/lots': 'Lots & Péremptions',
-  '/admin/fournisseurs': 'Fournisseurs',
-  '/admin/commandes-fournisseurs': 'Commandes fournisseurs',
-  '/admin/factures': 'Factures',
-  '/admin/ordonnances': 'Ordonnances',
-  '/admin/ventes': 'Ventes',
-  '/admin/livraisons': 'Livraisons',
-  '/admin/personnel': 'Personnel',
+  '/admin/eleves': 'Élèves',
+  '/admin/classes': 'Classes & Niveaux',
+  '/admin/inscriptions': 'Inscriptions',
+  '/admin/matieres': 'Matières',
+  '/admin/emploi-du-temps': 'Emploi du temps',
+  '/admin/absences': 'Absences',
+  '/admin/sanctions': 'Sanctions',
+  '/admin/paiements': 'Paiements & Échéances',
+  '/admin/bulletins': 'Bulletins',
+  '/admin/certificats': 'Certificats',
+  '/admin/cahier-de-textes': 'Cahier de textes',
+  '/admin/conseil-de-classe': 'Conseil de classe',
+  '/admin/salles': 'Salles',
+  '/admin/calendrier': 'Calendrier scolaire',
+  '/admin/messagerie': 'Messagerie',
   '/admin/rapports': 'Rapports',
+  '/admin/personnel': 'Personnel',
   '/admin/configuration': 'Configuration',
 };
 
 const NAV_ITEMS = [
   {
-    groupKey: 'operations',
+    groupKey: 'pilotage',
     items: [
       { path: '/admin/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
-      { path: '/admin/ventes', icon: ShoppingCart, labelKey: 'ventes', module: 'ventes' },
-      { path: '/admin/ordonnances', icon: FileText, labelKey: 'ordonnances', module: 'ordonnances' },
-      { path: '/admin/livraisons', icon: Truck, labelKey: 'livraisons', module: 'livraison' },
+      { path: '/admin/calendrier', icon: CalendarRange, labelKey: 'calendrier_scolaire' },
     ],
   },
   {
-    groupKey: 'gestion',
+    groupKey: 'vie_scolaire',
     items: [
-      { path: '/admin/catalogue', icon: Pill, labelKey: 'catalogue', module: 'catalogue' },
-      { path: '/admin/stock', icon: Package, labelKey: 'stock', module: 'stock' },
-      { path: '/admin/lots', icon: Layers, labelKey: 'lots', module: 'stock' },
-      { path: '/admin/fournisseurs', icon: Truck, labelKey: 'fournisseurs', module: 'fournisseurs' },
-      { path: '/admin/commandes-fournisseurs', icon: ShoppingCart, labelKey: 'commandes_fournisseurs', module: 'fournisseurs' },
-      { path: '/admin/factures', icon: FileCheck, labelKey: 'factures', module: 'fournisseurs' },
-      { path: '/admin/personnel', icon: Users, labelKey: 'personnel', module: 'personnel' },
+      { path: '/admin/eleves', icon: GraduationCap, labelKey: 'eleves' },
+      { path: '/admin/classes', icon: School, labelKey: 'classes' },
+      { path: '/admin/inscriptions', icon: ClipboardList, labelKey: 'inscriptions' },
+      { path: '/admin/matieres', icon: BookOpen, labelKey: 'matieres' },
+      { path: '/admin/emploi-du-temps', icon: CalendarDays, labelKey: 'emploi_du_temps' },
+      { path: '/admin/salles', icon: DoorOpen, labelKey: 'salles' },
+      { path: '/admin/absences', icon: CalendarX, labelKey: 'absences', module: 'presences' },
+      { path: '/admin/sanctions', icon: Gavel, labelKey: 'sanctions', module: 'sanctions' },
+    ],
+  },
+  {
+    groupKey: 'pedagogie',
+    items: [
+      { path: '/admin/cahier-de-textes', icon: NotebookPen, labelKey: 'cahier_de_textes' },
+      { path: '/admin/conseil-de-classe', icon: Users2, labelKey: 'conseil_de_classe' },
+      { path: '/admin/bulletins', icon: FileText, labelKey: 'bulletins', module: 'bulletins' },
+      { path: '/admin/certificats', icon: Award, labelKey: 'certificats', module: 'certificats' },
+    ],
+  },
+  {
+    groupKey: 'finances',
+    items: [
+      { path: '/admin/paiements', icon: Wallet, labelKey: 'paiements', module: 'paiements' },
     ],
   },
   {
     groupKey: 'analyse',
     items: [
-      { path: '/admin/rapports', icon: BarChart3, labelKey: 'rapports', module: 'rapports' },
+      { path: '/admin/rapports', icon: BarChart3, labelKey: 'rapports' },
+      { path: '/admin/personnel', icon: Users, labelKey: 'personnel' },
+    ],
+  },
+  {
+    groupKey: 'communication',
+    items: [
+      { path: '/admin/messagerie', icon: Mail, labelKey: 'messagerie' },
     ],
   },
   {
     groupKey: 'systeme',
     items: [
-      { path: '/admin/configuration', icon: Settings, labelKey: 'configuration', superAdminOnly: true },
+      { path: '/admin/configuration', icon: Settings, labelKey: 'configuration' },
     ],
   },
 ];
@@ -87,15 +122,15 @@ function filArianeDepuisChemin(pathname) {
   if (!pageLabel) {
     const segments = pathname.replace('/admin/', '').split('/');
     return [
-      { label: 'GestPharma', path: '/admin/dashboard' },
+      { label: 'GestSchool', path: '/admin/dashboard' },
       { label: segments[0] || 'Page', isPrimary: true },
     ];
   }
   if (pathname === '/admin/dashboard') {
-    return [{ label: 'GestPharma', path: '/admin/dashboard' }, { label: pageLabel, isPrimary: true }];
+    return [{ label: 'GestSchool', path: '/admin/dashboard' }, { label: pageLabel, isPrimary: true }];
   }
   return [
-    { label: 'GestPharma', path: '/admin/dashboard' },
+    { label: 'GestSchool', path: '/admin/dashboard' },
     { label: pageLabel, isPrimary: true },
   ];
 }
@@ -142,10 +177,10 @@ const AdminLayout = () => {
   }, [isModuleActive, user?.role, t]);
 
   const ariane = filArianeDepuisChemin(pathname);
-  const nomApp = config?.nomApp || 'GestPharma';
+  const nomApp = config?.nomApp || 'GestSchool';
 
   const initials = `${user?.prenom?.[0] || ''}${user?.nom?.[0] || ''}`;
-  const roleLabel = user?.role === 'pharmacien' ? 'Pharmacien' : 'Admin';
+  const roleLabel = user?.role === 'directeur' ? 'Directeur' : user?.role === 'super_admin' ? 'Super Admin' : 'Admin';
 
   const sidebarContent = (
     <div className="h-full flex flex-col" style={{ background: 'var(--surface-raised)' }}>
@@ -165,7 +200,7 @@ const AdminLayout = () => {
             className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: 'var(--color-primary)' }}
           >
-            <Pill className="h-4 w-4 text-white" />
+            <GraduationCap className="h-4 w-4 text-white" />
           </div>
         )}
         <div className="min-w-0">

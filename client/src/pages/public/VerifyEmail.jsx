@@ -13,7 +13,7 @@ const VerifyEmail = () => {
   const { t } = useI18n();
 
   const token = searchParams.get('token');
-  const nomApp = config?.nomApp || 'GestPharma';
+  const nomApp = config?.nomApp || 'GestSchool';
 
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('pending'); // pending | success | error

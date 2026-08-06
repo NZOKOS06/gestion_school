@@ -3,7 +3,7 @@ import { Pill, Menu, X, Phone } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
 
 const PublicNavbar = ({ config, links, loginLabel = 'Connexion', menuOuvert, setMenuOuvert }) => {
-  const nomApp = config?.nomApp || 'GestPharma';
+  const nomApp = config?.nomApp || 'GestSchool';
 
   return (
     <>
@@ -47,7 +47,7 @@ const PublicNavbar = ({ config, links, loginLabel = 'Connexion', menuOuvert, set
                   href={`tel:${config.telephone}`}
                   className="md:hidden h-10 w-10 rounded-full flex items-center justify-center text-white transition-all hover:shadow-md"
                   style={{ backgroundColor: 'var(--color-primary)' }}
-                  aria-label="Appeler la pharmacie"
+                  aria-label="Appeler l'établissement"
                 >
                   <Phone className="h-4 w-4" />
                 </a>

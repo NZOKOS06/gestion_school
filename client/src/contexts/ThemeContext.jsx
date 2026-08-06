@@ -10,7 +10,7 @@ export const useTheme = () => {
 
 export const ThemeProvider = ({ children }) => {
   const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem('gestpharma-theme');
+    const saved = localStorage.getItem('GestSchool-theme');
     if (saved) return saved === 'dark';
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
@@ -18,7 +18,7 @@ export const ThemeProvider = ({ children }) => {
   const theme = isDark ? 'dark' : 'light';
 
   useEffect(() => {
-    localStorage.setItem('gestpharma-theme', theme);
+    localStorage.setItem('GestSchool-theme', theme);
     if (isDark) {
       document.documentElement.classList.add('dark');
     } else {

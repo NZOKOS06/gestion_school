@@ -37,6 +37,9 @@ export const getAll = async (req, res) => {
           actif: true,
           mustChangePassword: true,
           derniereConnexion: true,
+          typeContrat: true,
+          heuresHebdo: true,
+          tauxHoraire: true,
           createdAt: true
         },
         skip: (page - 1) * limit,
@@ -94,6 +97,9 @@ export const getById = async (req, res) => {
         actif: true,
         mustChangePassword: true,
         derniereConnexion: true,
+        typeContrat: true,
+        heuresHebdo: true,
+        tauxHoraire: true,
         createdAt: true
       }
     });
@@ -111,7 +117,7 @@ export const getById = async (req, res) => {
 
 export const create = async (req, res) => {
   try {
-    const { email, nom, prenom, role, telephone } = req.body;
+    const { email, nom, prenom, role, telephone, typeContrat, heuresHebdo, tauxHoraire } = req.body;
     const tenantId = req.tenantId;
 
     const existant = await prisma.staff.findFirst({
@@ -134,6 +140,9 @@ export const create = async (req, res) => {
         prenom,
         role,
         telephone,
+        typeContrat: typeContrat || 'titulaire',
+        heuresHebdo: heuresHebdo ? parseInt(heuresHebdo) : null,
+        tauxHoraire: tauxHoraire ? parseFloat(tauxHoraire) : null,
         mustChangePassword: true
       },
       select: {
@@ -145,6 +154,9 @@ export const create = async (req, res) => {
         telephone: true,
         actif: true,
         mustChangePassword: true,
+        typeContrat: true,
+        heuresHebdo: true,
+        tauxHoraire: true,
         createdAt: true
       }
     });
@@ -186,9 +198,14 @@ export const update = async (req, res) => {
     const tenantId = req.tenantId;
 
     // Whitelist des champs modifiables — protège contre le mass assignment
-    const { nom, prenom, email, telephone, role, actif } = req.body;
+    const { nom, prenom, email, telephone, role, actif, typeContrat, heuresHebdo, tauxHoraire } = req.body;
     const data = Object.fromEntries(
-      Object.entries({ nom, prenom, email, telephone, role, actif }).filter(([, v]) => v !== undefined)
+      Object.entries({
+        nom, prenom, email, telephone, role, actif,
+        typeContrat: typeContrat !== undefined ? typeContrat : undefined,
+        heuresHebdo: heuresHebdo !== undefined ? (heuresHebdo ? parseInt(heuresHebdo) : null) : undefined,
+        tauxHoraire: tauxHoraire !== undefined ? (tauxHoraire ? parseFloat(tauxHoraire) : null) : undefined,
+      }).filter(([, v]) => v !== undefined)
     );
 
     const staff = await prisma.staff.findFirst({
@@ -221,6 +238,9 @@ export const update = async (req, res) => {
         actif: true,
         mustChangePassword: true,
         derniereConnexion: true,
+        typeContrat: true,
+        heuresHebdo: true,
+        tauxHoraire: true,
         updatedAt: true
       }
     });

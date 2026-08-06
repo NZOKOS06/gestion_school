@@ -4,11 +4,10 @@ import path from 'path'
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.test') })
 
-const DB_URL = process.env.DATABASE_URL_TEST || 'postgresql://postgres:postgres@localhost:5432/gestpharma_test'
+const DB_URL = process.env.DATABASE_URL_TEST || 'postgresql://postgres:postgres@localhost:5432/gestschool_test'
 const JWT_S  = process.env.JWT_SECRET        || 'test-secret-for-testing-only-not-production'
 const JWT_R  = process.env.JWT_REFRESH_SECRET|| 'test-refresh-secret-different'
 
-// Expose immediately so setupFiles (PrismaClient) can read them at module load time
 process.env.DATABASE_URL       = DB_URL
 process.env.DATABASE_URL_TEST  = DB_URL
 process.env.JWT_SECRET         = JWT_S
@@ -22,13 +21,20 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     fileParallelism: false,
+    // Phase 0: exclude legacy GestPharma integration suites (Phase 4 rewrite)
+    exclude: [
+      '**/node_modules/**',
+      '**/src/tests/**',
+      '**/src/utils/stockFEFO.test.js',
+      '**/src/controllers/auth.test.js',
+    ],
+    include: ['src/middleware/tenantMiddleware.test.js'],
     coverage: { reporter: ['text', 'lcov'] },
-    setupFiles: ['./src/tests/setup.js'],
     env: {
-      DATABASE_URL: process.env.DATABASE_URL_TEST || 'postgresql://postgres:postgres@localhost:5432/gestpharma_test',
-      DATABASE_URL_TEST: process.env.DATABASE_URL_TEST || 'postgresql://postgres:postgres@localhost:5432/gestpharma_test',
-      JWT_SECRET: process.env.JWT_SECRET || 'test-secret-for-testing-only-not-production',
-      JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'test-refresh-secret-different',
+      DATABASE_URL: DB_URL,
+      DATABASE_URL_TEST: DB_URL,
+      JWT_SECRET: JWT_S,
+      JWT_REFRESH_SECRET: JWT_R,
       NODE_ENV: 'test',
       PORT: '3001',
       FRONTEND_URL: 'http://localhost:5173',

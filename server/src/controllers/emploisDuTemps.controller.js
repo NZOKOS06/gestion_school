@@ -20,6 +20,7 @@ export const getAll = async (req, res) => {
         classe: { select: { id: true, nom: true, niveau: true } },
         matiere: { select: { id: true, nom: true, code: true } },
         enseignant: { select: { id: true, nom: true, prenom: true } },
+        salleRef: { select: { id: true, nom: true, batiment: true } },
       },
       orderBy: [{ jourSemaine: 'asc' }, { heureDebut: 'asc' }],
     });
@@ -34,7 +35,7 @@ export const getAll = async (req, res) => {
 export const create = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { classeId, matiereId, enseignantId, jourSemaine, heureDebut, heureFin, salle } = req.body;
+    const { classeId, matiereId, enseignantId, jourSemaine, heureDebut, heureFin, salle, salleId } = req.body;
 
     const conflit = await prisma.emploiDuTemps.findFirst({
       where: {
@@ -62,6 +63,7 @@ export const create = async (req, res) => {
         heureDebut,
         heureFin,
         salle: salle || null,
+        salleId: salleId || null,
       },
     });
 
@@ -78,7 +80,7 @@ export const update = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
-    const { jourSemaine, heureDebut, heureFin, salle, actif } = req.body;
+    const { jourSemaine, heureDebut, heureFin, salle, salleId, actif } = req.body;
 
     const existing = await prisma.emploiDuTemps.findFirst({ where: { id, tenantId } });
     if (!existing) {
@@ -90,6 +92,7 @@ export const update = async (req, res) => {
     if (heureDebut !== undefined) data.heureDebut = heureDebut;
     if (heureFin !== undefined) data.heureFin = heureFin;
     if (salle !== undefined) data.salle = salle;
+    if (salleId !== undefined) data.salleId = salleId || null;
     if (actif !== undefined) data.actif = actif;
 
     const emploi = await prisma.emploiDuTemps.update({ where: { id }, data });

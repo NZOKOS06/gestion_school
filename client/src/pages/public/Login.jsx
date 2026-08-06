@@ -24,19 +24,8 @@ const Login = () => {
     setLoading(true);
     setError('');
     try {
-      const user = await login(formData.email, formData.password, 'staff', selectedTenantSlug || undefined);
-      if (user?.mustChangePassword) return;
-      switch (user.role) {
-        case 'super_admin': navigate('/super-admin'); break;
-        case 'pharmacien':
-        case 'admin': navigate('/admin/dashboard'); break;
-        case 'vendeur':
-        case 'preparateur': navigate('/staff/dashboard'); break;
-        case 'caissier': navigate('/caissier'); break;
-        case 'livreur': navigate('/staff/livraisons'); break;
-        case 'client': navigate('/profil'); break;
-        default: navigate('/');
-      }
+      const user = await login(formData.email, formData.password, selectedTenantSlug || undefined);
+      // La redirection post-login est gérée par AuthContext selon le rôle
     } catch (err) {
       const message = err.response?.data?.error || err.response?.data?.message || 'Erreur de connexion';
       setError(message);
@@ -51,7 +40,7 @@ const Login = () => {
     }
   };
 
-  const nomApp = config?.nomApp || 'GestPharma';
+  const nomApp = config?.nomApp || 'GestSchool';
 
   const inputBase = 'w-full rounded-lg text-sm transition-all';
   const inputIcon = 'absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none';
@@ -183,7 +172,7 @@ const Login = () => {
             {tenants.length > 0 && (
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
-                  Pharmacie
+                  Établissement
                 </label>
                 <div className="relative">
                   <Building2 className={inputIcon} style={{ color: 'var(--text-muted)' }} />
@@ -206,7 +195,7 @@ const Login = () => {
                   </select>
                 </div>
                 <p className="mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Plusieurs comptes utilisent cet email. Sélectionnez la pharmacie.
+                  Plusieurs comptes utilisent cet email. Sélectionnez l'établissement.
                 </p>
               </div>
             )}

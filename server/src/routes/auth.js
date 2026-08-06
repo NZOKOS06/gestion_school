@@ -89,4 +89,7 @@ router.post('/request-email-verification', authenticate, ctrl.requestEmailVerifi
 // POST /api/auth/verify-email
 router.post('/verify-email', ctrl.verifyEmail);
 
+// GET /api/auth/me — profil courant (staff, parent ou super_admin)
+router.get('/me', authenticate, ctrl.getMe);
+
 export default router;

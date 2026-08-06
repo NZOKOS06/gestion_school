@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import PageTransition from '../transitions/PageTransition';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
-import { DollarSign, LogOut, Menu, Pill } from 'lucide-react';
+import { DollarSign, LogOut, Menu, GraduationCap, Wallet, AlertCircle, History } from 'lucide-react';
 import { useState } from 'react';
 import { ThemeToggle } from '../ui';
 
@@ -20,8 +20,11 @@ const CaissierLayout = () => {
     navigate('/login');
   };
 
-  const nomApp = config?.nomApp || 'GestPharma';
-  const isActive = pathname === '/caissier' || pathname.startsWith('/caissier/');
+  const nomApp = config?.nomApp || 'GestSchool';
+  const isCaisseActive = pathname === '/caissier' || pathname === '/caissier/';
+  const isEncaisserActive = pathname.startsWith('/caissier/encaisser');
+  const isRetardsActive = pathname === '/caissier/retards';
+  const isHistoriqueActive = pathname === '/caissier/historique';
 
   const navItemClass = (active) =>
     [
@@ -48,7 +51,7 @@ const CaissierLayout = () => {
         {config?.logoUrl ? (
           <img src={config.logoUrl} alt={nomApp} className="h-7 w-auto" />
         ) : (
-          <Pill className="h-5 w-5 shrink-0" style={{ color: 'var(--color-primary)' }} />
+          <GraduationCap className="h-5 w-5 shrink-0" style={{ color: 'var(--color-primary)' }} />
         )}
         <span className="text-sm font-semibold tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>
           {nomApp}
@@ -67,12 +70,42 @@ const CaissierLayout = () => {
             <NavLink
               to="/caissier"
               onClick={() => setSidebarOpen(false)}
-              className={navItemClass(isActive)}
-              style={isActive ? { background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)' } : {}}
+              className={navItemClass(isCaisseActive)}
+              style={isCaisseActive ? { background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)' } : {}}
             >
-              {isActive && activeIndicator}
+              {isCaisseActive && activeIndicator}
+              <Wallet className="h-[18px] w-[18px] shrink-0" />
+              <span>Caisse du jour</span>
+            </NavLink>
+            <NavLink
+              to="/caissier/encaisser"
+              onClick={() => setSidebarOpen(false)}
+              className={navItemClass(isEncaisserActive)}
+              style={isEncaisserActive ? { background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)' } : {}}
+            >
+              {isEncaisserActive && activeIndicator}
               <DollarSign className="h-[18px] w-[18px] shrink-0" />
-              <span>Encaissement</span>
+              <span>Encaisser un paiement</span>
+            </NavLink>
+            <NavLink
+              to="/caissier/retards"
+              onClick={() => setSidebarOpen(false)}
+              className={navItemClass(isRetardsActive)}
+              style={isRetardsActive ? { background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)' } : {}}
+            >
+              {isRetardsActive && activeIndicator}
+              <AlertCircle className="h-[18px] w-[18px] shrink-0" />
+              <span>Échéances en retard</span>
+            </NavLink>
+            <NavLink
+              to="/caissier/historique"
+              onClick={() => setSidebarOpen(false)}
+              className={navItemClass(isHistoriqueActive)}
+              style={isHistoriqueActive ? { background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)' } : {}}
+            >
+              {isHistoriqueActive && activeIndicator}
+              <History className="h-[18px] w-[18px] shrink-0" />
+              <span>Historique des reçus</span>
             </NavLink>
           </div>
         </div>
@@ -95,7 +128,7 @@ const CaissierLayout = () => {
               {user?.prenom} {user?.nom}
             </p>
             <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
-              Caissier
+              Comptable
             </p>
           </div>
           <button
@@ -164,7 +197,7 @@ const CaissierLayout = () => {
               <Menu className="h-5 w-5" />
             </button>
             <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-              Caisse
+              Comptable
             </span>
           </div>
           <div className="flex items-center gap-2">

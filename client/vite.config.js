@@ -22,7 +22,7 @@ export default defineConfig({
               request.destination === 'font',
             handler: 'CacheFirst',
             options: {
-              cacheName: 'gestpharma-assets-cache',
+              cacheName: 'GestSchool-assets-cache',
               expiration: {
                 maxEntries: 200,
                 maxAgeSeconds: 30 * 24 * 60 * 60,
@@ -34,7 +34,7 @@ export default defineConfig({
             urlPattern: ({ url }) => url.pathname.startsWith('/uploads/'),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'gestpharma-uploads-cache',
+              cacheName: 'GestSchool-uploads-cache',
               expiration: {
                 maxEntries: 200,
                 maxAgeSeconds: 30 * 24 * 60 * 60,
@@ -47,9 +47,9 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'GestPharma',
-        short_name: 'GestPharma',
-        description: 'Gestion de pharmacie multi-tenant',
+        name: 'GestSchool',
+        short_name: 'GestSchool',
+        description: 'Plateforme SaaS de gestion scolaire',
         theme_color: '#16A34A',
         background_color: '#0F1117',
         display: 'standalone',

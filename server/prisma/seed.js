@@ -107,7 +107,22 @@ async function main() {
 
   await prisma.tenantConfig.upsert({
     where: { tenantId: demoTenant.id },
-    update: {},
+    update: {
+      nomEcole: 'École Démo',
+      moduleEleves: true,
+      moduleNotes: true,
+      moduleBulletins: true,
+      modulePresences: true,
+      modulePaiements: true,
+      moduleEmploiDuTemps: true,
+      moduleParents: true,
+      moduleSanctions: true,
+      moduleCertificats: true,
+      moduleClasses: true,
+      moduleInscriptions: true,
+      modulePersonnel: true,
+      moduleRapports: true,
+    },
     create: {
       tenantId: demoTenant.id,
       nomEcole: 'École Démo',
@@ -132,6 +147,10 @@ async function main() {
       moduleParents: true,
       moduleSanctions: true,
       moduleCertificats: true,
+      moduleClasses: true,
+      moduleInscriptions: true,
+      modulePersonnel: true,
+      moduleRapports: true,
     },
   });
   console.log('✓ Configuration démo créée');
@@ -152,7 +171,18 @@ async function main() {
 
   await prisma.tenantConfig.upsert({
     where: { tenantId: defaultTenant.id },
-    update: {},
+    update: {
+      nomEcole: 'GestSchool',
+      moduleEleves: true,
+      moduleNotes: true,
+      moduleBulletins: true,
+      modulePresences: true,
+      modulePaiements: true,
+      moduleClasses: true,
+      moduleInscriptions: true,
+      modulePersonnel: true,
+      moduleRapports: true,
+    },
     create: {
       tenantId: defaultTenant.id,
       nomEcole: 'GestSchool',
@@ -164,17 +194,22 @@ async function main() {
       moduleBulletins: true,
       modulePresences: true,
       modulePaiements: true,
+      moduleClasses: true,
+      moduleInscriptions: true,
+      modulePersonnel: true,
+      moduleRapports: true,
     },
   });
   console.log('✓ Configuration default créée');
 
   // ==================== STAFF COMPLET (démo) ====================
   const staffDemo = [
-    { email: 'directeur@demo.cg', password: 'Directeur123!', role: 'directeur', nom: 'Mbemba', prenom: 'Jean' },
-    { email: 'secretaire@demo.cg', password: 'Secretaire123!', role: 'secretaire', nom: 'Ngoma', prenom: 'Marie' },
-    { email: 'enseignant@demo.cg', password: 'Enseignant123!', role: 'enseignant', nom: 'Kouassi', prenom: 'Paul' },
-    { email: 'surveillant@demo.cg', password: 'Surveillant123!', role: 'surveillant', nom: 'Moussa', prenom: 'Amadou' },
-    { email: 'comptable@demo.cg', password: 'Comptable123!', role: 'comptable', nom: 'Lingui', prenom: 'Sarah' },
+    { email: 'directeur@demo.cg', password: 'Directeur123!', role: 'directeur', nom: 'Mbemba', prenom: 'Jean', typeContrat: 'titulaire' },
+    { email: 'secretaire@demo.cg', password: 'Secretaire123!', role: 'secretaire', nom: 'Ngoma', prenom: 'Marie', typeContrat: 'titulaire' },
+    { email: 'enseignant@demo.cg', password: 'Enseignant123!', role: 'enseignant', nom: 'Kouassi', prenom: 'Paul', typeContrat: 'titulaire' },
+    { email: 'surveillant@demo.cg', password: 'Surveillant123!', role: 'surveillant', nom: 'Moussa', prenom: 'Amadou', typeContrat: 'titulaire' },
+    { email: 'comptable@demo.cg', password: 'Comptable123!', role: 'comptable', nom: 'Lingui', prenom: 'Sarah', typeContrat: 'titulaire' },
+    { email: 'vacataire@demo.cg', password: 'Vacataire123!', role: 'enseignant', nom: 'Bouanga', prenom: 'Alain', typeContrat: 'vacataire', heuresHebdo: 12, tauxHoraire: 5000 },
   ];
 
   const staffMap = {};
@@ -191,6 +226,9 @@ async function main() {
         nom: s.nom,
         prenom: s.prenom,
         telephone: '+242 06 111 1111',
+        typeContrat: s.typeContrat || 'titulaire',
+        heuresHebdo: s.heuresHebdo || null,
+        tauxHoraire: s.tauxHoraire || null,
         mustChangePassword: false,
         actif: true,
       },
@@ -215,9 +253,9 @@ async function main() {
 
   // ==================== CLASSES ====================
   const classesData = [
-    { nom: '6ème A', niveau: '6eme', filiere: 'Générale', capacite: 40, fraisScolarite: 150000 },
-    { nom: '5ème B', niveau: '5eme', filiere: 'Générale', capacite: 35, fraisScolarite: 150000 },
-    { nom: 'Terminale S1', niveau: 'terminale', filiere: 'Scientifique', capacite: 30, fraisScolarite: 200000 },
+    { nom: '6ème A', niveau: '6eme', cycle: 'college', filiere: 'Générale', capacite: 40, fraisScolarite: 150000 },
+    { nom: '5ème B', niveau: '5eme', cycle: 'college', filiere: 'Générale', capacite: 35, fraisScolarite: 150000 },
+    { nom: 'Terminale S1', niveau: 'terminale', cycle: 'lycee', filiere: 'Scientifique', capacite: 30, fraisScolarite: 200000 },
   ];
 
   const classesMap = {};
@@ -234,6 +272,7 @@ async function main() {
           anneeScolaireId: anneeScolaire.id,
           nom: c.nom,
           niveau: c.niveau,
+          cycle: c.cycle,
           filiere: c.filiere,
           capacite: c.capacite,
           fraisScolarite: c.fraisScolarite,
@@ -325,19 +364,66 @@ async function main() {
   }
   console.log(`✓ ${elevesData.length} inscriptions créées`);
 
-  // ==================== ENSEIGNANT-CLASSE ====================
+  // ==================== ENSEIGNANT-CLASSE-MATIERE ====================
   const enseignant = staffMap['enseignant'];
-  for (const c of Object.values(classesMap)) {
+  const ecLinks = [
+    { classe: '6ème A', matiere: 'MATH' },
+    { classe: '6ème A', matiere: 'FR' },
+    { classe: '5ème B', matiere: 'MATH' },
+    { classe: '5ème B', matiere: 'HIST-GEO' },
+    { classe: 'Terminale S1', matiere: 'PHY' },
+    { classe: 'Terminale S1', matiere: 'SVT' },
+  ];
+  let ecCount = 0;
+  for (const link of ecLinks) {
+    const classe = classesMap[link.classe];
+    const matiere = matieresMap[link.matiere];
     const existing = await prisma.enseignantClasse.findFirst({
-      where: { enseignantId: enseignant.id, classeId: c.id },
+      where: { enseignantId: enseignant.id, classeId: classe.id, matiereId: matiere.id },
     });
     if (!existing) {
       await prisma.enseignantClasse.create({
-        data: { enseignantId: enseignant.id, classeId: c.id },
+        data: { tenantId: demoTenant.id, enseignantId: enseignant.id, classeId: classe.id, matiereId: matiere.id },
       });
+      ecCount++;
     }
   }
-  console.log(`✓ ${classesData.length} associations enseignant-classe créées`);
+  console.log(`✓ ${ecLinks.length} associations enseignant-classe-matière créées`);
+
+  // ==================== ÉCHÉANCES ====================
+  const echeancesData = [
+    { libelle: 'Frais d\'inscription', montant: 25000, dateEcheance: '2025-10-15' },
+    { libelle: 'Tranche 1', montant: 50000, dateEcheance: '2025-11-15' },
+    { libelle: 'Tranche 2', montant: 50000, dateEcheance: '2026-02-15' },
+    { libelle: 'Tranche 3', montant: 50000, dateEcheance: '2026-05-15' },
+  ];
+  let echeanceCount = 0;
+  for (const e of elevesData) {
+    const eleve = elevesMap[e.matricule];
+    const inscription = await prisma.inscription.findFirst({
+      where: { tenantId: demoTenant.id, eleveId: eleve.id, anneeScolaireId: anneeScolaire.id },
+    });
+    if (!inscription) continue;
+    for (const ech of echeancesData) {
+      const existing = await prisma.echeance.findFirst({
+        where: { tenantId: demoTenant.id, inscriptionId: inscription.id, libelle: ech.libelle },
+      });
+      if (!existing) {
+        await prisma.echeance.create({
+          data: {
+            tenantId: demoTenant.id,
+            inscriptionId: inscription.id,
+            libelle: ech.libelle,
+            montantAttendu: ech.montant,
+            dateEcheance: new Date(ech.dateEcheance),
+            statut: 'en_attente',
+          },
+        });
+        echeanceCount++;
+      }
+    }
+  }
+  console.log(`✓ ${echeanceCount} échéances créées`);
 
   // ==================== ACTUALITÉS ====================
   const actualitesData = [
@@ -363,6 +449,123 @@ async function main() {
   }
   console.log(`✓ ${actualitesData.length} actualités créées`);
 
+  // ==================== SALLES ====================
+  const sallesData = [
+    { nom: 'A101', batiment: 'Bloc A', capacite: 40, type: 'cours' },
+    { nom: 'A102', batiment: 'Bloc A', capacite: 35, type: 'cours' },
+    { nom: 'Labo Sciences', batiment: 'Bloc B', capacite: 25, type: 'labo' },
+    { nom: 'Salle Info', batiment: 'Bloc B', capacite: 30, type: 'informatique' },
+  ];
+  for (const s of sallesData) {
+    const existing = await prisma.salle.findFirst({ where: { tenantId: demoTenant.id, nom: s.nom } });
+    if (!existing) {
+      await prisma.salle.create({ data: { tenantId: demoTenant.id, ...s, actif: true } });
+    }
+  }
+  console.log(`✓ ${sallesData.length} salles créées`);
+
+  // ==================== CALENDRIER SCOLAIRE ====================
+  const calendrierData = [
+    { titre: 'Rentrée scolaire 2025-2026', type: 'rentree', dateDebut: '2025-10-01', dateFin: '2025-10-01', description: 'Premier jour de classe' },
+    { titre: 'Vacances de Toussaint', type: 'vacances', dateDebut: '2025-12-20', dateFin: '2026-01-05', description: 'Congé de Toussaint' },
+    { titre: 'Vacances de Noël', type: 'vacances', dateDebut: '2025-12-22', dateFin: '2026-01-05', description: 'Congé de fin d\'année' },
+    { titre: 'Compositions 1er trimestre', type: 'composition', dateDebut: '2025-12-01', dateFin: '2025-12-15', description: 'Compositions du 1er trimestre' },
+    { titre: 'Conseil de classe T1', type: 'conseil_classe', dateDebut: '2025-12-18', dateFin: '2025-12-18', description: 'Conseils de classe 1er trimestre' },
+    { titre: 'Vacances de Pâques', type: 'vacances', dateDebut: '2026-04-05', dateFin: '2026-04-19', description: 'Congé de Pâques' },
+    { titre: 'Fête de l\'Indépendance', type: 'jour_ferie', dateDebut: '2026-08-15', dateFin: '2026-08-15', description: 'Fête nationale du Congo' },
+  ];
+  for (const ev of calendrierData) {
+    const existing = await prisma.calendrierScolaire.findFirst({ where: { tenantId: demoTenant.id, titre: ev.titre } });
+    if (!existing) {
+      await prisma.calendrierScolaire.create({
+        data: {
+          tenantId: demoTenant.id,
+          anneeScolaireId: anneeScolaire.id,
+          titre: ev.titre,
+          type: ev.type,
+          dateDebut: new Date(ev.dateDebut),
+          dateFin: new Date(ev.dateFin),
+          description: ev.description,
+        },
+      });
+    }
+  }
+  console.log(`✓ ${calendrierData.length} événements calendrier créés`);
+
+  // ==================== ABSENCES (3 types) ====================
+  const absencesData = [
+    { eleve: 'GS-2026-0001', typeAbsence: 'absent', justifiee: true, motifJustif: 'Maladie - certificat médical fourni' },
+    { eleve: 'GS-2026-0002', typeAbsence: 'retard', justifiee: false, motifJustif: null },
+    { eleve: 'GS-2026-0003', typeAbsence: 'depart_anticipe', justifiee: true, motifJustif: 'Rendez-vous médical' },
+    { eleve: 'GS-2026-0005', typeAbsence: 'absent', justifiee: false, motifJustif: null },
+  ];
+  for (const a of absencesData) {
+    const eleve = elevesMap[a.eleve];
+    if (!eleve) continue;
+    const existing = await prisma.absence.findFirst({
+      where: { tenantId: demoTenant.id, eleveId: eleve.id, dateAbsence: { gte: new Date('2025-11-01'), lt: new Date('2025-11-02') } },
+    });
+    if (!existing) {
+      await prisma.absence.create({
+        data: {
+          tenantId: demoTenant.id,
+          eleveId: eleve.id,
+          dateAbsence: new Date('2025-11-01'),
+          typeAbsence: a.typeAbsence,
+          justifiee: a.justifiee,
+          motifJustif: a.motifJustif,
+          saisieParId: staffMap['surveillant'].id,
+        },
+      });
+    }
+  }
+  console.log(`✓ ${absencesData.length} absences créées (3 types: absent, retard, départ anticipé)`);
+
+  // ==================== COMPTE PARENT ====================
+  const parentPassword = 'Parent123!';
+  const parentHash = await bcrypt.hash(parentPassword, BCRYPT_ROUNDS);
+  const parentUser = await prisma.user.upsert({
+    where: { tenantId_email: { tenantId: demoTenant.id, email: 'parent@demo.cg' } },
+    update: { passwordHash: parentHash, actif: true },
+    create: {
+      tenantId: demoTenant.id,
+      email: 'parent@demo.cg',
+      passwordHash: parentHash,
+      nom: 'Ossobi',
+      prenom: 'Joseph',
+      telephone: '+242 06 222 2222',
+      actif: true,
+    },
+  });
+
+  // Lier le parent au premier élève (David Ossobi)
+  const eleve1 = elevesMap['GS-2026-0001'];
+  if (eleve1) {
+    await prisma.eleve.update({
+      where: { id: eleve1.id },
+      data: { parentId: parentUser.id },
+    });
+  }
+  console.log(`✓ Parent : parent@demo.cg / ${parentPassword}`);
+
+  // ==================== MESSAGE DÉMO ====================
+  const directeur = staffMap['directeur'];
+  const existingMsg = await prisma.message.findFirst({
+    where: { tenantId: demoTenant.id, expediteurId: directeur.id, destinataireUserId: parentUser.id },
+  });
+  if (!existingMsg) {
+    await prisma.message.create({
+      data: {
+        tenantId: demoTenant.id,
+        expediteurId: directeur.id,
+        destinataireUserId: parentUser.id,
+        sujet: 'Bienvenue sur la plateforme GestSchool',
+        contenu: 'Cher parent, nous vous welcomeons sur la plateforme de gestion scolaire. Vous pouvez consulter les bulletins, absences et échéances de paiement de votre enfant en ligne.',
+      },
+    });
+  }
+  console.log(`✓ 1 message de démonstration créé (directeur → parent)`);
+
   console.log('✅ Seed terminé avec succès !\n');
   console.log('═══════════════════════════════════════════════════════');
   console.log('  🎭 IDENTIFIANTS DE CONNEXION - TENANT DE TEST');
@@ -374,7 +577,7 @@ async function main() {
   console.log(`     Password : ${SUPER_ADMIN_PASSWORD}`);
   console.log('');
   console.log('  🟢 ÉCOLE DÉMO (slug: demo)');
-  console.log('     URL      : /p/demo/login');
+  console.log('     URL      : /e/demo/login');
   console.log('     ----------------------------------------');
   console.log('     👨‍💼 Directeur');
   console.log('        Email    : directeur@demo.cg');
@@ -384,9 +587,13 @@ async function main() {
   console.log('        Email    : secretaire@demo.cg');
   console.log('        Password : Secretaire123!');
   console.log('     ----------------------------------------');
-  console.log('     👨‍🏫 Enseignant');
+  console.log('     👨‍🏫 Enseignant (titulaire)');
   console.log('        Email    : enseignant@demo.cg');
   console.log('        Password : Enseignant123!');
+  console.log('     ----------------------------------------');
+  console.log('     👨‍🏫 Enseignant (vacataire)');
+  console.log('        Email    : vacataire@demo.cg');
+  console.log('        Password : Vacataire123!');
   console.log('     ----------------------------------------');
   console.log('     👮 Surveillant');
   console.log('        Email    : surveillant@demo.cg');
@@ -395,6 +602,10 @@ async function main() {
   console.log('     💰 Comptable');
   console.log('        Email    : comptable@demo.cg');
   console.log('        Password : Comptable123!');
+  console.log('     ----------------------------------------');
+  console.log('     👨‍👩‍👦 Parent');
+  console.log('        Email    : parent@demo.cg');
+  console.log('        Password : Parent123!');
   console.log('');
   console.log('  📦 DONNÉES CRÉÉES :');
   console.log('     • 1 année scolaire (2025-2026)');
@@ -402,7 +613,14 @@ async function main() {
   console.log('     • 6 matières');
   console.log('     • 6 élèves avec inscriptions');
   console.log('     • 3 actualités');
-  console.log('     • 5 utilisateurs staff');
+  console.log('     • 6 associations enseignant-classe-matière');
+  console.log('     • 24 échéances de paiement');
+  console.log('     • 6 utilisateurs staff (dont 1 vacataire)');
+  console.log('     • 1 compte parent');
+  console.log('     • 4 salles');
+  console.log('     • 7 événements calendrier scolaire');
+  console.log('     • 4 absences (3 types: absent, retard, départ anticipé)');
+  console.log('     • 1 message (directeur → parent)');
   console.log('═══════════════════════════════════════════════════════');
 }
 

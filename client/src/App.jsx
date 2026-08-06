@@ -5,17 +5,15 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { I18nProvider } from './contexts/I18nContext';
 
-// Layouts (statiques — toujours nécessaires au premier rendu)
+// Layouts
 import PublicLayout from './components/layouts/PublicLayout';
 import AdminLayout from './components/layouts/AdminLayout';
-import StaffLayout from './components/layouts/StaffLayout';
+import EnseignantLayout from './components/layouts/EnseignantLayout';
+import ParentLayout from './components/layouts/ParentLayout';
 import CaissierLayout from './components/layouts/CaissierLayout';
 
 // Public pages (lazy)
 const Home = lazy(() => import('./pages/public/Home'));
-const Catalogue = lazy(() => import('./pages/public/Catalogue'));
-const CommandeEnLigne = lazy(() => import('./pages/public/CommandeEnLigne'));
-const SuiviCommande = lazy(() => import('./pages/public/SuiviCommande'));
 const Login = lazy(() => import('./pages/public/Login'));
 const Register = lazy(() => import('./pages/public/Register'));
 const ChangePassword = lazy(() => import('./pages/public/ChangePassword'));
@@ -26,40 +24,45 @@ const PrivacyPolicy = lazy(() => import('./pages/public/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/public/TermsOfService'));
 const CookiePolicy = lazy(() => import('./pages/public/CookiePolicy'));
 const NotFound = lazy(() => import('./pages/public/NotFound'));
+const Actualites = lazy(() => import('./pages/public/Actualites'));
+const Maintenance = lazy(() => import('./pages/public/Maintenance'));
 
 // Admin pages (lazy)
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
-const CatalogueMgmt = lazy(() => import('./pages/admin/CatalogueMgmt'));
-const StockMgmt = lazy(() => import('./pages/admin/StockMgmt'));
-const LotsMgmt = lazy(() => import('./pages/admin/LotsMgmt'));
-const FournisseursMgmt = lazy(() => import('./pages/admin/FournisseursMgmt'));
-const CommandesF = lazy(() => import('./pages/admin/CommandesF'));
-const FacturesMgmt = lazy(() => import('./pages/admin/FacturesMgmt'));
-const OrdonnancesMgmt = lazy(() => import('./pages/admin/OrdonnancesMgmt'));
-const VentesMgmt = lazy(() => import('./pages/admin/VentesMgmt'));
-const LivraisonsMgmt = lazy(() => import('./pages/admin/LivraisonsMgmt'));
+const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
+const Eleves = lazy(() => import('./pages/admin/Eleves'));
+const Classes = lazy(() => import('./pages/admin/Classes'));
+const Inscriptions = lazy(() => import('./pages/admin/Inscriptions'));
+const Matieres = lazy(() => import('./pages/admin/Matieres'));
+const EmploiDuTemps = lazy(() => import('./pages/admin/EmploiDuTemps'));
+const Absences = lazy(() => import('./pages/admin/Absences'));
+const Sanctions = lazy(() => import('./pages/admin/Sanctions'));
+const Paiements = lazy(() => import('./pages/admin/Paiements'));
+const Bulletins = lazy(() => import('./pages/admin/Bulletins'));
+const Certificats = lazy(() => import('./pages/admin/Certificats'));
 const PersonnelMgmt = lazy(() => import('./pages/admin/PersonnelMgmt'));
 const Rapports = lazy(() => import('./pages/admin/Rapports'));
 const Profil = lazy(() => import('./pages/admin/Profil'));
 const Configuration = lazy(() => import('./pages/admin/Configuration'));
+const CahierDeTextes = lazy(() => import('./pages/admin/CahierDeTextes'));
+const ConseilDeClasse = lazy(() => import('./pages/admin/ConseilDeClasse'));
+const Salles = lazy(() => import('./pages/admin/Salles'));
+const CalendrierScolaire = lazy(() => import('./pages/admin/CalendrierScolaire'));
+const Messagerie = lazy(() => import('./pages/admin/Messagerie'));
 
-// Staff pages (lazy)
-const VendeurDashboard = lazy(() => import('./pages/staff/VendeurDashboard'));
-const NouvelleVente = lazy(() => import('./pages/staff/NouvelleVente'));
-const MesVentes = lazy(() => import('./pages/staff/MesVentes'));
-const ScanOrdonnance = lazy(() => import('./pages/staff/ScanOrdonnance'));
+// Enseignant pages (lazy)
+const EnseignantDashboard = lazy(() => import('./pages/enseignant/EnseignantDashboard'));
+const MesClasses = lazy(() => import('./pages/enseignant/MesClasses'));
+const SaisieNotes = lazy(() => import('./pages/enseignant/SaisieNotes'));
+const Appel = lazy(() => import('./pages/enseignant/Appel'));
+const MonEmploi = lazy(() => import('./pages/enseignant/MonEmploi'));
 
-// Caissier pages (lazy)
-const CaisseHome = lazy(() => import('./pages/staff/CaisseHome'));
-const EncaisserVente = lazy(() => import('./pages/staff/EncaisserVente'));
-
-// Livreur pages (lazy)
-const MesLivraisons = lazy(() => import('./pages/staff/MesLivraisons'));
-
-// Client pages (lazy)
-const ClientDashboard = lazy(() => import('./pages/client/ClientDashboard'));
-const ClientHistorique = lazy(() => import('./pages/client/ClientHistorique'));
-const ClientOrdonnances = lazy(() => import('./pages/client/ClientOrdonnances'));
+// Parent pages (lazy)
+const ParentDashboard = lazy(() => import('./pages/parent/ParentDashboard'));
+const MesEnfants = lazy(() => import('./pages/parent/MesEnfants'));
+const BulletinsParent = lazy(() => import('./pages/parent/BulletinsParent'));
+const AbsencesParent = lazy(() => import('./pages/parent/AbsencesParent'));
+const SanctionsParent = lazy(() => import('./pages/parent/SanctionsParent'));
+const FacturationParent = lazy(() => import('./pages/parent/FacturationParent'));
 
 // Super Admin (lazy)
 const SuperAdminPanel = lazy(() => import('./pages/superadmin/SuperAdminPanel'));
@@ -70,21 +73,26 @@ const PageLoader = () => (
   </div>
 );
 
+// Redirections post-login par rôle
+const ROLE_REDIRECTIONS = {
+  super_admin: '/super-admin/dashboard',
+  directeur: '/admin/dashboard',
+  secretaire: '/admin/dashboard',
+  comptable: '/caissier',
+  surveillant: '/admin/dashboard',
+  enseignant: '/enseignant/dashboard',
+  parent: '/parent/dashboard',
+};
+
 // Protected Route component
 const ProtectedRoute = ({ allowedRoles }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  // Conserver le paramètre ?tenant=slug lors des redirections
-  const tenantParam = new URLSearchParams(location.search).get('tenant');
-  const tenantSuffix = tenantParam ? `?tenant=${tenantParam}` : '';
-
-  const useAdminTheme = !user || user.role !== 'client';
-
   if (loading) {
     return (
       <div
-        data-theme={useAdminTheme ? 'admin' : undefined}
+        data-theme="admin"
         className="min-h-screen flex items-center justify-center"
         style={{ background: 'var(--surface-base)' }}
       >
@@ -94,15 +102,17 @@ const ProtectedRoute = ({ allowedRoles }) => {
   }
 
   if (!user) {
-    return <Navigate to={`/login${tenantSuffix}`} replace />;
+    const slug = localStorage.getItem('tenantSlug') || 'demo';
+    return <Navigate to={`/e/${slug}/login`} replace />;
   }
 
   if (user.mustChangePassword) {
-    return <Navigate to={`/changer-mot-de-passe${tenantSuffix}`} replace />;
+    return <Navigate to="/changer-mot-de-passe" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+    const redirect = ROLE_REDIRECTIONS[user.role] || '/';
+    return <Navigate to={redirect} replace />;
   }
 
   return <Outlet />;
@@ -114,107 +124,107 @@ const AppRoutes = () => {
 
   const getDefaultRoute = () => {
     if (!user) return '/';
-    switch (user.role) {
-      case 'super_admin': return '/super-admin';
-      case 'pharmacien':
-      case 'admin': return '/admin/dashboard';
-      case 'vendeur':
-      case 'preparateur': return '/staff/dashboard';
-      case 'caissier': return '/caissier';
-      case 'livreur': return '/staff/livraisons';
-      case 'client': return '/profil';
-      default: return '/';
-    }
+    return ROLE_REDIRECTIONS[user.role] || '/';
   };
 
   return (
     <Suspense fallback={<PageLoader />}>
-    <Routes>
-      {/* Public routes */}
-      <Route element={<PublicLayout />}>
-        <Route path="/" element={<Home />} />
-        <Route path="/catalogue" element={<Catalogue />} />
-        <Route path="/commander" element={<CommandeEnLigne />} />
-        <Route path="/suivi/:id" element={<SuiviCommande />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/changer-mot-de-passe" element={<ChangePassword />} />
-        <Route path="/mot-de-passe-oublie" element={<ForgotPassword />} />
-        <Route path="/reinitialiser-mot-de-passe" element={<ResetPassword />} />
-        <Route path="/verifier-email" element={<VerifyEmail />} />
-        <Route path="/politique-confidentialite" element={<PrivacyPolicy />} />
-        <Route path="/conditions-utilisation" element={<TermsOfService />} />
-        <Route path="/politique-cookies" element={<CookiePolicy />} />
-      </Route>
-
-      {/* Admin routes */}
-      <Route element={<ProtectedRoute allowedRoles={['pharmacien', 'admin']} />}>
-        <Route element={<AdminLayout />}>
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/catalogue" element={<CatalogueMgmt />} />
-          <Route path="/admin/stock" element={<StockMgmt />} />
-          <Route path="/admin/lots" element={<LotsMgmt />} />
-          <Route path="/admin/fournisseurs" element={<FournisseursMgmt />} />
-          <Route path="/admin/commandes-fournisseurs" element={<CommandesF />} />
-          <Route path="/admin/factures" element={<FacturesMgmt />} />
-          <Route path="/admin/ordonnances" element={<OrdonnancesMgmt />} />
-          <Route path="/admin/ventes" element={<VentesMgmt />} />
-          <Route path="/admin/livraisons" element={<LivraisonsMgmt />} />
-          <Route path="/admin/personnel" element={<PersonnelMgmt />} />
-          <Route path="/admin/rapports" element={<Rapports />} />
-          <Route path="/admin/profil" element={<Profil />} />
-        </Route>
-      </Route>
-
-      {/* Configuration - Super Admin uniquement */}
-      <Route element={<ProtectedRoute allowedRoles={['super_admin']} />}>
-        <Route element={<AdminLayout />}>
-          <Route path="/admin/configuration" element={<Configuration />} />
-        </Route>
-      </Route>
-
-      {/* Staff routes */}
-      <Route element={<ProtectedRoute allowedRoles={['vendeur', 'preparateur', 'pharmacien', 'admin']} />}>
-        <Route element={<StaffLayout />}>
-          <Route path="/staff/dashboard" element={<VendeurDashboard />} />
-          <Route path="/staff/vente" element={<NouvelleVente />} />
-          <Route path="/staff/mes-ventes" element={<MesVentes />} />
-          <Route path="/staff/ordonnance" element={<ScanOrdonnance />} />
-        </Route>
-      </Route>
-
-      {/* Caissier routes */}
-      <Route element={<ProtectedRoute allowedRoles={['caissier', 'pharmacien', 'admin']} />}>
-        <Route element={<CaissierLayout />}>
-          <Route path="/caissier" element={<CaisseHome />} />
-          <Route path="/caissier/encaisser/:id" element={<EncaisserVente />} />
-          <Route path="/staff/caisse" element={<CaisseHome />} />
-          <Route path="/staff/caisse/encaisser/:id" element={<EncaisserVente />} />
-        </Route>
-      </Route>
-
-      {/* Livreur routes */}
-      <Route element={<ProtectedRoute allowedRoles={['livreur']} />}>
-        <Route path="/staff/livraisons" element={<MesLivraisons />} />
-      </Route>
-
-      {/* Client routes */}
-      <Route element={<ProtectedRoute allowedRoles={['client']} />}>
+      <Routes>
+        {/* Routes publiques — accès via /e/:slug */}
         <Route element={<PublicLayout />}>
-          <Route path="/profil" element={<ClientDashboard />} />
-          <Route path="/profil/historique" element={<ClientHistorique />} />
-          <Route path="/profil/ordonnances" element={<ClientOrdonnances />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/e/:slug" element={<Home />} />
+          <Route path="/e/:slug/actualites" element={<Actualites />} />
+          <Route path="/e/:slug/login" element={<Login />} />
+          <Route path="/e/:slug/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/actualites" element={<Actualites />} />
+          <Route path="/changer-mot-de-passe" element={<ChangePassword />} />
+          <Route path="/mot-de-passe-oublie" element={<ForgotPassword />} />
+          <Route path="/reinitialiser-mot-de-passe" element={<ResetPassword />} />
+          <Route path="/verifier-email" element={<VerifyEmail />} />
+          <Route path="/politique-confidentialite" element={<PrivacyPolicy />} />
+          <Route path="/conditions-utilisation" element={<TermsOfService />} />
+          <Route path="/politique-cookies" element={<CookiePolicy />} />
+          <Route path="/maintenance" element={<Maintenance />} />
         </Route>
-      </Route>
 
-      {/* Super Admin */}
-      <Route element={<ProtectedRoute allowedRoles={['super_admin']} />}>
-        <Route path="/super-admin" element={<SuperAdminPanel />} />
-      </Route>
+        {/* Routes admin — directeur, secretaire, surveillant */}
+        <Route element={<ProtectedRoute allowedRoles={['directeur', 'secretaire', 'surveillant']} />}>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/dashboard" element={<Dashboard />} />
+            <Route path="/admin/eleves" element={<Eleves />} />
+            <Route path="/admin/classes" element={<Classes />} />
+            <Route path="/admin/inscriptions" element={<Inscriptions />} />
+            <Route path="/admin/matieres" element={<Matieres />} />
+            <Route path="/admin/emploi-du-temps" element={<EmploiDuTemps />} />
+            <Route path="/admin/absences" element={<Absences />} />
+            <Route path="/admin/sanctions" element={<Sanctions />} />
+            <Route path="/admin/bulletins" element={<Bulletins />} />
+            <Route path="/admin/certificats" element={<Certificats />} />
+            <Route path="/admin/cahier-de-textes" element={<CahierDeTextes />} />
+            <Route path="/admin/conseil-de-classe" element={<ConseilDeClasse />} />
+            <Route path="/admin/salles" element={<Salles />} />
+            <Route path="/admin/calendrier" element={<CalendrierScolaire />} />
+            <Route path="/admin/messagerie" element={<Messagerie />} />
+            <Route path="/admin/rapports" element={<Rapports />} />
+            <Route path="/admin/paiements" element={<Paiements />} />
+            <Route path="/admin/personnel" element={<PersonnelMgmt />} />
+            <Route path="/admin/profil" element={<Profil />} />
+          </Route>
+        </Route>
 
-      {/* Default redirect */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        {/* Routes comptable/caissier */}
+        <Route element={<ProtectedRoute allowedRoles={['comptable', 'directeur']} />}>
+          <Route element={<CaissierLayout />}>
+            <Route path="/caissier" element={<Paiements />} />
+            <Route path="/caissier/retards" element={<Paiements />} />
+            <Route path="/caissier/historique" element={<Paiements />} />
+          </Route>
+        </Route>
+
+        {/* Routes enseignant */}
+        <Route element={<ProtectedRoute allowedRoles={['enseignant']} />}>
+          <Route element={<EnseignantLayout />}>
+            <Route path="/enseignant/dashboard" element={<EnseignantDashboard />} />
+            <Route path="/enseignant/mes-classes" element={<MesClasses />} />
+            <Route path="/enseignant/saisie-notes" element={<SaisieNotes />} />
+            <Route path="/enseignant/appel" element={<Appel />} />
+            <Route path="/enseignant/mon-emploi" element={<MonEmploi />} />
+            <Route path="/enseignant/cahier-de-textes" element={<CahierDeTextes />} />
+            <Route path="/enseignant/messagerie" element={<Messagerie />} />
+          </Route>
+        </Route>
+
+        {/* Routes parent */}
+        <Route element={<ProtectedRoute allowedRoles={['parent']} />}>
+          <Route element={<ParentLayout />}>
+            <Route path="/parent/dashboard" element={<ParentDashboard />} />
+            <Route path="/parent/mes-enfants" element={<MesEnfants />} />
+            <Route path="/parent/bulletins" element={<BulletinsParent />} />
+            <Route path="/parent/absences" element={<AbsencesParent />} />
+            <Route path="/parent/sanctions" element={<SanctionsParent />} />
+            <Route path="/parent/facturation" element={<FacturationParent />} />
+            <Route path="/parent/messagerie" element={<Messagerie />} />
+          </Route>
+        </Route>
+
+        {/* Configuration — directeur + super_admin */}
+        <Route element={<ProtectedRoute allowedRoles={['directeur', 'super_admin']} />}>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/configuration" element={<Configuration />} />
+          </Route>
+        </Route>
+
+        {/* Super Admin */}
+        <Route element={<ProtectedRoute allowedRoles={['super_admin']} />}>
+          <Route path="/super-admin/*" element={<SuperAdminPanel />} />
+        </Route>
+
+        {/* Redirection par défaut */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </Suspense>
   );
 };

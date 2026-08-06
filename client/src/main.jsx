@@ -9,7 +9,7 @@ import App from './App.jsx';
 import './styles/index.css';
 
 // Anti-FOUC : appliquer le thème sauvegardé avant le premier rendu
-const savedTheme = localStorage.getItem('gestpharma-theme')
+const savedTheme = localStorage.getItem('gestschool-theme')
   || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 if (savedTheme === 'dark') {
   document.documentElement.classList.add('dark');
@@ -37,7 +37,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
-    release: 'gestpharma@1.0.0',
+    release: 'gestschool@1.0.0',
     integrations: [
       Sentry.browserTracingIntegration(),
       Sentry.replayIntegration({

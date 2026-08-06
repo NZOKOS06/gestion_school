@@ -3,17 +3,17 @@ version: '3.8'
 services:
   db:
     image: postgres:16-alpine
-    container_name: gestpharma-db
+    container_name: gestschool-db
     environment:
-      POSTGRES_USER: gestpharma
-      POSTGRES_PASSWORD: gestpharma123
-      POSTGRES_DB: gestpharma
+      POSTGRES_USER: gestschool
+      POSTGRES_PASSWORD: gestschool123
+      POSTGRES_DB: gestschool
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gestpharma -d gestpharma"]
+      test: ["CMD-SHELL", "pg_isready -U gestschool -d gestschool"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,10 +22,10 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: gestpharma-server
+    container_name: gestschool-server
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://gestpharma:gestpharma123@db:5432/gestpharma?schema=public
+      DATABASE_URL: postgresql://gestschool:gestschool123@db:5432/gestschool?schema=public
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
@@ -48,7 +48,7 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
-    container_name: gestpharma-client
+    container_name: gestschool-client
     ports:
       - "80:80"
     depends_on:

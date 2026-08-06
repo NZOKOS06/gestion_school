@@ -5,7 +5,7 @@ import PublicLayout from '../../components/layouts/PublicLayout';
 const PrivacyPolicy = () => {
   const { config } = useTenant();
   const { t } = useI18n();
-  const nomApp = config?.nomApp || 'GestPharma';
+  const nomApp = config?.nomApp || 'GestSchool';
 
   return (
     <PublicLayout>
@@ -26,7 +26,7 @@ const PrivacyPolicy = () => {
           <h2 className="text-xl font-semibold mb-3">{t('privacy_data_title') || 'Données collectées'}</h2>
           <ul className="list-disc pl-6 space-y-2" style={{ color: 'var(--text-secondary)' }}>
             <li>{t('privacy_data_identity') || 'Identité (nom, prénom, email, téléphone)'}</li>
-            <li>{t('privacy_data_health') || 'Données de santé strictement nécessaires à la gestion des ordonnances'}</li>
+            <li>{t('privacy_data_health') || 'Données scolaires (notes, absences, bulletins, paiements)'}</li>
             <li>{t('privacy_data_usage') || 'Données de navigation et d\'utilisation du service'}</li>
             <li>{t('privacy_data_payment') || 'Données de paiement traitées par nos prestataires certifiés'}</li>
           </ul>
@@ -44,7 +44,7 @@ const PrivacyPolicy = () => {
           <h2 className="text-xl font-semibold mb-3">{t('privacy_rights_title') || 'Vos droits'}</h2>
           <p className="leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             {t('privacy_rights_text') ||
-              'Conformément au RGPD, vous disposez d\'un droit d\'accès, de rectification, d\'effacement, de limitation et de portabilité de vos données. Contactez votre pharmacie pour exercer ces droits.'}
+              'Conformément au RGPD, vous disposez d\'un droit d\'accès, de rectification, d\'effacement, de limitation et de portabilité de vos données. Contactez l\'établissement pour exercer ces droits.'}
           </p>
         </section>
 

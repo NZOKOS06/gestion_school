@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import crypto from 'crypto';
 
 const log = createLogger('BulletinsController');
 
@@ -152,6 +153,7 @@ export const generate = async (req, res) => {
           moyenneGenerale: parseFloat(moyenneGenerale.toFixed(2)),
           detailsMatieres: matieresResult,
           statut: 'genere',
+          qrCodeHash: crypto.createHash('sha256').update(`${tenantId}-${eleveId}-${classeId}-${anneeScolaireId}-${periodeIndex}-${Date.now()}`).digest('hex'),
         },
       });
     } else {
@@ -165,6 +167,7 @@ export const generate = async (req, res) => {
           moyenneGenerale: parseFloat(moyenneGenerale.toFixed(2)),
           detailsMatieres: matieresResult,
           statut: 'genere',
+          qrCodeHash: crypto.createHash('sha256').update(`${tenantId}-${eleveId}-${classeId}-${anneeScolaireId}-${periodeIndex}-${Date.now()}`).digest('hex'),
         },
       });
     }

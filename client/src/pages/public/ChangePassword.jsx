@@ -20,14 +20,13 @@ const STRENGTH_COLORS = ['', 'bg-red-500', 'bg-orange-400', 'bg-yellow-400', 'bg
 
 const getDashboardRoute = (role) => {
   switch (role) {
-    case 'super_admin': return '/super-admin';
-    case 'pharmacien':
-    case 'admin': return '/admin/dashboard';
-    case 'vendeur':
-    case 'preparateur': return '/staff/dashboard';
-    case 'caissier': return '/caissier';
-    case 'livreur': return '/staff/livraisons';
-    case 'client': return '/profil';
+    case 'super_admin': return '/super-admin/dashboard';
+    case 'directeur':
+    case 'secretaire':
+    case 'surveillant': return '/admin/dashboard';
+    case 'enseignant': return '/enseignant/dashboard';
+    case 'comptable': return '/caissier';
+    case 'parent': return '/parent/dashboard';
     default: return '/';
   }
 };

@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { Bell, Package, Clock, FileText, ShoppingCart, MapPin, X, CheckCheck, Trash2 } from 'lucide-react';
+import { Bell, Package, Clock, FileText, ShoppingCart, MessageCircle, X, CheckCheck, Trash2 } from 'lucide-react';
 
 const NOTIF_COLORS = {
-  stock:      { bg: 'bg-red-50',    icon: 'text-red-500',    border: '#f87171'    },
-  peremption: { bg: 'bg-orange-50', icon: 'text-orange-500', border: '#fb923c' },
-  ordonnance: { bg: 'bg-blue-50',   icon: 'text-blue-500',   border: '#60a5fa'   },
-  vente:      { bg: 'bg-green-50',  icon: 'text-green-500',  border: '#4ade80'  },
-  livraison:  { bg: 'bg-blue-50',   icon: 'text-blue-500',   border: '#60a5fa'   },
+  stock:         { bg: 'bg-red-50',    icon: 'text-red-500',    border: '#f87171'    },
+  peremption:    { bg: 'bg-orange-50', icon: 'text-orange-500', border: '#fb923c' },
+  inscription:   { bg: 'bg-blue-50',   icon: 'text-blue-500',   border: '#60a5fa'   },
+  paiement:      { bg: 'bg-green-50',  icon: 'text-green-500',  border: '#4ade80'  },
+  communication: { bg: 'bg-blue-50',   icon: 'text-blue-500',   border: '#60a5fa'   },
 };
 
 const NOTIF_ICONS = {
@@ -14,7 +14,7 @@ const NOTIF_ICONS = {
   Clock,
   FileText,
   ShoppingCart,
-  MapPin,
+  MessageCircle,
 };
 
 function timeAgo(date) {
@@ -190,7 +190,7 @@ export function NotificationsPanel({
           </div>
         ) : (
           notifications.map((notif) => {
-            const colors = NOTIF_COLORS[notif.type] || NOTIF_COLORS.ordonnance;
+            const colors = NOTIF_COLORS[notif.type] || NOTIF_COLORS.inscription;
             const IconComp = NOTIF_ICONS[notif.icon] || Bell;
 
             return (

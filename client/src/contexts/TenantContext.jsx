@@ -82,7 +82,7 @@ export const TenantProvider = ({ children }) => {
         }
         
         // Mettre à jour le titre
-        document.title = response.data.metaTitle || response.data.nomApp || 'GestPharma';
+        document.title = response.data.metaTitle || response.data.nomApp || 'GestSchool';
 
         // Favicon dynamique
         const faviconUrl = response.data.faviconUrl || response.data.logoUrl;
@@ -124,7 +124,7 @@ export const TenantProvider = ({ children }) => {
         setError(err.response?.data?.message || 'Erreur de chargement');
         // Only show error toast if not on superadmin route
         if (!window.location.pathname.startsWith('/super-admin')) {
-          toast.error(err.response?.data?.message || 'Pharmacie introuvable');
+          toast.error(err.response?.data?.message || 'Établissement introuvable');
         }
       } finally {
         setLoading(false);

@@ -1,12 +1,17 @@
 import { expect } from '@playwright/test'
 
 const CREDENTIALS = {
-  pharmacien:  { email: 'pharmacien@demo.cg',  password: 'Pharmacien123!'  },
-  admin:       { email: 'admin@demo.cg',       password: 'Admin123!'       },
-  vendeur:     { email: 'vendeur@demo.cg',     password: 'Vendeur123!'     },
-  caissier:    { email: 'caissier@demo.cg',    password: 'Caissier123!'    },
-  preparateur: { email: 'preparateur@demo.cg', password: 'Preparateur123!' },
-  superadmin:  { email: 'superadmin@gestpharma.com', password: 'SuperAdmin123!' },
+  directeur:   { email: 'directeur@demo.cg',   password: 'Directeur123!' },
+  secretaire:  { email: 'secretaire@demo.cg',  password: 'Secretaire123!' },
+  enseignant:  { email: 'enseignant@demo.cg',  password: 'Enseignant123!' },
+  surveillant: { email: 'surveillant@demo.cg', password: 'Surveillant123!' },
+  comptable:   { email: 'comptable@demo.cg',   password: 'Comptable123!' },
+  parent:      { email: 'parent@demo.cg',      password: 'Parent123!' },
+  superadmin:  { email: 'superadmin@gestschool.com', password: 'SuperAdmin123!' },
+  // Legacy aliases (GestPharma) — map to school roles until e2e rewrite
+  pharmacien:  { email: 'directeur@demo.cg',   password: 'Directeur123!' },
+  admin:       { email: 'directeur@demo.cg',   password: 'Directeur123!' },
+  caissier:    { email: 'comptable@demo.cg',   password: 'Comptable123!' },
 }
 
 export async function loginAs(page, role) {
@@ -17,5 +22,5 @@ export async function loginAs(page, role) {
   await page.fill('[data-testid="email-input"]', creds.email)
   await page.fill('[data-testid="password-input"]', creds.password)
   await page.click('[data-testid="login-button"]')
-  await page.waitForURL(/\/(admin|staff|caissier|super-admin)/, { timeout: 15000 })
+  await page.waitForURL(/\/(admin|enseignant|parent|caissier|super-admin)/, { timeout: 15000 })
 }

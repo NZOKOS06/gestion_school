@@ -29,37 +29,53 @@ export const useSocket = () => {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('Socket connected');
+      console.log('[Socket] Connecté');
     });
 
     socket.on('disconnect', () => {
-      console.log('Socket disconnected');
+      console.log('[Socket] Déconnecté');
     });
 
-    socket.on('stockAlerte', (data) => {
-      toast.error(`Stock critique: ${data.dci} (${data.stockTotal} restant)`, {
-        duration: 6000,
-        icon: '⚠️'
-      });
-    });
-
-    socket.on('peremptionAlerte', (data) => {
-      toast(`Péremption proche: ${data.numeroLot}`, {
+    // Événements scolaires — Staff
+    socket.on('nouvelleNote', (data) => {
+      toast.success(`Nouvelle note saisie : ${data.valeur}/20`, {
         duration: 5000,
-        icon: '⏰'
+        icon: '📝',
       });
     });
 
-    socket.on('nouvelleOrdonnance', () => {
-      toast.info('Nouvelle ordonnance reçue', {
-        duration: 4000
+    socket.on('nouvelleAbsence', (data) => {
+      toast.warning(`Absence enregistrée : ${data.eleveNom}`, {
+        duration: 5000,
+        icon: '📋',
+      });
+    });
+
+    socket.on('nouvelleSanction', (data) => {
+      toast(`Sanction attribuée à ${data.eleveNom}`, {
+        duration: 5000,
+        icon: '⚠️',
+      });
+    });
+
+    socket.on('paiementEncaisse', (data) => {
+      toast.success(`Paiement encaissé : ${data.montant} FCFA`, {
+        duration: 5000,
+        icon: '💰',
+      });
+    });
+
+    socket.on('actualitePubliee', (data) => {
+      toast(`Nouvelle actualité : ${data.titre}`, {
+        duration: 5000,
+        icon: '📢',
       });
     });
 
     socket.on('notification', (data) => {
-      toast(data.message, {
+      toast(data.message || data.titre, {
         duration: 5000,
-        icon: data.type === 'success' ? '✅' : data.type === 'warning' ? '⚠️' : 'ℹ️'
+        icon: data.type === 'success' ? '✅' : data.type === 'warning' ? '⚠️' : 'ℹ️',
       });
     });
 
@@ -68,12 +84,13 @@ export const useSocket = () => {
     };
   }, [user, slug]);
 
-  const joinLivraison = useCallback((livraisonId) => {
-    socketRef.current?.emit('join-livraison', livraisonId);
+  // Rejoindre une room spécifique (ex: classe-{classeId})
+  const joinRoom = useCallback((roomName) => {
+    socketRef.current?.emit('join-room', roomName);
   }, []);
 
-  const leaveLivraison = useCallback((livraisonId) => {
-    socketRef.current?.emit('leave-livraison', livraisonId);
+  const leaveRoom = useCallback((roomName) => {
+    socketRef.current?.emit('leave-room', roomName);
   }, []);
 
   const on = useCallback((event, callback) => {
@@ -86,10 +103,10 @@ export const useSocket = () => {
 
   return {
     socket: socketRef.current,
-    joinLivraison,
-    leaveLivraison,
+    joinRoom,
+    leaveRoom,
     on,
-    off
+    off,
   };
 };
 

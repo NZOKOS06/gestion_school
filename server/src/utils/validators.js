@@ -91,7 +91,7 @@ export const evaluationValidator = [
   body('anneeScolaireId').isUUID().withMessage('ID année scolaire invalide'),
   body('periodeIndex').isInt({ min: 1 }).withMessage('Index de période invalide'),
   body('nom').trim().notEmpty().withMessage('Nom requis'),
-  body('type').optional().isIn(['devoir', 'interrogation', 'examen', 'rattrapage']).withMessage('Type invalide'),
+  body('type').optional().isIn(['devoir', 'interrogation', 'examen', 'rattrapage', 'pratique']).withMessage('Type invalide'),
   body('dateEvaluation').isISO8601().toDate().withMessage('Date d\'évaluation invalide'),
   body('coefficient').optional().isInt({ min: 1 }).withMessage('Coefficient invalide'),
   body('noteMaximale').optional().isDecimal({ min: 0 }).withMessage('Note maximale invalide'),
@@ -110,7 +110,7 @@ export const noteValidator = [
 export const paiementValidator = [
   body('inscriptionId').isUUID().withMessage('ID inscription invalide'),
   body('montant').isDecimal({ min: 0 }).withMessage('Montant invalide'),
-  body('typePaiement').optional().isIn(['inscription', 'scolarite', 'mensualite', 'examen_officiel', 'bibliotheque', 'cantine', 'uniforme', 'autre']).withMessage('Type de paiement invalide'),
+  body('typePaiement').optional().isIn(['inscription', 'scolarite', 'mensualite', 'examen_officiel', 'bibliotheque', 'cantine', 'transport', 'uniforme', 'autre']).withMessage('Type de paiement invalide'),
   body('modePaiement').isIn(['especes', 'mobile_money', 'carte', 'cheque', 'virement']).withMessage('Mode de paiement invalide'),
   body('reference').optional().trim(),
   body('motif').optional().trim(),
@@ -126,6 +126,7 @@ export const emploiDuTempsValidator = [
   body('heureDebut').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Format heure début invalide (HH:MM)'),
   body('heureFin').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Format heure fin invalide (HH:MM)'),
   body('salle').optional().trim(),
+  body('salleId').optional().isUUID().withMessage('ID salle invalide'),
   handleValidationErrors
 ];
 
@@ -133,8 +134,10 @@ export const emploiDuTempsValidator = [
 export const absenceValidator = [
   body('eleveId').isUUID().withMessage('ID élève invalide'),
   body('dateAbsence').optional().isISO8601().toDate(),
+  body('typeAbsence').optional().isIn(['absent', 'retard', 'depart_anticipe']).withMessage('Type d\'absence invalide'),
   body('justifiee').optional().isBoolean(),
   body('motifJustif').optional().trim(),
+  body('pieceJustifUrl').optional().trim(),
   body('emploiDuTempsId').optional().isUUID().withMessage('ID emploi du temps invalide'),
   handleValidationErrors
 ];
