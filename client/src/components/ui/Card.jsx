@@ -1,7 +1,7 @@
-const Card = ({ title, subtitle, icon: Icon, children, action, padding = 'p-6' }) => {
+const Card = ({ title, subtitle, icon: Icon, children, action, padding = 'p-6', className = '' }) => {
   return (
     <div
-      className={`rounded-lg ${padding}`}
+      className={`rounded-lg ${padding} ${className}`.trim()}
       style={{
         background: 'var(--surface-raised)',
         border: '1px solid var(--border-subtle)',

@@ -134,13 +134,13 @@ export const formatModePaiement = (mode) => {
 export const formatRole = (role) => {
   const map = {
     'super_admin': 'Super Admin',
-    'pharmacien': 'Pharmacien',
-    'admin': 'Administrateur',
-    'vendeur': 'Vendeur',
-    'preparateur': 'Préparateur',
-    'caissier': 'Caissier',
-    'livreur': 'Livreur',
-    'client': 'Client'
+    'directeur': 'Directeur',
+    'directeur_etudes': 'Directeur des études',
+    'secretaire': 'Secrétaire',
+    'enseignant': 'Enseignant',
+    'surveillant': 'Surveillant',
+    'comptable': 'Comptable',
+    'parent': 'Parent',
   };
   return map[role] || role;
 };

@@ -4,7 +4,45 @@ import { logAudit } from '../utils/auditLogger.js';
 
 const log = createLogger('MessagesController');
 
-// Get messages for current user (inbox)
+const messagingRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant', 'comptable', 'parent'];
+
+export const getRecipients = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const role = req.user.role;
+
+    if (role === 'parent') {
+      const staff = await prisma.staff.findMany({
+        where: { tenantId, actif: true, role: { not: 'super_admin' } },
+        select: { id: true, nom: true, prenom: true, role: true },
+        orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
+        take: 200,
+      });
+      return res.json({ staff, parents: [] });
+    }
+
+    const [staff, parents] = await Promise.all([
+      prisma.staff.findMany({
+        where: { tenantId, actif: true, role: { not: 'super_admin' } },
+        select: { id: true, nom: true, prenom: true, role: true },
+        orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
+        take: 200,
+      }),
+      prisma.user.findMany({
+        where: { tenantId, actif: true },
+        select: { id: true, nom: true, prenom: true, email: true },
+        orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
+        take: 200,
+      }),
+    ]);
+
+    res.json({ staff, parents });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Get recipients error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const getInbox = async (req, res) => {
   try {
     const tenantId = req.tenantId;
@@ -12,7 +50,8 @@ export const getInbox = async (req, res) => {
     const take = parseInt(limit);
     const skip = (parseInt(page) - 1) * take;
 
-    const where = { tenantId, lu: nonLus === 'true' ? false : undefined };
+    const where = { tenantId };
+    if (nonLus === 'true') where.lu = false;
     if (req.user.role === 'parent') {
       where.destinataireUserId = req.user.id;
     } else {
@@ -27,6 +66,7 @@ export const getInbox = async (req, res) => {
         where,
         include: {
           expediteur: { select: { id: true, nom: true, prenom: true, role: true } },
+          expediteurUser: { select: { id: true, nom: true, prenom: true } },
         },
         skip,
         take,
@@ -45,7 +85,6 @@ export const getInbox = async (req, res) => {
   }
 };
 
-// Get sent messages
 export const getSent = async (req, res) => {
   try {
     const tenantId = req.tenantId;
@@ -53,7 +92,12 @@ export const getSent = async (req, res) => {
     const take = parseInt(limit);
     const skip = (parseInt(page) - 1) * take;
 
-    const where = { tenantId, expediteurId: req.user.id };
+    const where = { tenantId };
+    if (req.user.role === 'parent') {
+      where.expediteurUserId = req.user.id;
+    } else {
+      where.expediteurId = req.user.id;
+    }
 
     const orderBy = {};
     orderBy[sortBy] = order;
@@ -86,6 +130,7 @@ export const send = async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { destinataireStaffId, destinataireUserId, sujet, contenu } = req.body;
+    const isParent = req.user.role === 'parent';
 
     if (!sujet || !contenu) {
       return res.status(400).json({ error: 'Sujet et contenu requis' });
@@ -95,12 +140,17 @@ export const send = async (req, res) => {
       return res.status(400).json({ error: 'Destinataire requis' });
     }
 
+    if (isParent && !destinataireStaffId) {
+      return res.status(400).json({ error: 'Un parent doit écrire à un membre du personnel' });
+    }
+
     const message = await prisma.message.create({
       data: {
         tenantId,
-        expediteurId: req.user.id,
+        expediteurId: isParent ? null : req.user.id,
+        expediteurUserId: isParent ? req.user.id : null,
         destinataireStaffId: destinataireStaffId || null,
-        destinataireUserId: destinataireUserId || null,
+        destinataireUserId: isParent ? null : (destinataireUserId || null),
         sujet,
         contenu,
       },
@@ -125,7 +175,6 @@ export const markAsRead = async (req, res) => {
       return res.status(404).json({ error: 'Message non trouvé' });
     }
 
-    // Verify current user is a recipient
     const isRecipient =
       (req.user.role === 'parent' && message.destinataireUserId === req.user.id) ||
       (req.user.role !== 'parent' && message.destinataireStaffId === req.user.id);
@@ -156,9 +205,9 @@ export const remove = async (req, res) => {
       return res.status(404).json({ error: 'Message non trouvé' });
     }
 
-    // Only sender or recipient can delete
     const canDelete =
       message.expediteurId === req.user.id ||
+      message.expediteurUserId === req.user.id ||
       (req.user.role === 'parent' && message.destinataireUserId === req.user.id) ||
       (req.user.role !== 'parent' && message.destinataireStaffId === req.user.id);
 
@@ -174,3 +223,5 @@ export const remove = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export { messagingRoles };

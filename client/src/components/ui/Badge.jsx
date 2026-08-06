@@ -1,13 +1,14 @@
-const COLORS = {
-  success:  '#10B981',
-  warning:  '#F59E0B',
-  danger:   '#EF4444',
-  info:     '#3B82F6',
-  neutral:  null,
+const VARIANT_VARS = {
+  success: 'var(--color-success)',
+  warning: 'var(--color-warning)',
+  danger: 'var(--color-danger)',
+  info: 'var(--color-info)',
+  primary: 'var(--color-primary)',
+  neutral: null,
 };
 
 const Badge = ({ variant = 'neutral', children, dot = false }) => {
-  const color = COLORS[variant];
+  const color = VARIANT_VARS[variant];
 
   const style =
     variant === 'neutral'
@@ -18,7 +19,7 @@ const Badge = ({ variant = 'neutral', children, dot = false }) => {
         }
       : {
           background: `color-mix(in srgb, ${color} 15%, transparent)`,
-          color: color,
+          color,
           borderColor: `color-mix(in srgb, ${color} 30%, transparent)`,
         };
 

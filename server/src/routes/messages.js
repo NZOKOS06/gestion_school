@@ -5,30 +5,39 @@ import * as ctrl from '../controllers/messages.controller.js';
 
 const router = Router();
 
+const roles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant', 'comptable', 'parent'];
+
+router.get('/recipients',
+  authenticate,
+  requireRole(...roles),
+  requireTenantMatch,
+  ctrl.getRecipients
+);
+
 router.get('/inbox',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable', 'parent'),
+  requireRole(...roles),
   requireTenantMatch,
   ctrl.getInbox
 );
 
 router.get('/sent',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable', 'parent'),
+  requireRole(...roles),
   requireTenantMatch,
   ctrl.getSent
 );
 
 router.post('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable'),
+  requireRole(...roles),
   requireTenantMatch,
   ctrl.send
 );
 
 router.put('/:id/read',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable', 'parent'),
+  requireRole(...roles),
   requireTenantMatch,
   idParamValidator,
   ctrl.markAsRead
@@ -36,7 +45,7 @@ router.put('/:id/read',
 
 router.delete('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable', 'parent'),
+  requireRole(...roles),
   requireTenantMatch,
   idParamValidator,
   ctrl.remove

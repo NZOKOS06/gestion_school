@@ -1,4 +1,4 @@
-name: Deploy GestPharma
+name: Deploy GestSchool
 
 on:
   workflow_dispatch:

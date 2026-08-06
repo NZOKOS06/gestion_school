@@ -51,6 +51,10 @@ import sallesRoutes from './routes/salles.js';
 import calendrierRoutes from './routes/calendrierScolaire.js';
 import messagesRoutes from './routes/messages.js';
 import rapportsRoutes from './routes/rapports.js';
+import parentRoutes from './routes/parent.js';
+import enseignantRoutes from './routes/enseignant.js';
+import referentielRoutes from './routes/referentiel.js';
+import examensRoutes from './routes/examens.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -260,6 +264,8 @@ app.use('/api/auth', optionalTenantMiddleware, authRoutes);
 app.use('/api/eleves', tenantMiddleware, elevesRoutes);
 app.use('/api/classes', tenantMiddleware, classesRoutes);
 app.use('/api/annees-scolaires', tenantMiddleware, anneesScolairesRoutes);
+app.use('/api/referentiel', tenantMiddleware, referentielRoutes);
+app.use('/api/examens', tenantMiddleware, examensRoutes);
 app.use('/api/matieres', tenantMiddleware, matieresRoutes);
 app.use('/api/inscriptions', tenantMiddleware, inscriptionsRoutes);
 app.use('/api/evaluations', tenantMiddleware, evaluationsRoutes);
@@ -279,6 +285,8 @@ app.use('/api/salles', tenantMiddleware, sallesRoutes);
 app.use('/api/calendrier', tenantMiddleware, calendrierRoutes);
 app.use('/api/messages', tenantMiddleware, messagesRoutes);
 app.use('/api/rapports', tenantMiddleware, rapportsRoutes);
+app.use('/api/parent', tenantMiddleware, parentRoutes);
+app.use('/api/enseignant', tenantMiddleware, enseignantRoutes);
 
 // Super admin routes
 app.use('/api/superadmin', superadminRoutes);
@@ -370,7 +378,7 @@ if (process.env.NODE_ENV !== 'test') httpServer.listen(PORT, '0.0.0.0', async ()
   const clientUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
   logger.info({ port: PORT, env, lanIP, clientUrl }, 'GestSchool API server started');
-  logger.info('API endpoints: /api/config, /api/auth, /api/eleves, /api/classes, /api/annees-scolaires, /api/matieres, /api/inscriptions, /api/evaluations, /api/bulletins, /api/paiements, /api/emplois-du-temps, /api/absences, /api/sanctions, /api/actualites, /api/dashboard, /api/staff, /api/public, /api/superadmin, /api/certificats, /api/cahier-de-textes, /api/conseil-de-classe, /api/salles, /api/calendrier, /api/messages, /api/rapports');
+  logger.info('API endpoints: /api/config, /api/auth, /api/eleves, /api/classes, /api/annees-scolaires, /api/matieres, /api/inscriptions, /api/evaluations, /api/bulletins, /api/paiements, /api/emplois-du-temps, /api/absences, /api/sanctions, /api/actualites, /api/dashboard, /api/staff, /api/public, /api/superadmin, /api/certificats, /api/cahier-de-textes, /api/conseil-de-classe, /api/salles, /api/calendrier, /api/messages, /api/rapports, /api/parent, /api/enseignant');
 
   const cleanExpiredTokens = async () => {
     if (!dbConnected) {
@@ -399,6 +407,9 @@ if (process.env.NODE_ENV !== 'test') httpServer.listen(PORT, '0.0.0.0', async ()
     }
     cleanExpiredTokens();
     setInterval(cleanExpiredTokens, 24 * 60 * 60 * 1000);
+
+    const { startRelancesCron } = await import('./jobs/relances.job.js');
+    startRelancesCron();
   } catch (error) {
     logger.fatal({ err: error }, 'Cannot start without database connection');
     process.exit(1);

@@ -7,7 +7,12 @@
 :root {
   /* Brand */
   --color-primary: #16a34a;
+  --color-primary-fg: #ffffff;
   --color-secondary: #C8A96E;
+  --surface-brand-soft: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  --surface-brand-muted: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  --ring-primary: color-mix(in srgb, var(--color-primary) 28%, transparent);
+  --surface-inset: #EEEEE8;
   --font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
 
   /* Typographie */
@@ -186,8 +191,40 @@ a {
   to { transform: translateX(0); }
 }
 
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
 .animate-slide-in {
   animation: slideIn 0.3s ease-out;
+}
+
+/* Density modes */
+[data-density="compact"] {
+  --density-row: 2.25rem;
+  --density-pad: 0.5rem;
+}
+[data-density="comfortable"] {
+  --density-row: 3rem;
+  --density-pad: 0.875rem;
+}
+
+html.compact [data-compact-hide] {
+  display: none;
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Modal enter animation */
@@ -345,117 +382,17 @@ html.dark [data-theme="admin"] {
   --text-muted:      #6e7681;
 }
 
-/* ── SuperAdmin Panel : couleurs hardcodées overrides ── */
-html.dark .superadmin-panel   { background: #0d1117 !important; color: #e6edf3 !important; }
-html.dark .superadmin-header  { background: #161b22 !important; border-bottom-color: #30363d !important; }
-html.dark .superadmin-nav     { background: #161b22 !important; border-bottom-color: #30363d !important; }
-
-/* Cards / surfaces blanches hardcodées dans superadmin */
-html.dark .superadmin-panel [style*="background: white"],
-html.dark .superadmin-panel [style*="background: #fff"],
-html.dark .superadmin-panel [style*="background: #FFF"],
-html.dark .superadmin-panel [style*="background:#fff"],
-html.dark .superadmin-panel [style*="background:#FFF"],
-html.dark .superadmin-panel [style*="background: #ffffff"],
-html.dark .superadmin-panel [style*="background: #FFFFFF"],
-html.dark .superadmin-panel [style*="background: #F8FAFC"],
-html.dark .superadmin-panel [style*="background: #f8fafc"],
-html.dark .superadmin-panel [style*="background: #FAFAFA"],
-html.dark .superadmin-panel [style*="background: #F9FAFB"],
-html.dark .superadmin-panel [style*="background: rgb(255, 255, 255)"],
-html.dark .superadmin-panel [style*="background: rgb(248, 250, 252)"] {
-  background: #161b22 !important;
+/* SuperAdmin / admin — rely on CSS variables (no !important inline-style hacks) */
+.superadmin-panel {
+  background: var(--surface-base);
+  color: var(--text-primary);
+  min-height: 100vh;
 }
 
-/* Textes sombres hardcodés */
-html.dark .superadmin-panel [style*="color: #0F172A"],
-html.dark .superadmin-panel [style*="color: #1E293B"],
-html.dark .superadmin-panel [style*="color: #334155"],
-html.dark .superadmin-panel [style*="color: #475569"],
-html.dark .superadmin-panel [style*="color: #64748B"],
-html.dark .superadmin-panel [style*="color: #94A3B8"] {
-  color: #e6edf3 !important;
-}
-
-/* Bordures claires hardcodées */
-html.dark .superadmin-panel [style*="border-bottom: 1px solid #E2E8F0"],
-html.dark .superadmin-panel [style*="border: 1px solid #E2E8F0"],
-html.dark .superadmin-panel [style*="borderColor: #E2E8F0"],
-html.dark .superadmin-panel [style*="border-color: #e2e8f0"] {
-  border-color: #30363d !important;
-}
-
-/* Tables dans superadmin */
-html.dark .superadmin-panel table     { background: transparent !important; }
-html.dark .superadmin-panel thead tr  { background: #1c2230 !important; }
-html.dark .superadmin-panel tbody tr  { border-color: #30363d !important; }
-html.dark .superadmin-panel tbody tr:hover { background: #21262d !important; }
-html.dark .superadmin-panel td,
-html.dark .superadmin-panel th        { color: #e6edf3 !important; border-color: #30363d !important; }
-
-/* Inputs dans superadmin */
-html.dark .superadmin-panel input,
-html.dark .superadmin-panel select,
-html.dark .superadmin-panel textarea {
-  background: #1c2230 !important;
-  color: #e6edf3 !important;
-  border-color: #30363d !important;
-}
-
-/* ── Admin pages (KPI cards, tables) inline style overrides ── */
-html.dark [data-theme="admin"] body,
-html.dark [data-theme="admin"] {
-  background-color: var(--surface-base) !important;
-  color: var(--text-primary) !important;
-}
-
-/* Eléments avec background blanc inline dans les pages admin */
-html.dark [data-theme="admin"] [style*="background: white"],
-html.dark [data-theme="admin"] [style*="background: #ffffff"],
-html.dark [data-theme="admin"] [style*="background: #FFFFFF"],
-html.dark [data-theme="admin"] [style*="background:#ffffff"],
-html.dark [data-theme="admin"] [style*="background: rgb(255, 255, 255)"],
-html.dark [data-theme="admin"] [style*="background: #F8FAFC"],
-html.dark [data-theme="admin"] [style*="background: #f8fafc"],
-html.dark [data-theme="admin"] [style*="background: #F1F5F9"],
-html.dark [data-theme="admin"] [style*="background: #f1f5f9"] {
-  background: var(--surface-raised) !important;
-}
-
-/* Dropdown profil admin (fond blanc hardcodé) */
-html.dark [data-theme="admin"] [style*="background: #ffffff"],
-html.dark [data-theme="admin"] [style*="background: #FFFFFF"] {
-  background: var(--surface-raised) !important;
-  border-color: var(--border-subtle) !important;
-}
-
-/* ── Wizard création SuperAdmin : classes Tailwind hardcodées ── */
-html.dark .superadmin-panel .bg-white  { background-color: #161b22 !important; }
-html.dark .superadmin-panel .bg-slate-50 { background-color: #1c2230 !important; }
-html.dark .superadmin-panel .bg-slate-100 { background-color: #21262d !important; }
-html.dark .superadmin-panel .bg-slate-200 { background-color: #2d333b !important; }
-html.dark .superadmin-panel .border-slate-200 { border-color: #30363d !important; }
-html.dark .superadmin-panel .border-slate-100 { border-color: #30363d !important; }
-html.dark .superadmin-panel .text-slate-900 { color: #e6edf3 !important; }
-html.dark .superadmin-panel .text-slate-700 { color: #c9d1d9 !important; }
-html.dark .superadmin-panel .text-slate-600 { color: #8d96a0 !important; }
-html.dark .superadmin-panel .text-slate-500 { color: #6e7681 !important; }
-html.dark .superadmin-panel .text-slate-400 { color: #6e7681 !important; }
-html.dark .superadmin-panel .hover\:bg-slate-100:hover { background-color: #21262d !important; }
-html.dark .superadmin-panel .hover\:bg-slate-50:hover  { background-color: #1c2230 !important; }
-
-/* Inputs Tailwind dans wizard dark */
-html.dark .superadmin-panel input.bg-slate-50,
-html.dark .superadmin-panel select.bg-slate-50,
-html.dark .superadmin-panel textarea.bg-slate-50 {
-  background-color: #1c2230 !important;
-  color: #e6edf3 !important;
-  border-color: #30363d !important;
-}
-
-/* Loader initial */
-html.dark .superadmin-panel > .min-h-screen {
-  background: #0d1117 !important;
+.superadmin-header,
+.superadmin-nav {
+  background: var(--surface-raised);
+  border-color: var(--border-subtle);
 }
 
 /* ── Compatibilité ancien sélecteur ── */

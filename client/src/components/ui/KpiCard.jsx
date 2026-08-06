@@ -1,33 +1,26 @@
-const PALETTES = {
-  primary: { color: '#16a34a' },
-  green:   { color: '#10B981' },
-  red:     { color: '#dc2626' },
-  orange:  { color: '#d97706' },
-  blue:    { color: '#2563eb' },
+const COLOR_VARS = {
+  primary: 'var(--color-primary)',
+  green: 'var(--color-success)',
+  red: 'var(--color-danger)',
+  orange: 'var(--color-warning)',
+  blue: 'var(--color-info)',
 };
 
 const KpiCard = ({ label, value, subtitle, icon: Icon, trend, color = 'primary', delay = 0, 'data-testid': testId, ...rest }) => {
-  const palette = PALETTES[color] || PALETTES.primary;
+  const accent = COLOR_VARS[color] || COLOR_VARS.primary;
   const hausse = trend > 0;
-  const trendColor = hausse ? '#16a34a' : '#dc2626';
+  const trendColor = hausse ? 'var(--color-success)' : 'var(--color-danger)';
 
   return (
     <div
-      className="fade-up rounded-xl p-5 transition-all"
+      className="fade-up card-hover rounded-xl p-5 transition-all"
       style={{
         background: 'var(--surface-raised)',
         border: '1px solid var(--border-subtle)',
         boxShadow: 'var(--shadow-card)',
         animationDelay: `${delay}ms`,
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'var(--shadow-card)';
-      }}
+      {...rest}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
@@ -39,8 +32,8 @@ const KpiCard = ({ label, value, subtitle, icon: Icon, trend, color = 'primary',
           </p>
           <p
             data-testid={testId}
+            className="mono"
             style={{
-              fontFamily: 'var(--font-mono)',
               fontSize: 30,
               fontWeight: 700,
               color: 'var(--text-primary)',
@@ -59,11 +52,9 @@ const KpiCard = ({ label, value, subtitle, icon: Icon, trend, color = 'primary',
         {Icon && (
           <div
             className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ml-4"
-            style={{
-              background: `color-mix(in srgb, ${palette.color} 12%, transparent)`,
-            }}
+            style={{ background: 'var(--surface-brand-soft)' }}
           >
-            <Icon className="h-5 w-5" style={{ color: palette.color }} />
+            <Icon className="h-5 w-5" style={{ color: accent }} />
           </div>
         )}
       </div>

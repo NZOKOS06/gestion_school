@@ -1,7 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
-import { emitNouvelleAbsence } from '../utils/schoolEvents.js';
+import { broadcastAbsence } from '../utils/notifications.js';
 
 const log = createLogger('AbsencesController');
 
@@ -98,7 +98,9 @@ export const create = async (req, res) => {
 
     await logAudit(req, 'absence_created', 'Absence', absence.id, { eleveId });
 
-    emitNouvelleAbsence(req.tenant.slug, absence);
+    try {
+      await broadcastAbsence(req.tenant?.slug, tenantId, absence);
+    } catch { /* optional */ }
 
     res.status(201).json(absence);
   } catch (error) {
@@ -152,6 +154,92 @@ export const remove = async (req, res) => {
     res.json({ message: 'Absence supprimée' });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Delete absence error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const faireAppel = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { coursId, presences } = req.body;
+
+    if (!coursId || !Array.isArray(presences)) {
+      return res.status(400).json({ error: 'coursId et presences requis' });
+    }
+
+    const cours = await prisma.emploiDuTemps.findFirst({
+      where: { id: coursId, tenantId },
+    });
+    if (!cours) return res.status(404).json({ error: 'Cours non trouvé' });
+
+    if (req.user.role === 'enseignant' && cours.enseignantId !== req.user.id) {
+      return res.status(403).json({ error: 'Ce cours ne vous est pas assigné' });
+    }
+
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+
+    const created = [];
+    await prisma.$transaction(async (tx) => {
+      // Clear today's absences for this cours to allow re-appel
+      await tx.absence.deleteMany({
+        where: {
+          tenantId,
+          emploiDuTempsId: coursId,
+          dateAbsence: {
+            gte: new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+            lt: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1),
+          },
+        },
+      });
+
+      for (const p of presences) {
+        if (!p.eleveId || p.statut === 'present') continue;
+
+        let typeAbsence = 'absent';
+        let justifiee = false;
+        if (p.statut === 'retard') typeAbsence = 'retard';
+        else if (p.statut === 'excuse') {
+          typeAbsence = 'absent';
+          justifiee = true;
+        } else if (p.statut === 'depart_anticipe') {
+          typeAbsence = 'depart_anticipe';
+        }
+
+        const absence = await tx.absence.create({
+          data: {
+            tenantId,
+            eleveId: p.eleveId,
+            emploiDuTempsId: coursId,
+            dateAbsence: today,
+            typeAbsence,
+            justifiee,
+            motifJustif: justifiee ? 'Excusé lors de l\'appel' : null,
+            saisieParId: req.user.id,
+          },
+        });
+        created.push(absence);
+      }
+    });
+
+    await logAudit(req, 'appel_fait', 'EmploiDuTemps', coursId, {
+      absences: created.length,
+      total: presences.length,
+    });
+
+    for (const absence of created) {
+      try {
+        await broadcastAbsence(req.tenant?.slug, tenantId, absence);
+      } catch { /* socket optional */ }
+    }
+
+    res.status(201).json({
+      message: 'Appel enregistré',
+      absencesCreated: created.length,
+      presents: presences.filter((p) => p.statut === 'present').length,
+    });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'faireAppel error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

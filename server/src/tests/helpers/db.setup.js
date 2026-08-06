@@ -1,155 +1,88 @@
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
+/**
+ * Helpers de setup pour tests d'intégration GestSchool.
+ * Socle de test scolaire (suites legacy exclues de vitest).
+ */
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
+const TEST_TENANT_SLUG = 'test-school';
 
-export const TEST_TENANT_SLUG = `test-integration-${Date.now()}`
+export let testTenant, testDirecteur, testEnseignant, testComptable;
 
-export let testTenant, testPharmacien, testVendeur, testCaissier
-export let testMedicament, testLot, testFournisseur
-
-export async function setupTestDB() {
-  await teardownTestDB()
+export async function setupTestDb() {
+  await cleanupTestDb();
 
   testTenant = await prisma.tenant.create({
     data: {
-      nom: 'Pharmacie Test Integration',
+      nom: 'École Test Integration',
       slug: TEST_TENANT_SLUG,
-      plan: 'basique',
       actif: true,
-      contact: {},
       config: {
         create: {
-          nomApp: 'GestPharma Test',
+          nomEcole: 'GestSchool Test',
           couleurPrimaire: '#16A34A',
-          couleurSecondaire: '#15803D',
-          couleurTexte: '#1f2937',
-          devise: 'FCFA',
-          tauxTVA: 0,
-          seuilAlerteStock: 5,
-          joursAlertePeremption: 90,
-          moduleVentes: true,
-          moduleStock: true,
-          moduleCatalogue: true,
-          moduleOrdonnances: true,
-          moduleFournisseurs: true,
-          modulePersonnel: true,
-        }
-      }
+          moduleEleves: true,
+          moduleClasses: true,
+          moduleNotes: true,
+          modulePaiements: true,
+        },
+      },
     },
-    include: { config: true }
-  })
+    include: { config: true },
+  });
 
-  const hash = await bcrypt.hash('Test123!@#', 12)
+  const hash = await bcrypt.hash('Test1234!', 10);
 
-  testPharmacien = await prisma.staff.create({
+  testDirecteur = await prisma.staff.create({
     data: {
       tenantId: testTenant.id,
-      nom: 'Dupont',
-      prenom: 'Marie',
-      email: `pharmacien+${TEST_TENANT_SLUG}@test.cg`,
+      email: `directeur+${TEST_TENANT_SLUG}@test.cg`,
       passwordHash: hash,
-      role: 'pharmacien',
+      nom: 'Test',
+      prenom: 'Directeur',
+      role: 'directeur',
       actif: true,
-      mustChangePassword: false,
-    }
-  })
+    },
+  });
 
-  testVendeur = await prisma.staff.create({
+  testEnseignant = await prisma.staff.create({
     data: {
       tenantId: testTenant.id,
-      nom: 'Mbemba',
-      prenom: 'Jean',
-      email: `vendeur+${TEST_TENANT_SLUG}@test.cg`,
+      email: `enseignant+${TEST_TENANT_SLUG}@test.cg`,
       passwordHash: hash,
-      role: 'vendeur',
+      nom: 'Test',
+      prenom: 'Enseignant',
+      role: 'enseignant',
       actif: true,
-      mustChangePassword: false,
-    }
-  })
+    },
+  });
 
-  testCaissier = await prisma.staff.create({
+  testComptable = await prisma.staff.create({
     data: {
       tenantId: testTenant.id,
-      nom: 'Loemba',
-      prenom: 'Paul',
-      email: `caissier+${TEST_TENANT_SLUG}@test.cg`,
+      email: `comptable+${TEST_TENANT_SLUG}@test.cg`,
       passwordHash: hash,
-      role: 'caissier',
+      nom: 'Test',
+      prenom: 'Comptable',
+      role: 'comptable',
       actif: true,
-      mustChangePassword: false,
-    }
-  })
+    },
+  });
 
-  testFournisseur = await prisma.fournisseur.create({
-    data: {
-      tenantId: testTenant.id,
-      nom: 'Grossiste Test',
-      telephone: '06 00 00 00 00',
-      email: `grossiste+${TEST_TENANT_SLUG}@test.cg`,
-    }
-  })
-
-  testMedicament = await prisma.medicament.create({
-    data: {
-      tenantId: testTenant.id,
-      dci: 'Paracétamol',
-      nomCommercial: 'Doliprane 500mg',
-      formeGalenique: 'comprime',
-      dosage: '500mg',
-      conditionnement: 'Boîte 16',
-      prixAchat: 500,
-      prixVente: 800,
-      margePercent: 60,
-      ordonnanceRequise: false,
-      stockTotal: 0,
-      seuilAlerte: 5,
-      actif: true,
-    }
-  })
-
-  testLot = await prisma.lotStock.create({
-    data: {
-      tenantId: testTenant.id,
-      medicamentId: testMedicament.id,
-      numeroLot: 'LOT-TEST-001',
-      datePeremption: new Date(Date.now() + 365 * 86400000),
-      quantiteInitiale: 100,
-      quantiteRestante: 100,
-      prixAchatLot: 500,
-    }
-  })
-
-  await prisma.medicament.update({
-    where: { id: testMedicament.id },
-    data: { stockTotal: 100 }
-  })
-
-  return { testTenant, testPharmacien, testVendeur, testCaissier, testMedicament, testLot, testFournisseur }
+  return { testTenant, testDirecteur, testEnseignant, testComptable };
 }
 
-export async function teardownTestDB() {
-  const tenant = await prisma.tenant.findUnique({ where: { slug: TEST_TENANT_SLUG } })
-  if (!tenant) return
+export async function cleanupTestDb() {
+  const tenant = await prisma.tenant.findUnique({ where: { slug: TEST_TENANT_SLUG } });
+  if (!tenant) return;
+  const tid = tenant.id;
 
-  const tid = tenant.id
-  await prisma.mouvementStock.deleteMany({ where: { tenantId: tid } })
-  await prisma.ligneVente.deleteMany({ where: { vente: { tenantId: tid } } })
-  await prisma.paymentTransaction.deleteMany({ where: { vente: { tenantId: tid } } })
-  await prisma.vente.deleteMany({ where: { tenantId: tid } })
-  await prisma.ligneOrdonnance.deleteMany({ where: { ordonnance: { tenantId: tid } } })
-  await prisma.ordonnance.deleteMany({ where: { tenantId: tid } })
-  await prisma.lotStock.deleteMany({ where: { tenantId: tid } })
-  await prisma.ligneCommandeF.deleteMany({ where: { commande: { tenantId: tid } } })
-  await prisma.commandeFournisseur.deleteMany({ where: { tenantId: tid } })
-  await prisma.medicament.deleteMany({ where: { tenantId: tid } })
-  await prisma.fournisseur.deleteMany({ where: { tenantId: tid } })
-  await prisma.refreshToken.deleteMany({ where: { userId: { in: (await prisma.staff.findMany({ where: { tenantId: tid }, select: { id: true } })).map(s => s.id) } } })
-  await prisma.staff.deleteMany({ where: { tenantId: tid } })
-  await prisma.tenantConfig.deleteMany({ where: { tenantId: tid } })
-  await prisma.tenant.deleteMany({ where: { id: tid } })
-
-  await prisma.$disconnect()
+  await prisma.auditLog.deleteMany({ where: { tenantId: tid } });
+  await prisma.paiement.deleteMany({ where: { tenantId: tid } });
+  await prisma.staff.deleteMany({ where: { tenantId: tid } });
+  await prisma.tenantConfig.deleteMany({ where: { tenantId: tid } });
+  await prisma.tenant.delete({ where: { id: tid } });
 }
 
-export { prisma as testPrisma }
+export { prisma, TEST_TENANT_SLUG };

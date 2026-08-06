@@ -1,6 +1,7 @@
 import { prisma, rawPrisma } from '../utils/prisma.js';
 import { uploadLogo as cloudUploadLogo } from '../utils/cloudinary.js';
 import { createLogger } from '../utils/logger.js';
+import { derivePalette } from '../utils/themeEngine.js';
 
 const log = createLogger('ConfigController');
 
@@ -9,7 +10,7 @@ const SCHEMA_CONFIG_FIELDS = new Set([
   'couleurPrimaire', 'couleurSecondaire', 'couleurTexte', 'couleurAlerte', 'couleurErreur', 'couleurSucces',
   'darkModeDefault', 'police',
   'adresse', 'telephone', 'email', 'devise', 'messageAccueil',
-  'anneeScolaireActiveId', 'notationSur', 'seuilReussite', 'nombrePeriodes',
+  'anneeScolaireActiveId', 'notationSur', 'seuilReussite', 'nombrePeriodes', 'conventionPeriode',
   'joursEcole', 'heureDebut', 'heureFin',
   'fraisInscriptionDefault', 'fraisScolariteDefault',
   'moduleNotes', 'moduleBulletins', 'modulePresences', 'modulePaiements',
@@ -96,6 +97,22 @@ export const getBySlug = async (req, res) => {
 
     const config = tenant.config || {};
 
+    let periodesActives = [];
+    let anneeActive = null;
+    if (config.anneeScolaireActiveId) {
+      anneeActive = await rawPrisma.anneeScolaire.findFirst({
+        where: { id: config.anneeScolaireActiveId, tenantId: tenant.id },
+        include: { periodes: { orderBy: { index: 'asc' } } },
+      });
+      periodesActives = anneeActive?.periodes || [];
+    } else {
+      anneeActive = await rawPrisma.anneeScolaire.findFirst({
+        where: { tenantId: tenant.id, actif: true },
+        include: { periodes: { orderBy: { index: 'asc' } } },
+      });
+      periodesActives = anneeActive?.periodes || [];
+    }
+
     res.json({
       id: tenant.id,
       slug: tenant.slug,
@@ -104,6 +121,11 @@ export const getBySlug = async (req, res) => {
       modeMaintenance: tenant.modeMaintenance || false,
       customDomain: tenant.customDomain || null,
       ...config,
+      conventionPeriode: config.conventionPeriode || 'trimestre',
+      periodesScolaires: periodesActives,
+      anneeScolaireActive: anneeActive
+        ? { id: anneeActive.id, libelle: anneeActive.libelle, referentielVersionId: anneeActive.referentielVersionId }
+        : null,
       // UI aliases
       nomApp: config.nomEcole || tenant.nom,
       moduleAbsences: config.modulePresences ?? true,
@@ -112,15 +134,15 @@ export const getBySlug = async (req, res) => {
       logoUrl: config.logoUrl || null,
       backgroundImageUrl: config.backgroundImageUrl || null,
       faviconUrl: config.faviconUrl || config.logoUrl || null,
-      cssVariables: {
-        '--color-primary': config.couleurPrimaire || '#1e3a8a',
-        '--color-secondary': config.couleurSecondaire || '#0d9488',
-        '--color-text': config.couleurTexte || '#1f2937',
-        '--color-alert': config.couleurAlerte || '#f59e0b',
-        '--color-error': config.couleurErreur || '#ef4444',
-        '--color-success': config.couleurSucces || '#22c55e',
-        '--font-family': config.police || 'Plus Jakarta Sans',
-      },
+      cssVariables: derivePalette({
+        couleurPrimaire: config.couleurPrimaire,
+        couleurSecondaire: config.couleurSecondaire,
+        couleurTexte: config.couleurTexte,
+        couleurAlerte: config.couleurAlerte,
+        couleurErreur: config.couleurErreur,
+        couleurSucces: config.couleurSucces,
+        police: config.police,
+      }),
       modules: {
         eleves: config.moduleEleves ?? true,
         classes: config.moduleClasses ?? true,

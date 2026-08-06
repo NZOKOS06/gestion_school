@@ -5,9 +5,12 @@ import * as ctrl from '../controllers/eleves.controller.js';
 
 const router = Router();
 
+const readRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant', 'comptable'];
+const writeRoles = ['directeur', 'directeur_etudes', 'secretaire'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable'),
+  requireRole(...readRoles),
   requireTenantMatch,
   paginationValidator,
   ctrl.getAll
@@ -15,7 +18,7 @@ router.get('/',
 
 router.get('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable'),
+  requireRole(...readRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.getById
@@ -23,7 +26,7 @@ router.get('/:id',
 
 router.post('/',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   eleveValidator,
   ctrl.create
@@ -31,7 +34,7 @@ router.post('/',
 
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.update

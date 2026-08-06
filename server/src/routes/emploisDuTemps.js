@@ -6,17 +6,29 @@ import * as ctrl from '../controllers/emploisDuTemps.controller.js';
 
 const router = Router();
 
+const readRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant'];
+const writeRoles = ['directeur', 'directeur_etudes', 'secretaire'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant'),
+  requireRole(...readRoles),
   requireTenantMatch,
   requireModule('emploiDuTemps'),
   ctrl.getAll
 );
 
+router.get('/:id/eleves',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  requireModule('emploiDuTemps'),
+  idParamValidator,
+  ctrl.getEleves
+);
+
 router.post('/',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   requireModule('emploiDuTemps'),
   emploiDuTempsValidator,
@@ -25,7 +37,7 @@ router.post('/',
 
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   requireModule('emploiDuTemps'),
   idParamValidator,
@@ -34,7 +46,7 @@ router.put('/:id',
 
 router.delete('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   requireModule('emploiDuTemps'),
   idParamValidator,

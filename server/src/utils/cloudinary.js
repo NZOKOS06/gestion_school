@@ -43,7 +43,7 @@ export function requireCloudinary(req, res, next) {
 const logoStorage = new CloudinaryStorage({
   cloudinary,
   params: {
-    folder: 'gestpharma/logos',
+    folder: 'gestschool/logos',
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'svg'],
     transformation: [
       { width: 400, height: 400, crop: 'limit' },
@@ -56,15 +56,15 @@ const logoStorage = new CloudinaryStorage({
   },
 })
 
-const ordonnanceStorage = new CloudinaryStorage({
+const documentStorage = new CloudinaryStorage({
   cloudinary,
   params: {
-    folder: 'gestpharma/ordonnances',
+    folder: 'gestschool/documents',
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
     resource_type: 'auto',
     public_id: (req, file) => {
       const tenantSlug = req.tenant?.slug || 'unknown'
-      return `ordonnance-${tenantSlug}-${Date.now()}`
+      return `doc-${tenantSlug}-${Date.now()}`
     },
   },
 })
@@ -72,7 +72,7 @@ const ordonnanceStorage = new CloudinaryStorage({
 const imageStorage = new CloudinaryStorage({
   cloudinary,
   params: {
-    folder: 'gestpharma/images',
+    folder: 'gestschool/images',
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'svg'],
     transformation: [
       { width: 1920, height: 1080, crop: 'limit' },
@@ -88,7 +88,7 @@ const imageStorage = new CloudinaryStorage({
 const videoStorage = new CloudinaryStorage({
   cloudinary,
   params: {
-    folder: 'gestpharma/videos',
+    folder: 'gestschool/videos',
     resource_type: 'video',
     public_id: (req, file) => {
       const slug = req.tenant?.slug || 'unknown'
@@ -110,8 +110,8 @@ export const uploadLogo = multer({
   },
 })
 
-export const uploadOrdonnance = multer({
-  storage: ordonnanceStorage,
+export const uploadDocumentScolaire = multer({
+  storage: documentStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
@@ -151,7 +151,7 @@ export const uploadVideo = multer({
 const docStorage = new CloudinaryStorage({
   cloudinary,
   params: {
-    folder: 'gestpharma/documents-approvisionnement',
+    folder: 'gestschool/documents-admin',
     allowed_formats: ['pdf', 'jpg', 'jpeg', 'png'],
     resource_type: 'auto',
     public_id: (req, file) => {
@@ -185,6 +185,34 @@ export async function deleteImage(publicId) {
   } catch (err) {
     log.error({ err, publicId }, 'Erreur suppression image Cloudinary')
   }
+}
+
+/**
+ * Upload a PDF buffer to Cloudinary. Returns secure_url or null if not configured.
+ */
+export async function uploadPdfBuffer(buffer, { folder = 'gestschool/pdfs', publicId } = {}) {
+  if (!isCloudinaryConfigured()) {
+    log.warn('uploadPdfBuffer: Cloudinary non configuré')
+    return null
+  }
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        public_id: publicId || `doc-${Date.now()}`,
+        resource_type: 'raw',
+        format: 'pdf',
+      },
+      (err, result) => {
+        if (err) {
+          log.error({ err }, 'uploadPdfBuffer error')
+          return reject(err)
+        }
+        resolve(result?.secure_url || null)
+      }
+    )
+    stream.end(buffer)
+  })
 }
 
 export { cloudinary }

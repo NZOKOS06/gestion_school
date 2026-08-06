@@ -11,6 +11,8 @@ export const getAll = async (req, res) => {
     const annees = await prisma.anneeScolaire.findMany({
       where: { tenantId },
       include: {
+        periodes: { orderBy: { index: 'asc' } },
+        referentielVersion: { select: { id: true, code: true, libelle: true, actif: true } },
         _count: { select: { classes: true, inscriptions: true } },
       },
       orderBy: { dateDebut: 'desc' },
@@ -32,6 +34,8 @@ export const getById = async (req, res) => {
       where: { id, tenantId },
       include: {
         classes: { select: { id: true, nom: true, niveau: true, _count: { select: { inscriptions: { where: { statut: 'validee' } } } } } },
+        periodes: { orderBy: { index: 'asc' } },
+        referentielVersion: true,
         _count: { select: { inscriptions: true } },
       },
     });
@@ -50,10 +54,18 @@ export const getById = async (req, res) => {
 export const create = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { libelle, dateDebut, dateFin } = req.body;
+    const { libelle, dateDebut, dateFin, referentielVersionId } = req.body;
 
     if (new Date(dateDebut) >= new Date(dateFin)) {
       return res.status(400).json({ error: 'La date de début doit être antérieure à la date de fin' });
+    }
+
+    let versionId = referentielVersionId || null;
+    if (!versionId) {
+      const activeRef = await prisma.referentielVersion.findFirst({
+        where: { tenantId, actif: true },
+      });
+      versionId = activeRef?.id || null;
     }
 
     const annee = await prisma.anneeScolaire.create({
@@ -62,6 +74,7 @@ export const create = async (req, res) => {
         libelle,
         dateDebut: new Date(dateDebut),
         dateFin: new Date(dateFin),
+        referentielVersionId: versionId,
       },
     });
 
@@ -78,7 +91,7 @@ export const update = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
-    const { libelle, dateDebut, dateFin, actif } = req.body;
+    const { libelle, dateDebut, dateFin, actif, referentielVersionId } = req.body;
 
     const existing = await prisma.anneeScolaire.findFirst({ where: { id, tenantId } });
     if (!existing) {
@@ -90,6 +103,7 @@ export const update = async (req, res) => {
     if (dateDebut !== undefined) data.dateDebut = new Date(dateDebut);
     if (dateFin !== undefined) data.dateFin = new Date(dateFin);
     if (actif !== undefined) data.actif = actif;
+    if (referentielVersionId !== undefined) data.referentielVersionId = referentielVersionId || null;
 
     if (data.dateDebut && data.dateFin && data.dateDebut >= data.dateFin) {
       return res.status(400).json({ error: 'La date de début doit être antérieure à la date de fin' });

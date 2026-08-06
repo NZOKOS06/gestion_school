@@ -51,11 +51,19 @@ export const eleveValidator = [
 // Validators Classes
 export const classeValidator = [
   body('nom').trim().notEmpty().withMessage('Nom de classe requis'),
-  body('niveau').trim().notEmpty().withMessage('Niveau requis'),
+  body('niveau').optional().trim(),
+  body('niveauOfficielId').optional().isUUID().withMessage('Niveau officiel invalide'),
   body('anneeScolaireId').isUUID().withMessage('ID année scolaire invalide'),
   body('filiere').optional().trim(),
+  body('filiereOfficielleId').optional().isUUID(),
   body('capacite').optional().isInt({ min: 1 }).withMessage('Capacité invalide'),
   body('fraisScolarite').optional().isDecimal({ min: 0 }).withMessage('Frais de scolarité invalide'),
+  body().custom((_, { req }) => {
+    if (!req.body.niveau && !req.body.niveauOfficielId) {
+      throw new Error('Niveau ou niveau officiel requis');
+    }
+    return true;
+  }),
   handleValidationErrors
 ];
 
@@ -109,9 +117,29 @@ export const noteValidator = [
 // Validators Paiement
 export const paiementValidator = [
   body('inscriptionId').isUUID().withMessage('ID inscription invalide'),
-  body('montant').isDecimal({ min: 0 }).withMessage('Montant invalide'),
+  body('montant').isFloat({ gt: 0 }).withMessage('Montant invalide'),
   body('typePaiement').optional().isIn(['inscription', 'scolarite', 'mensualite', 'examen_officiel', 'bibliotheque', 'cantine', 'transport', 'uniforme', 'autre']).withMessage('Type de paiement invalide'),
-  body('modePaiement').isIn(['especes', 'mobile_money', 'carte', 'cheque', 'virement']).withMessage('Mode de paiement invalide'),
+  body('modePaiement')
+    .optional({ nullable: true })
+    .customSanitizer((v) => {
+      if (!v) return 'especes';
+      const m = String(v).toLowerCase().trim()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const map = {
+        especes: 'especes',
+        espece: 'especes',
+        cash: 'especes',
+        mobile_money: 'mobile_money',
+        'mobile money': 'mobile_money',
+        momo: 'mobile_money',
+        carte: 'carte',
+        cheque: 'cheque',
+        virement: 'virement',
+      };
+      return map[m] || map[m.replace(/\s+/g, '_')] || 'especes';
+    })
+    .isIn(['especes', 'mobile_money', 'carte', 'cheque', 'virement']).withMessage('Mode de paiement invalide'),
+  body('echeanceId').optional({ nullable: true }).isUUID().withMessage('ID échéance invalide'),
   body('reference').optional().trim(),
   body('motif').optional().trim(),
   handleValidationErrors
@@ -164,7 +192,7 @@ export const staffValidator = [
   body('email').isEmail().normalizeEmail().withMessage('Email invalide'),
   body('nom').trim().notEmpty().withMessage('Nom requis'),
   body('prenom').trim().notEmpty().withMessage('Prénom requis'),
-  body('role').isIn(['directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable']).withMessage('Rôle invalide'),
+  body('role').isIn(['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant', 'comptable']).withMessage('Rôle invalide'),
   body('telephone').optional().trim(),
   handleValidationErrors
 ];

@@ -28,6 +28,11 @@ const roleConfig = {
     badge: 'bg-violet-100 text-violet-700',
     label: 'Directeur',
   },
+  directeur_etudes: {
+    color: 'bg-indigo-500',
+    badge: 'bg-indigo-100 text-indigo-700',
+    label: 'Directeur des études',
+  },
   admin: { color: 'bg-[color-mix(in_srgb,#3B82F6_12%,transparent)]0', badge: 'bg-[color-mix(in_srgb,#3B82F6_12%,transparent)] text-[#3B82F6]', label: 'Admin' },
   enseignant: { color: 'bg-[color-mix(in_srgb,#10B981_12%,transparent)]0', badge: 'bg-[color-mix(in_srgb,#10B981_12%,transparent)] text-[#10B981]', label: 'Enseignant' },
   secretaire: {
@@ -38,7 +43,7 @@ const roleConfig = {
   comptable: {
     color: 'bg-[color-mix(in_srgb,#F59E0B_12%,transparent)]0',
     badge: 'bg-[color-mix(in_srgb,#F59E0B_12%,transparent)] text-[#F59E0B]',
-    label: 'Comptable',
+    label: 'Gestionnaire',
   },
   surveillant: { color: 'bg-[var(--surface-hover)]0', badge: 'bg-[var(--surface-hover)] text-[var(--text-secondary)]', label: 'Surveillant' },
 };
@@ -79,7 +84,7 @@ const PersonnelMgmt = () => {
   const fetchStaff = async () => {
     setTableLoading(true);
     try {
-      const res = await get('/api/personnel');
+      const res = await get('/api/personnel?limit=200');
       setAllStaff(res.staff || []);
     } catch {
       // toast géré par useAxios

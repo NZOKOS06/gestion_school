@@ -117,15 +117,14 @@ jobs:
           name: frontend-build
           path: client/dist/
 
-  # ── E2E désactivé Phase 0 (specs encore GestPharma) ──
-  # Réactiver en Phase 4 après réécriture des scénarios scolaires
+  # ── E2E (réactiver quand les scénarios scolaires sont stabilisés) ──
   test-e2e:
-    name: Tests E2E Playwright (skipped Phase 0)
+    name: Tests E2E Playwright (skipped)
     runs-on: ubuntu-latest
     if: false
     needs: [test-backend, build-frontend]
     steps:
-      - run: echo "E2E skipped until school scenarios are rewritten"
+      - run: echo "E2E skipped until school scenarios are stable"
 
   # ── Notification résultat ────────────────────────────
   notify:

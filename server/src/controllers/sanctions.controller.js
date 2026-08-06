@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { broadcastSanction } from '../utils/notifications.js';
 
 const log = createLogger('SanctionsController');
 
@@ -64,6 +65,10 @@ export const create = async (req, res) => {
     });
 
     await logAudit(req, 'sanction_created', 'Sanction', sanction.id, { eleveId, type });
+
+    try {
+      await broadcastSanction(req.tenant?.slug, tenantId, sanction);
+    } catch { /* optional */ }
 
     res.status(201).json(sanction);
   } catch (error) {

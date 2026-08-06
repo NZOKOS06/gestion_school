@@ -1,8 +1,19 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { generateForInscription } from '../services/echeances.service.js';
 
 const log = createLogger('InscriptionsController');
+
+async function resolveFees(tenantId, classeId) {
+  const [classe, config] = await Promise.all([
+    prisma.classe.findFirst({ where: { id: classeId, tenantId } }),
+    prisma.tenantConfig.findUnique({ where: { tenantId } }),
+  ]);
+  const fraisScolarite = Number(classe?.fraisScolarite ?? config?.fraisScolariteDefault ?? 0);
+  const fraisInscription = Number(config?.fraisInscriptionDefault ?? 0);
+  return { classe, config, fraisScolarite, fraisInscription };
+}
 
 export const getAll = async (req, res) => {
   try {
@@ -96,14 +107,28 @@ export const create = async (req, res) => {
       return res.status(409).json({ error: 'Cet élève est déjà inscrit pour cette année scolaire' });
     }
 
-    const inscription = await prisma.inscription.create({
-      data: {
-        tenantId,
-        eleveId,
-        classeId,
-        anneeScolaireId,
-        statut: 'en_attente',
-      },
+    const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, classeId);
+
+    const inscription = await prisma.$transaction(async (tx) => {
+      const insc = await tx.inscription.create({
+        data: {
+          tenantId,
+          eleveId,
+          classeId,
+          anneeScolaireId,
+          statut: 'en_attente',
+          soldeScolarite: fraisInscription + fraisScolarite,
+        },
+      });
+      await generateForInscription(tx, insc, {
+        fraisInscription,
+        fraisScolarite,
+        nbTranches: 3,
+      });
+      return tx.inscription.findUnique({
+        where: { id: insc.id },
+        include: { echeances: true },
+      });
     });
 
     await logAudit(req, 'inscription_created', 'Inscription', inscription.id, { eleveId, classeId });
@@ -119,7 +144,9 @@ export const update = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
-    const { classeId, statut, decisionFinAnnee } = req.body;
+    const {
+      classeId, statut, decisionFinAnnee, niveauCibleId, classeCibleId, motifDecision, resultatExamenId,
+    } = req.body;
 
     const existing = await prisma.inscription.findFirst({ where: { id, tenantId } });
     if (!existing) {
@@ -130,8 +157,20 @@ export const update = async (req, res) => {
     if (classeId !== undefined) data.classeId = classeId;
     if (statut !== undefined) data.statut = statut;
     if (decisionFinAnnee !== undefined) data.decisionFinAnnee = decisionFinAnnee;
+    if (niveauCibleId !== undefined) data.niveauCibleId = niveauCibleId || null;
+    if (classeCibleId !== undefined) data.classeCibleId = classeCibleId || null;
+    if (motifDecision !== undefined) data.motifDecision = motifDecision || null;
+    if (resultatExamenId !== undefined) data.resultatExamenId = resultatExamenId || null;
 
-    const inscription = await prisma.inscription.update({ where: { id }, data });
+    const inscription = await prisma.inscription.update({
+      where: { id },
+      data,
+      include: {
+        niveauCible: true,
+        classeCible: true,
+        resultatExamen: true,
+      },
+    });
 
     await logAudit(req, 'inscription_updated', 'Inscription', inscription.id, { statut, decisionFinAnnee });
 
@@ -142,19 +181,161 @@ export const update = async (req, res) => {
   }
 };
 
+/**
+ * Décision de fin d'année + génération inscription N+1 si passage/redoublement
+ */
+export const decideFinAnnee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+    const {
+      decisionFinAnnee,
+      niveauCibleId,
+      classeCibleId,
+      motifDecision,
+      resultatExamenId,
+      anneeCibleId,
+      genererInscription = true,
+    } = req.body;
+
+    if (!decisionFinAnnee) {
+      return res.status(400).json({ error: 'decisionFinAnnee requise' });
+    }
+
+    const existing = await prisma.inscription.findFirst({
+      where: { id, tenantId },
+      include: {
+        classe: { include: { niveauOfficiel: true } },
+        eleve: true,
+      },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Inscription non trouvée' });
+    }
+
+    let resolvedNiveauCibleId = niveauCibleId || null;
+    let resolvedClasseCibleId = classeCibleId || null;
+
+    // Auto-resolve next niveau on passage
+    if (decisionFinAnnee === 'passage' && !resolvedNiveauCibleId && existing.classe?.niveauOfficiel) {
+      const { PASSAGE_NIVEAU } = await import('../data/referentielCongo.js');
+      const nextCode = PASSAGE_NIVEAU[existing.classe.niveauOfficiel.code];
+      if (nextCode) {
+        const next = await prisma.niveauOfficiel.findFirst({
+          where: {
+            tenantId,
+            referentielVersionId: existing.classe.niveauOfficiel.referentielVersionId,
+            code: nextCode,
+          },
+        });
+        resolvedNiveauCibleId = next?.id || null;
+      }
+    }
+
+    if (decisionFinAnnee === 'redoublement' && !resolvedNiveauCibleId) {
+      resolvedNiveauCibleId = existing.classe?.niveauOfficielId || null;
+    }
+
+    const updated = await prisma.inscription.update({
+      where: { id },
+      data: {
+        decisionFinAnnee,
+        niveauCibleId: resolvedNiveauCibleId,
+        classeCibleId: resolvedClasseCibleId,
+        motifDecision: motifDecision || null,
+        resultatExamenId: resultatExamenId || null,
+      },
+      include: {
+        niveauCible: true,
+        classeCible: true,
+        resultatExamen: true,
+      },
+    });
+
+    let nouvelleInscription = null;
+    if (
+      genererInscription
+      && resolvedClasseCibleId
+      && anneeCibleId
+      && ['passage', 'redoublement', 'orientation'].includes(decisionFinAnnee)
+    ) {
+      const anneeCible = await prisma.anneeScolaire.findFirst({
+        where: { id: anneeCibleId, tenantId },
+      });
+      const classeCible = await prisma.classe.findFirst({
+        where: { id: resolvedClasseCibleId, tenantId, anneeScolaireId: anneeCibleId },
+      });
+
+      if (anneeCible && classeCible) {
+        const already = await prisma.inscription.findFirst({
+          where: {
+            tenantId,
+            anneeScolaireId: anneeCibleId,
+            eleveId: existing.eleveId,
+          },
+        });
+        if (!already) {
+          nouvelleInscription = await prisma.inscription.create({
+            data: {
+              tenantId,
+              eleveId: existing.eleveId,
+              classeId: classeCible.id,
+              anneeScolaireId: anneeCibleId,
+              statut: 'en_attente',
+              soldeScolarite: parseFloat(classeCible.fraisScolarite),
+            },
+          });
+        } else {
+          nouvelleInscription = already;
+        }
+      }
+    }
+
+    await logAudit(req, 'decision_fin_annee', 'Inscription', id, {
+      decisionFinAnnee,
+      niveauCibleId: resolvedNiveauCibleId,
+      classeCibleId: resolvedClasseCibleId,
+      nouvelleInscriptionId: nouvelleInscription?.id,
+    });
+
+    res.json({ inscription: updated, nouvelleInscription });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'decideFinAnnee error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const validate = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
 
-    const existing = await prisma.inscription.findFirst({ where: { id, tenantId } });
+    const existing = await prisma.inscription.findFirst({
+      where: { id, tenantId },
+      include: { echeances: true, classe: true },
+    });
     if (!existing) {
       return res.status(404).json({ error: 'Inscription non trouvée' });
     }
 
-    const inscription = await prisma.inscription.update({
-      where: { id },
-      data: { statut: 'validee' },
+    const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, existing.classeId);
+
+    const inscription = await prisma.$transaction(async (tx) => {
+      const insc = await tx.inscription.update({
+        where: { id },
+        data: { statut: 'validee' },
+      });
+      if (!existing.echeances?.length) {
+        await generateForInscription(tx, insc, {
+          fraisInscription,
+          fraisScolarite: Number(existing.classe?.fraisScolarite ?? fraisScolarite),
+          nbTranches: 3,
+        });
+      }
+      return tx.inscription.findUnique({
+        where: { id },
+        include: { echeances: true },
+      });
     });
 
     await logAudit(req, 'inscription_validated', 'Inscription', id, { eleveId: existing.eleveId });

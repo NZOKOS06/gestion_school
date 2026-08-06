@@ -5,16 +5,19 @@ import * as ctrl from '../controllers/anneesScolaires.controller.js';
 
 const router = Router();
 
+const readRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'comptable'];
+const writeRoles = ['directeur', 'directeur_etudes'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'comptable'),
+  requireRole(...readRoles),
   requireTenantMatch,
   ctrl.getAll
 );
 
 router.get('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'comptable'),
+  requireRole(...readRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.getById
@@ -22,7 +25,7 @@ router.get('/:id',
 
 router.post('/',
   authenticate,
-  requireRole('directeur'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   anneeScolaireValidator,
   ctrl.create
@@ -30,7 +33,7 @@ router.post('/',
 
 router.put('/:id',
   authenticate,
-  requireRole('directeur'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.update
@@ -38,7 +41,7 @@ router.put('/:id',
 
 router.put('/:id/activate',
   authenticate,
-  requireRole('directeur'),
+  requireRole('directeur', 'directeur_etudes'),
   requireTenantMatch,
   idParamValidator,
   ctrl.activate

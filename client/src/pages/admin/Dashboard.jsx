@@ -2,24 +2,27 @@ import { useEffect, useState } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { Users, TrendingUp, Wallet, AlertTriangle, CalendarX } from 'lucide-react';
-import { KpiCard, Card, DataTable, PageHeader, Badge } from '../../components/ui';
+import { KpiCard, Card, DataTable, PageHeader, Badge, Skeleton, EmptyState, Button } from '../../components/ui';
 import {
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar,
 } from 'recharts';
 
-const CYCLE_COLORS = {
-  préscolaire: '#8B5CF6',
-  primaire: '#3B82F6',
-  collège: '#10B981',
-  lycée: '#F59E0B',
-};
+const CYCLE_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+];
 
 const Dashboard = () => {
   const { formatPrice } = useTenant();
-  const { get, loading } = useAxios();
+  const { get } = useAxios();
   const [data, setData] = useState(null);
   const [evolution, setEvolution] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchKPIs();
@@ -27,11 +30,16 @@ const Dashboard = () => {
   }, []);
 
   const fetchKPIs = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const response = await get('/api/dashboard/kpis');
       setData(response);
-    } catch (error) {
-      console.error('Error fetching KPIs:', error);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Impossible de charger le tableau de bord');
+      setData(null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,27 +53,43 @@ const Dashboard = () => {
           : (d.mois || ''),
         montant: Number(d.montant) || 0,
       })));
-    } catch { /* silent */ }
+    } catch {
+      setEvolution([]);
+    }
   };
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="space-y-8">
-        <div className="skeleton h-8 w-56 rounded-lg" />
+        <Skeleton height={28} width={220} />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-xl p-5" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
               <div className="flex items-start justify-between">
                 <div className="flex-1 space-y-3">
-                  <div className="skeleton h-3 w-24 rounded" />
-                  <div className="skeleton h-8 w-36 rounded" />
-                  <div className="skeleton h-3 w-20 rounded" />
+                  <Skeleton height={12} width={96} />
+                  <Skeleton height={32} width={140} />
+                  <Skeleton height={12} width={80} />
                 </div>
-                <div className="skeleton h-11 w-11 rounded-xl ml-4" />
+                <Skeleton height={44} width={44} rounded="lg" className="ml-4" />
               </div>
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Tableau de bord" subtitle="Vue d'ensemble de votre établissement" />
+        <EmptyState
+          icon={AlertTriangle}
+          title="Impossible de charger le tableau de bord"
+          description={error || 'Une erreur est survenue.'}
+          action={<Button size="sm" onClick={() => { fetchKPIs(); fetchEvolution(); }}>Réessayer</Button>}
+        />
       </div>
     );
   }
@@ -113,7 +137,7 @@ const Dashboard = () => {
                     label={({ name, value }) => `${name}: ${value}`}
                   >
                     {cycleData.map((entry, i) => (
-                      <Cell key={i} fill={CYCLE_COLORS[entry.name] || '#94A3B8'} />
+                      <Cell key={i} fill={CYCLE_COLORS[i % CYCLE_COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip />
@@ -124,7 +148,7 @@ const Dashboard = () => {
         )}
 
         {evolution.length > 0 && (
-          <Card title="Évolution des paiements — 6 derniers mois">
+          <Card title="Évolution des paiements — 30 derniers jours">
             <div style={{ height: 240 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={evolution}>
@@ -135,7 +159,7 @@ const Dashboard = () => {
                     content={({ active, payload, label }) => {
                       if (!active || !payload?.length) return null;
                       return (
-                        <div className="rounded-lg px-3 py-2 text-xs shadow-lg" style={{ background: '#1e293b', color: '#f1f5f9' }}>
+                        <div className="rounded-lg px-3 py-2 text-xs shadow-lg" style={{ background: 'var(--surface-raised)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
                           <p className="font-medium mb-1">{label}</p>
                           <p style={{ color: 'var(--color-primary)' }}>{formatPrice(payload[0].value)}</p>
                         </div>
@@ -183,6 +207,8 @@ const Dashboard = () => {
             ]}
             data={dernieresAbsences || []}
             emptyMessage="Aucune absence non justifiée"
+            emptyDescription="Tout est en ordre pour le moment."
+            mobileCards={false}
           />
         </Card>
 
@@ -218,6 +244,8 @@ const Dashboard = () => {
             ]}
             data={derniersPaiements || []}
             emptyMessage="Aucun paiement récent"
+            emptyDescription="Les encaissements récents s'afficheront ici."
+            mobileCards={false}
           />
         </Card>
       </div>

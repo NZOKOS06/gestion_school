@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { broadcastNote } from '../utils/notifications.js';
 
 const log = createLogger('EvaluationsController');
 
@@ -165,9 +166,24 @@ export const saveNotes = async (req, res) => {
     const tenantId = req.tenantId;
     const { notes } = req.body;
 
+    if (!Array.isArray(notes)) {
+      return res.status(400).json({ error: 'notes doit être un tableau' });
+    }
+
     const evaluation = await prisma.evaluation.findFirst({ where: { id, tenantId } });
     if (!evaluation) {
       return res.status(404).json({ error: 'Évaluation non trouvée' });
+    }
+
+    if (req.user.role === 'enseignant') {
+      const { assertEnseignantAssignedToClasseMatiere } = await import('../utils/ownership.js');
+      const ok = await assertEnseignantAssignedToClasseMatiere(
+        req,
+        res,
+        evaluation.classeId,
+        evaluation.matiereId
+      );
+      if (!ok) return;
     }
 
     await prisma.$transaction(async (tx) => {
@@ -182,6 +198,7 @@ export const saveNotes = async (req, res) => {
             data: {
               valeur: parseFloat(note.valeur),
               appreciation: note.appreciation || null,
+              saisiParId: req.user.id,
             },
           });
         } else {
@@ -192,6 +209,7 @@ export const saveNotes = async (req, res) => {
               eleveId: note.eleveId,
               valeur: parseFloat(note.valeur),
               appreciation: note.appreciation || null,
+              saisiParId: req.user.id,
             },
           });
         }
@@ -200,9 +218,76 @@ export const saveNotes = async (req, res) => {
 
     await logAudit(req, 'notes_saved', 'Evaluation', id, { count: notes.length });
 
+    const slug = req.tenant?.slug;
+    for (const note of notes) {
+      try {
+        await broadcastNote(slug, tenantId, {
+          id: note.id || id,
+          eleveId: note.eleveId,
+          evaluationId: id,
+          valeur: note.valeur,
+        });
+      } catch { /* optional */ }
+    }
+
     res.json({ message: 'Notes enregistrées', count: notes.length });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Save notes error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getNotes = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+
+    const evaluation = await prisma.evaluation.findFirst({ where: { id, tenantId } });
+    if (!evaluation) {
+      return res.status(404).json({ error: 'Évaluation non trouvée' });
+    }
+
+    if (req.user.role === 'enseignant') {
+      const { assertEnseignantAssignedToClasseMatiere } = await import('../utils/ownership.js');
+      const ok = await assertEnseignantAssignedToClasseMatiere(
+        req,
+        res,
+        evaluation.classeId,
+        evaluation.matiereId
+      );
+      if (!ok) return;
+    }
+
+    const inscriptions = await prisma.inscription.findMany({
+      where: { tenantId, classeId: evaluation.classeId, statut: 'validee' },
+      include: {
+        eleve: { select: { id: true, prenom: true, nom: true, matricule: true, actif: true } },
+      },
+      orderBy: { eleve: { nom: 'asc' } },
+    });
+
+    const notes = await prisma.note.findMany({
+      where: { tenantId, evaluationId: id },
+    });
+    const byEleve = new Map(notes.map((n) => [n.eleveId, n]));
+
+    res.json(
+      inscriptions
+        .filter((i) => i.eleve?.actif !== false)
+        .map((i) => {
+          const n = byEleve.get(i.eleve.id);
+          return {
+            eleveId: i.eleve.id,
+            elevePrenom: i.eleve.prenom,
+            eleveNom: i.eleve.nom,
+            matricule: i.eleve.matricule,
+            valeur: n ? Number(n.valeur) : null,
+            appreciation: n?.appreciation || null,
+          };
+        })
+    );
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'getNotes error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

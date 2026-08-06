@@ -92,7 +92,7 @@ const staffBase = {
   email: 'staff@pharma.com',
   nom: 'Dupont',
   prenom: 'Jean',
-  role: 'pharmacien',
+  role: 'directeur',
   tenantId: 'tenant-1',
   actif: true,
   mustChangePassword: false,
@@ -100,7 +100,7 @@ const staffBase = {
   derniereConnexion: null,
   tenant: {
     actif: true,
-    nom: 'Pharmacie Test',
+    nom: 'Ecole Test',
     slug: 'pharma-test',
     config: {}
   }
@@ -161,7 +161,7 @@ describe('Auth — login', () => {
     )
   })
 
-  it('retourne 403 si la pharmacie est désactivée', async () => {
+  it('retourne 403 si l'établissement est désactivé', async () => {
     const hash = await bcrypt.hash('Password1!', 10)
     mockStaffFindFirst.mockResolvedValue({
       ...staffBase,
@@ -176,7 +176,7 @@ describe('Auth — login', () => {
 
     expect(res.status).toHaveBeenCalledWith(403)
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ error: 'Pharmacie désactivée' })
+      expect.objectContaining({ error: 'Etablissement désactivé' })
     )
   })
 
@@ -306,7 +306,7 @@ describe('Auth — refresh token', () => {
 
   it('retourne un nouvel accessToken pour un refresh token valide', async () => {
     const validToken = jwt.sign(
-      { userId: 'staff-1', role: 'pharmacien', tenantId: 'tenant-1', type: 'refresh' },
+      { userId: 'staff-1', role: 'directeur', tenantId: 'tenant-1', type: 'refresh' },
       JWT_REFRESH_SECRET,
       { expiresIn: '7d' }
     )
@@ -329,7 +329,7 @@ describe('Auth — refresh token', () => {
 
   it('accepte le refresh token depuis le cookie (pas seulement le body)', async () => {
     const validToken = jwt.sign(
-      { userId: 'staff-1', role: 'pharmacien', tenantId: 'tenant-1', type: 'refresh' },
+      { userId: 'staff-1', role: 'directeur', tenantId: 'tenant-1', type: 'refresh' },
       JWT_REFRESH_SECRET,
       { expiresIn: '7d' }
     )
@@ -350,7 +350,7 @@ describe('Auth — refresh token', () => {
 
   it('retourne 401 si le token est absent de la base (révoqué / inconnu)', async () => {
     const validToken = jwt.sign(
-      { userId: 'staff-1', role: 'pharmacien', tenantId: 'tenant-1', type: 'refresh' },
+      { userId: 'staff-1', role: 'directeur', tenantId: 'tenant-1', type: 'refresh' },
       JWT_REFRESH_SECRET,
       { expiresIn: '7d' }
     )
@@ -372,7 +372,7 @@ describe('Auth — refresh token', () => {
     // Le controller n'appelle pas refreshToken.delete ni refreshToken.create.
     // Ce test documente le comportement actuel — il passera tant que le bug existe.
     const validToken = jwt.sign(
-      { userId: 'staff-1', role: 'pharmacien', tenantId: 'tenant-1', type: 'refresh' },
+      { userId: 'staff-1', role: 'directeur', tenantId: 'tenant-1', type: 'refresh' },
       JWT_REFRESH_SECRET,
       { expiresIn: '7d' }
     )
@@ -419,7 +419,7 @@ describe('Auth — changePassword', () => {
     mockStaffFindUnique.mockResolvedValue({ id: 'staff-1', passwordHash: hash, mustChangePassword: false })
 
     const req = mockReq({
-      user: { id: 'staff-1', role: 'pharmacien', mustChangePassword: false },
+      user: { id: 'staff-1', role: 'directeur', mustChangePassword: false },
       body: { currentPassword: 'OldPass1!', newPassword: 'faible' }
     })
     const res = mockRes()
@@ -437,7 +437,7 @@ describe('Auth — changePassword', () => {
     mockStaffFindUnique.mockResolvedValue({ id: 'staff-1', passwordHash: hash, mustChangePassword: false })
 
     const req = mockReq({
-      user: { id: 'staff-1', role: 'pharmacien', mustChangePassword: false },
+      user: { id: 'staff-1', role: 'directeur', mustChangePassword: false },
       body: { currentPassword: 'OldPass1!', newPassword: 'Password123' }
     })
     const res = mockRes()
@@ -452,7 +452,7 @@ describe('Auth — changePassword', () => {
     mockStaffFindUnique.mockResolvedValue({ id: 'staff-1', passwordHash: hash, mustChangePassword: false })
 
     const req = mockReq({
-      user: { id: 'staff-1', role: 'pharmacien', mustChangePassword: false },
+      user: { id: 'staff-1', role: 'directeur', mustChangePassword: false },
       body: { currentPassword: 'MauvaisMotDePasse', newPassword: 'NewPass1!' }
     })
     const res = mockRes()
@@ -468,7 +468,7 @@ describe('Auth — changePassword', () => {
     mockStaffUpdate.mockResolvedValue({ id: 'staff-1', mustChangePassword: false })
 
     const req = mockReq({
-      user: { id: 'staff-1', role: 'pharmacien', mustChangePassword: true },
+      user: { id: 'staff-1', role: 'directeur', mustChangePassword: true },
       body: { currentPassword: 'OldPass1!', newPassword: 'NewPass1!' }
     })
     const res = mockRes()
@@ -491,7 +491,7 @@ describe('Auth — changePassword', () => {
     mockStaffUpdate.mockResolvedValue({ id: 'staff-1', mustChangePassword: false })
 
     const req = mockReq({
-      user: { id: 'staff-1', role: 'pharmacien', mustChangePassword: true },
+      user: { id: 'staff-1', role: 'directeur', mustChangePassword: true },
       body: {
         // currentPassword volontairement incorrect — doit être ignoré
         currentPassword: 'mauvaisAncienMDP',
@@ -514,7 +514,7 @@ describe('Auth — changePassword', () => {
     mockStaffFindUnique.mockResolvedValue({ id: 'staff-1', passwordHash: hash, mustChangePassword: false })
 
     const req = mockReq({
-      user: { id: 'staff-1', role: 'pharmacien', mustChangePassword: false },
+      user: { id: 'staff-1', role: 'directeur', mustChangePassword: false },
       body: { currentPassword: 'OldPass1!', newPassword: 'password1!' } // pas de majuscule
     })
     const res = mockRes()
@@ -532,7 +532,7 @@ describe('Auth — changePassword', () => {
     mockStaffFindUnique.mockResolvedValue({ id: 'staff-1', passwordHash: hash, mustChangePassword: false })
 
     const req = mockReq({
-      user: { id: 'staff-1', role: 'pharmacien', mustChangePassword: false },
+      user: { id: 'staff-1', role: 'directeur', mustChangePassword: false },
       body: { currentPassword: 'OldPass1!', newPassword: 'Password!' } // pas de chiffre
     })
     const res = mockRes()
@@ -547,7 +547,7 @@ describe('Auth — changePassword', () => {
     mockStaffFindUnique.mockResolvedValue({ id: 'staff-1', passwordHash: hash, mustChangePassword: false })
 
     const req = mockReq({
-      user: { id: 'staff-1', role: 'pharmacien', mustChangePassword: false },
+      user: { id: 'staff-1', role: 'directeur', mustChangePassword: false },
       body: { currentPassword: 'OldPass1!', newPassword: 'Aa1!' } // 4 chars seulement
     })
     const res = mockRes()

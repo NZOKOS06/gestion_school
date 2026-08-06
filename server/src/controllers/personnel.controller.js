@@ -9,10 +9,14 @@ const log = createLogger('PersonnelController');
 
 export const getAll = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search, role, actif = 'true' } = req.query;
+    const { page = 1, limit = 100, search, role, actif } = req.query;
     const tenantId = req.tenantId;
 
-    const where = { tenantId, actif: actif === 'true' };
+    const where = { tenantId };
+    if (actif === 'true' || actif === 'false') {
+      where.actif = actif === 'true';
+    }
+    // actif omitted or 'all' → no filter
 
     if (role) where.role = role;
 
@@ -23,6 +27,9 @@ export const getAll = async (req, res) => {
         { email: { contains: search, mode: 'insensitive' } }
       ];
     }
+
+    const take = Math.min(parseInt(limit) || 100, 500);
+    const skip = (parseInt(page) - 1) * take;
 
     const [staff, total] = await Promise.all([
       prisma.staff.findMany({
@@ -42,8 +49,8 @@ export const getAll = async (req, res) => {
           tauxHoraire: true,
           createdAt: true
         },
-        skip: (page - 1) * limit,
-        take: parseInt(limit),
+        skip,
+        take,
         orderBy: { nom: 'asc' }
       }),
       prisma.staff.count({ where })
@@ -53,9 +60,9 @@ export const getAll = async (req, res) => {
       staff,
       pagination: {
         page: parseInt(page),
-        limit: parseInt(limit),
+        limit: take,
         total,
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil(total / take)
       }
     });
   } catch (error) {
@@ -196,17 +203,31 @@ export const update = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
+    const isSelf = req.user.id === id;
+    const isAdmin = ['directeur', 'secretaire'].includes(req.user.role);
+
+    if (!isSelf && !isAdmin) {
+      return res.status(403).json({ error: 'Action non autorisée' });
+    }
 
     // Whitelist des champs modifiables — protège contre le mass assignment
     const { nom, prenom, email, telephone, role, actif, typeContrat, heuresHebdo, tauxHoraire } = req.body;
-    const data = Object.fromEntries(
-      Object.entries({
-        nom, prenom, email, telephone, role, actif,
-        typeContrat: typeContrat !== undefined ? typeContrat : undefined,
-        heuresHebdo: heuresHebdo !== undefined ? (heuresHebdo ? parseInt(heuresHebdo) : null) : undefined,
-        tauxHoraire: tauxHoraire !== undefined ? (tauxHoraire ? parseFloat(tauxHoraire) : null) : undefined,
-      }).filter(([, v]) => v !== undefined)
-    );
+    let data;
+    if (isSelf && !isAdmin) {
+      // Self-profile: identity fields only
+      data = Object.fromEntries(
+        Object.entries({ nom, prenom, telephone }).filter(([, v]) => v !== undefined)
+      );
+    } else {
+      data = Object.fromEntries(
+        Object.entries({
+          nom, prenom, email, telephone, role, actif,
+          typeContrat: typeContrat !== undefined ? typeContrat : undefined,
+          heuresHebdo: heuresHebdo !== undefined ? (heuresHebdo ? parseInt(heuresHebdo) : null) : undefined,
+          tauxHoraire: tauxHoraire !== undefined ? (tauxHoraire ? parseFloat(tauxHoraire) : null) : undefined,
+        }).filter(([, v]) => v !== undefined)
+      );
+    }
 
     const staff = await prisma.staff.findFirst({
       where: { id, tenantId }

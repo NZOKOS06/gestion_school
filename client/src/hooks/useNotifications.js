@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSocket } from './useSocket';
+import { useAxios } from './useAxios';
+import { useAuth } from '../contexts/AuthContext';
 
 const MAX_NOTIFICATIONS = 50;
 
@@ -7,24 +9,39 @@ export function useNotifications() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const { on, off } = useSocket();
+  const { get, put } = useAxios();
+  const { user } = useAuth();
+  const isParent = user?.role === 'parent';
 
   const add = useCallback((notif) => {
     const entry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      ...notif,
-      createdAt: new Date(),
-      read: false,
+      id: notif.id || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      type: notif.type || 'systeme',
+      title: notif.titre || notif.title || 'Notification',
+      message: notif.contenu || notif.message || '',
+      lien: notif.lien || null,
+      createdAt: notif.createdAt ? new Date(notif.createdAt) : new Date(),
+      read: !!(notif.lu || notif.read),
     };
-    setNotifications((prev) => [entry, ...prev].slice(0, MAX_NOTIFICATIONS));
-    setUnreadCount((prev) => prev + 1);
+    setNotifications((prev) => {
+      if (prev.some((n) => n.id === entry.id)) return prev;
+      return [entry, ...prev].slice(0, MAX_NOTIFICATIONS);
+    });
+    if (!entry.read) {
+      setUnreadCount((prev) => prev + 1);
+    }
   }, []);
 
-  const markAllRead = useCallback(() => {
+  const markAllRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
-  }, []);
+    if (!isParent) return;
+    try {
+      await put('/api/parent/notifications/read-all', {}, { silent: true });
+    } catch { /* ignore */ }
+  }, [put, isParent]);
 
-  const markRead = useCallback((id) => {
+  const markRead = useCallback(async (id) => {
     setNotifications((prev) =>
       prev.map((n) => {
         if (n.id === id && !n.read) {
@@ -34,58 +51,106 @@ export function useNotifications() {
         return n;
       })
     );
-  }, []);
+    if (!isParent) return;
+    try {
+      await put(`/api/parent/notifications/${id}/read`, {}, { silent: true });
+    } catch { /* ignore */ }
+  }, [put, isParent]);
 
   const clear = useCallback(() => {
     setNotifications([]);
     setUnreadCount(0);
   }, []);
 
+  // Hydrate from API — parents only (staff rely on sockets)
+  useEffect(() => {
+    if (!isParent) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await get('/api/parent/notifications', { silent: true });
+        const rows = res?.data || res || [];
+        if (cancelled || !Array.isArray(rows)) return;
+        setNotifications(
+          rows.slice(0, MAX_NOTIFICATIONS).map((n) => ({
+            id: n.id,
+            type: n.type,
+            title: n.titre,
+            message: n.contenu,
+            lien: n.lien,
+            createdAt: new Date(n.createdAt),
+            read: !!n.lu,
+          }))
+        );
+        setUnreadCount(rows.filter((n) => !n.lu).length);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [get, isParent]);
+
   useEffect(() => {
     const handlers = {
-      stockAlerte: (data) =>
+      notification: (data) =>
         add({
-          type: 'stock',
-          title: 'Alerte effectif',
-          message: `${data.classe || data.eleve} — effectif critique (${data.effectif} élèves)`,
-          icon: 'Package',
-          color: 'danger',
+          id: data.id,
+          type: data.type || 'systeme',
+          titre: data.titre || 'Notification',
+          contenu: data.contenu || data.message,
+          lien: data.lien,
         }),
 
-      peremptionAlerte: (data) =>
+      nouvelleNote: (data) =>
         add({
-          type: 'peremption',
-          title: 'Échéance proche',
-          message: `Échéance de ${data.eleve} — ${data.joursRestants} jours restants`,
-          icon: 'Clock',
-          color: 'warning',
+          type: 'note',
+          titre: 'Nouvelle note',
+          contenu: `Note saisie (valeur: ${data.valeur ?? '—'})`,
+          lien: '/parent/notes',
         }),
 
-      nouvelleOrdonnance: (data) =>
+      nouvelleAbsence: (data) =>
         add({
-          type: 'inscription',
-          title: 'Nouvelle inscription',
-          message: `Inscription de ${data.nomEleve || 'un élève'} en attente de validation`,
-          icon: 'FileText',
-          color: 'info',
+          type: 'absence',
+          titre: 'Absence signalée',
+          contenu: data.dateAbsence
+            ? `Absence du ${new Date(data.dateAbsence).toLocaleDateString('fr-FR')}`
+            : 'Une absence a été enregistrée',
+          lien: '/parent/absences',
         }),
 
-      nouvelleVente: (data) =>
+      nouvelleSanction: () =>
+        add({
+          type: 'sanction',
+          titre: 'Sanction disciplinaire',
+          contenu: 'Une sanction a été enregistrée pour votre enfant',
+          lien: '/parent/sanctions',
+        }),
+
+      paiementEncaisse: (data) =>
         add({
           type: 'paiement',
-          title: 'Nouveau paiement',
-          message: `Paiement #${data.numeroPaiement} — ${data.montantTotal} FCFA`,
-          icon: 'ShoppingCart',
-          color: 'success',
+          titre: 'Paiement encaissé',
+          contenu: `Reçu n°${data.numeroRecu ?? '—'} — ${data.montant ?? ''} FCFA`,
+          lien: '/parent/facturation',
         }),
 
-      livraisonMAJ: (data) =>
+      paiementEchu: (data) =>
         add({
-          type: 'communication',
-          title: 'Communication mise à jour',
-          message: `Message #${data.messageId} → ${data.statut}`,
-          icon: 'MessageCircle',
-          color: 'info',
+          type: 'relance_impaye',
+          titre: 'Échéance en retard',
+          contenu: data.libelle
+            ? `L'échéance « ${data.libelle} » est en retard`
+            : 'Une échéance de scolarité est en retard',
+          lien: '/parent/facturation',
+        }),
+
+      bulletinGenere: (data) =>
+        add({
+          type: 'bulletin',
+          titre: 'Bulletin disponible',
+          contenu: data.moyenneGenerale != null
+            ? `Bulletin publié — moyenne ${Number(data.moyenneGenerale).toFixed(2)}`
+            : 'Un bulletin a été publié',
+          lien: '/parent/bulletins',
         }),
     };
 

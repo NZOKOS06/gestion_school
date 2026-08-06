@@ -1,7 +1,16 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
-import crypto from 'crypto';
+import {
+  calculerClasse,
+  computeEleveBulletin,
+  buildQrHash,
+  countAbsencesHeures,
+  mentionFromMoyenne,
+} from '../services/bulletins.service.js';
+import { buildBulletinPdf } from '../services/pdf/bulletin.pdf.js';
+import { uploadPdfBuffer, isCloudinaryConfigured } from '../utils/cloudinary.js';
+import { broadcastBulletin } from '../utils/notifications.js';
 
 const log = createLogger('BulletinsController');
 
@@ -76,101 +85,269 @@ export const getById = async (req, res) => {
   }
 };
 
+export const calculer = async (req, res) => {
+  try {
+    const { anneeScolaireId, classeId, periodeIndex } = req.body;
+    if (!anneeScolaireId || !classeId || periodeIndex == null) {
+      return res.status(400).json({ error: 'anneeScolaireId, classeId et periodeIndex requis' });
+    }
+
+    const data = await calculerClasse(req.tenantId, {
+      anneeScolaireId,
+      classeId,
+      periodeIndex,
+    });
+
+    res.json({ data });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Calculer bulletins error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+async function upsertBulletinFromComputed(tenantId, computed, meta, config) {
+  const { anneeScolaireId, classeId, periodeIndex } = meta;
+  const absencesHeures = await countAbsencesHeures(tenantId, computed.eleveId, anneeScolaireId);
+  const qrCodeHash = buildQrHash({
+    tenantId,
+    eleveId: computed.eleveId,
+    classeId,
+    anneeScolaireId,
+    periodeIndex,
+  });
+
+  const payload = {
+    moyenneGenerale: computed.moyenneGenerale,
+    rang: computed.rang,
+    effectifClasse: computed.effectifClasse,
+    mention: computed.mention,
+    absencesHeures,
+    notesDetaillees: computed.notesDetaillees,
+    qrCodeHash,
+    valide: false,
+  };
+
+  const existing = await prisma.bulletin.findFirst({
+    where: {
+      tenantId,
+      eleveId: computed.eleveId,
+      classeId,
+      anneeScolaireId,
+      periodeIndex: parseInt(periodeIndex, 10),
+    },
+  });
+
+  let bulletin;
+  if (existing) {
+    bulletin = await prisma.bulletin.update({
+      where: { id: existing.id },
+      data: payload,
+      include: {
+        eleve: { select: { id: true, prenom: true, nom: true, matricule: true } },
+        classe: { select: { id: true, nom: true } },
+        anneeScolaire: { select: { id: true, libelle: true } },
+      },
+    });
+  } else {
+    bulletin = await prisma.bulletin.create({
+      data: {
+        tenantId,
+        eleveId: computed.eleveId,
+        classeId,
+        anneeScolaireId,
+        periodeIndex: parseInt(periodeIndex, 10),
+        ...payload,
+      },
+      include: {
+        eleve: { select: { id: true, prenom: true, nom: true, matricule: true } },
+        classe: { select: { id: true, nom: true } },
+        anneeScolaire: { select: { id: true, libelle: true } },
+      },
+    });
+  }
+
+  // PDF
+  try {
+    const buffer = await buildBulletinPdf({
+      nomEcole: config?.nomEcole || 'GestSchool',
+      eleve: `${bulletin.eleve.prenom} ${bulletin.eleve.nom}`,
+      matricule: bulletin.eleve.matricule,
+      classe: bulletin.classe?.nom,
+      anneeScolaire: bulletin.anneeScolaire?.libelle,
+      periodeIndex: bulletin.periodeIndex,
+      moyenneGenerale: Number(bulletin.moyenneGenerale),
+      rang: bulletin.rang,
+      effectifClasse: bulletin.effectifClasse,
+      mention: bulletin.mention,
+      notesDetaillees: bulletin.notesDetaillees,
+      absencesHeures: bulletin.absencesHeures,
+      qrCodeHash: bulletin.qrCodeHash,
+    });
+
+    let pdfUrl = null;
+    if (isCloudinaryConfigured()) {
+      try {
+        pdfUrl = await uploadPdfBuffer(buffer, {
+          folder: 'gestschool/bulletins',
+          publicId: `bulletin-${bulletin.id.slice(0, 12)}`,
+        });
+      } catch (upErr) {
+        log.warn({ err: upErr }, 'Cloudinary bulletin upload failed');
+      }
+    }
+
+    if (pdfUrl) {
+      bulletin = await prisma.bulletin.update({
+        where: { id: bulletin.id },
+        data: { pdfUrl },
+        include: {
+          eleve: { select: { id: true, prenom: true, nom: true, matricule: true } },
+          classe: { select: { id: true, nom: true } },
+          anneeScolaire: { select: { id: true, libelle: true } },
+        },
+      });
+    }
+  } catch (pdfErr) {
+    log.warn({ err: pdfErr }, 'Bulletin PDF generation failed');
+  }
+
+  return bulletin;
+}
+
+export const genererMasse = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { anneeScolaireId, classeId, periodeIndex } = req.body;
+    if (!anneeScolaireId || !classeId || periodeIndex == null) {
+      return res.status(400).json({ error: 'anneeScolaireId, classeId et periodeIndex requis' });
+    }
+
+    const results = await calculerClasse(tenantId, {
+      anneeScolaireId,
+      classeId,
+      periodeIndex,
+    });
+
+    const withNotes = results.filter((r) => r.hasNotes);
+    if (!withNotes.length) {
+      return res.status(400).json({ error: 'Aucune note trouvée pour cette classe / période' });
+    }
+
+    const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
+    const created = [];
+    for (const row of withNotes) {
+      const bulletin = await upsertBulletinFromComputed(
+        tenantId,
+        row,
+        { anneeScolaireId, classeId, periodeIndex },
+        config
+      );
+      created.push(bulletin);
+    }
+
+    await logAudit(req, 'bulletins_generated_masse', 'Bulletin', null, {
+      classeId,
+      periodeIndex,
+      count: created.length,
+    });
+
+    res.status(201).json({ data: created, count: created.length });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Generer masse bulletins error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const publier = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { anneeScolaireId, classeId, periodeIndex } = req.body;
+    if (!anneeScolaireId || !classeId || periodeIndex == null) {
+      return res.status(400).json({ error: 'anneeScolaireId, classeId et periodeIndex requis' });
+    }
+
+    const result = await prisma.bulletin.updateMany({
+      where: {
+        tenantId,
+        anneeScolaireId,
+        classeId,
+        periodeIndex: parseInt(periodeIndex, 10),
+      },
+      data: { valide: true },
+    });
+
+    const published = await prisma.bulletin.findMany({
+      where: {
+        tenantId,
+        anneeScolaireId,
+        classeId,
+        periodeIndex: parseInt(periodeIndex, 10),
+        valide: true,
+      },
+    });
+    for (const b of published) {
+      try {
+        await broadcastBulletin(req.tenant?.slug, tenantId, b);
+      } catch { /* optional */ }
+    }
+
+    await logAudit(req, 'bulletins_published', 'Bulletin', null, {
+      classeId,
+      periodeIndex,
+      count: result.count,
+    });
+
+    res.json({ message: 'Bulletins publiés', count: result.count });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Publier bulletins error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const generate = async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { eleveId, classeId, anneeScolaireId, periodeIndex } = req.body;
 
-    const notes = await prisma.note.findMany({
-      where: {
-        tenantId,
-        eleveId,
-        evaluation: {
-          classeId,
-          anneeScolaireId,
-          periodeIndex: parseInt(periodeIndex),
-        },
-      },
-      include: {
-        evaluation: {
-          include: {
-            matiere: { select: { id: true, nom: true, code: true, coefficient: true } },
-          },
-        },
-      },
+    if (!eleveId || !classeId || !anneeScolaireId || periodeIndex == null) {
+      return res.status(400).json({ error: 'eleveId, classeId, anneeScolaireId, periodeIndex requis' });
+    }
+
+    const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
+    const seuil = Number(config?.seuilReussite ?? 10);
+
+    const computed = await computeEleveBulletin(tenantId, {
+      eleveId,
+      classeId,
+      anneeScolaireId,
+      periodeIndex,
+      seuilReussite: seuil,
     });
 
-    if (notes.length === 0) {
+    if (!computed.hasNotes) {
       return res.status(400).json({ error: 'Aucune note trouvée pour cette période' });
     }
 
-    const matieresMap = new Map();
-    for (const note of notes) {
-      const matiereId = note.evaluation.matiereId;
-      if (!matieresMap.has(matiereId)) {
-        matieresMap.set(matiereId, {
-          matiere: note.evaluation.matiere,
-          notes: [],
-        });
-      }
-      matieresMap.get(matiereId).notes.push({
-        valeur: parseFloat(note.valeur),
-        coefficient: note.evaluation.coefficient,
-        noteMaximale: parseFloat(note.evaluation.noteMaximale),
-      });
-    }
-
-    const matieresResult = [];
-    let totalPoints = 0;
-    let totalCoefficients = 0;
-
-    for (const [matiereId, data] of matieresMap) {
-      const moyennes = data.notes.map(n => (n.valeur / n.noteMaximale) * 20);
-      const moyenneMatiere = moyennes.reduce((sum, m) => sum + m, 0) / moyennes.length;
-      const coef = data.matiere.coefficient || 1;
-
-      totalPoints += moyenneMatiere * coef;
-      totalCoefficients += coef;
-
-      matieresResult.push({
-        matiere: data.matiere,
-        moyenne: parseFloat(moyenneMatiere.toFixed(2)),
-        coefficient: coef,
-      });
-    }
-
-    const moyenneGenerale = totalCoefficients > 0 ? totalPoints / totalCoefficients : 0;
-
-    const existing = await prisma.bulletin.findFirst({
-      where: { tenantId, eleveId, classeId, anneeScolaireId, periodeIndex: parseInt(periodeIndex) },
+    // Rank within class for single generate
+    const classResults = await calculerClasse(tenantId, {
+      anneeScolaireId,
+      classeId,
+      periodeIndex,
     });
+    const ranked = classResults.find((r) => r.eleveId === eleveId);
+    const row = {
+      ...computed,
+      rang: ranked?.rang || 1,
+      effectifClasse: ranked?.effectifClasse || 1,
+      mention: ranked?.mention || mentionFromMoyenne(computed.moyenneGenerale, seuil),
+    };
 
-    let bulletin;
-    if (existing) {
-      bulletin = await prisma.bulletin.update({
-        where: { id: existing.id },
-        data: {
-          moyenneGenerale: parseFloat(moyenneGenerale.toFixed(2)),
-          detailsMatieres: matieresResult,
-          statut: 'genere',
-          qrCodeHash: crypto.createHash('sha256').update(`${tenantId}-${eleveId}-${classeId}-${anneeScolaireId}-${periodeIndex}-${Date.now()}`).digest('hex'),
-        },
-      });
-    } else {
-      bulletin = await prisma.bulletin.create({
-        data: {
-          tenantId,
-          eleveId,
-          classeId,
-          anneeScolaireId,
-          periodeIndex: parseInt(periodeIndex),
-          moyenneGenerale: parseFloat(moyenneGenerale.toFixed(2)),
-          detailsMatieres: matieresResult,
-          statut: 'genere',
-          qrCodeHash: crypto.createHash('sha256').update(`${tenantId}-${eleveId}-${classeId}-${anneeScolaireId}-${periodeIndex}-${Date.now()}`).digest('hex'),
-        },
-      });
-    }
+    const bulletin = await upsertBulletinFromComputed(
+      tenantId,
+      row,
+      { anneeScolaireId, classeId, periodeIndex },
+      config
+    );
 
     await logAudit(req, 'bulletin_generated', 'Bulletin', bulletin.id, { eleveId, periodeIndex });
 
@@ -185,7 +362,7 @@ export const update = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
-    const { appreciationGenerale, statut } = req.body;
+    const { appreciationGenerale, decisionConseil, valide, mention } = req.body;
 
     const existing = await prisma.bulletin.findFirst({ where: { id, tenantId } });
     if (!existing) {
@@ -193,12 +370,16 @@ export const update = async (req, res) => {
     }
 
     const data = {};
-    if (appreciationGenerale !== undefined) data.appreciationGenerale = appreciationGenerale;
-    if (statut !== undefined) data.statut = statut;
+    if (decisionConseil !== undefined) data.decisionConseil = decisionConseil;
+    if (appreciationGenerale !== undefined) {
+      data.decisionConseil = appreciationGenerale;
+    }
+    if (valide !== undefined) data.valide = !!valide;
+    if (mention !== undefined) data.mention = mention;
 
     const bulletin = await prisma.bulletin.update({ where: { id }, data });
 
-    await logAudit(req, 'bulletin_updated', 'Bulletin', bulletin.id, { statut });
+    await logAudit(req, 'bulletin_updated', 'Bulletin', bulletin.id, { valide: bulletin.valide });
 
     res.json(bulletin);
   } catch (error) {

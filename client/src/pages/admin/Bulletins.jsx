@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, DataTable, Badge, Button, Card } from '../../components/ui';
 import { FileText, Calculator, FileDown, CheckCircle, Eye } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const MENTION_VARIANT = {
   felicitations: 'success',
@@ -71,7 +72,8 @@ const Bulletins = () => {
         periodeIndex: parseInt(selectedPeriode),
       });
       setResultats(res?.data || res || []);
-    } catch { /* silent */ }
+      toast.success('Moyennes calculées');
+    } catch { /* toast via useAxios */ }
     setCalculating(false);
   };
 
@@ -83,8 +85,9 @@ const Bulletins = () => {
         classeId: selectedClasse,
         periodeIndex: parseInt(selectedPeriode),
       });
+      toast.success('Bulletins PDF générés');
       fetchBulletins();
-    } catch { /* silent */ }
+    } catch { /* toast via useAxios */ }
     setGenerating(false);
   };
 
@@ -95,8 +98,9 @@ const Bulletins = () => {
         classeId: selectedClasse,
         periodeIndex: parseInt(selectedPeriode),
       });
+      toast.success('Bulletins publiés');
       fetchBulletins();
-    } catch { /* silent */ }
+    } catch { /* toast via useAxios */ }
   };
 
   const selectStyle = {

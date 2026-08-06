@@ -107,7 +107,23 @@ const CalendrierScolaire = () => {
       <PageHeader
         title="Calendrier scolaire"
         subtitle="Rentrée, vacances, examens, jours fériés et événements"
-        actions={<Button icon={Plus} onClick={openCreate}>Nouvel événement</Button>}
+        actions={
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              disabled={!selectedAnnee}
+              onClick={async () => {
+                try {
+                  await post('/api/referentiel/calendrier/generate-from-periodes', { anneeScolaireId: selectedAnnee });
+                  fetchEvents();
+                } catch { /* silent */ }
+              }}
+            >
+              Générer depuis périodes
+            </Button>
+            <Button icon={Plus} onClick={openCreate}>Nouvel événement</Button>
+          </div>
+        }
       />
 
       <div className="flex gap-3 items-center">

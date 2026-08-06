@@ -1,8 +1,34 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { buildCertificatPdf, buildPreviewPayload } from '../services/pdf/certificat.pdf.js';
+import { uploadPdfBuffer, isCloudinaryConfigured } from '../utils/cloudinary.js';
 
 const log = createLogger('CertificatsController');
+
+async function loadCertificatContext(tenantId, { eleveId, anneeScolaireId }) {
+  const [eleve, annee, config, inscription] = await Promise.all([
+    prisma.eleve.findFirst({
+      where: { id: eleveId, tenantId },
+      select: { id: true, prenom: true, nom: true, matricule: true },
+    }),
+    anneeScolaireId
+      ? prisma.anneeScolaire.findFirst({ where: { id: anneeScolaireId, tenantId } })
+      : prisma.anneeScolaire.findFirst({ where: { tenantId, actif: true } }),
+    prisma.tenantConfig.findUnique({ where: { tenantId } }),
+    prisma.inscription.findFirst({
+      where: {
+        tenantId,
+        eleveId,
+        ...(anneeScolaireId ? { anneeScolaireId } : {}),
+        statut: 'validee',
+      },
+      include: { classe: { select: { nom: true } } },
+      orderBy: { dateInscription: 'desc' },
+    }),
+  ]);
+  return { eleve, annee, config, inscription };
+}
 
 export const getAll = async (req, res) => {
   try {
@@ -34,11 +60,48 @@ export const getAll = async (req, res) => {
     ]);
 
     res.json({
-      data: rows,
+      data: rows.map((r) => ({
+        ...r,
+        elevePrenom: r.eleve?.prenom,
+        eleveNom: r.eleve?.nom,
+        eleveMatricule: r.eleve?.matricule,
+      })),
       pagination: { page: parseInt(page), limit: take, total, totalPages: Math.ceil(total / take) },
     });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'Get all certificats error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const preview = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { eleveId, type, anneeScolaireId } = req.query;
+    if (!eleveId) return res.status(400).json({ error: 'eleveId requis' });
+
+    const { eleve, annee, config, inscription } = await loadCertificatContext(tenantId, {
+      eleveId,
+      anneeScolaireId,
+    });
+    if (!eleve) return res.status(404).json({ error: 'Élève non trouvé' });
+
+    const count = await prisma.certificat.count({ where: { tenantId } });
+    const numeroSerie = `CERT-${String(count + 1).padStart(5, '0')}`;
+
+    res.json(
+      buildPreviewPayload({
+        type: type || 'scolarite',
+        eleve: `${eleve.prenom} ${eleve.nom}`,
+        matricule: eleve.matricule,
+        classe: inscription?.classe?.nom,
+        anneeScolaire: annee?.libelle,
+        numeroSerie,
+        nomEcole: config?.nomEcole || req.tenant?.nom || 'GestSchool',
+      })
+    );
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Preview certificat error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -68,25 +131,78 @@ export const getOne = async (req, res) => {
   }
 };
 
+async function generateAndAttachPdf(certificat, req) {
+  const tenantId = certificat.tenantId;
+  const { eleve, annee, config, inscription } = await loadCertificatContext(tenantId, {
+    eleveId: certificat.eleveId,
+    anneeScolaireId: certificat.anneeScolaireId,
+  });
+
+  const delivrePar = certificat.delivrePar
+    ? `${certificat.delivrePar.prenom} ${certificat.delivrePar.nom}`
+    : null;
+
+  const buffer = await buildCertificatPdf({
+    nomEcole: config?.nomEcole || req.tenant?.nom || 'GestSchool',
+    adresse: config?.adresse,
+    type: certificat.type,
+    eleve: eleve ? `${eleve.prenom} ${eleve.nom}` : '—',
+    matricule: eleve?.matricule,
+    classe: inscription?.classe?.nom || annee?.libelle,
+    anneeScolaire: annee?.libelle || certificat.anneeScolaire?.libelle,
+    numeroSerie: certificat.numeroSerie,
+    dateDelivrance: certificat.dateDelivrance,
+    delivrePar,
+  });
+
+  let pdfUrl = null;
+  if (isCloudinaryConfigured()) {
+    try {
+      pdfUrl = await uploadPdfBuffer(buffer, {
+        folder: 'gestschool/certificats',
+        publicId: `cert-${certificat.id.slice(0, 12)}`,
+      });
+    } catch (upErr) {
+      log.warn({ err: upErr }, 'Cloudinary certificat upload failed');
+    }
+  }
+
+  if (pdfUrl) {
+    return prisma.certificat.update({
+      where: { id: certificat.id },
+      data: { pdfUrl },
+      include: {
+        eleve: { select: { id: true, matricule: true, nom: true, prenom: true } },
+        delivrePar: { select: { id: true, nom: true, prenom: true } },
+        anneeScolaire: { select: { id: true, libelle: true } },
+      },
+    });
+  }
+  return certificat;
+}
+
 export const create = async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { eleveId, type, anneeScolaireId, numeroSerie } = req.body;
 
-    // Generate numeroSerie if not provided
+    if (!eleveId) return res.status(400).json({ error: 'eleveId requis' });
+
+    const eleve = await prisma.eleve.findFirst({ where: { id: eleveId, tenantId } });
+    if (!eleve) return res.status(404).json({ error: 'Élève non trouvé' });
+
     let serie = numeroSerie;
     if (!serie) {
       const count = await prisma.certificat.count({ where: { tenantId } });
       serie = `CERT-${String(count + 1).padStart(5, '0')}`;
     }
 
-    // Check uniqueness
     const existing = await prisma.certificat.findFirst({ where: { tenantId, numeroSerie: serie } });
     if (existing) {
       return res.status(400).json({ error: 'Numéro de série déjà utilisé' });
     }
 
-    const certificat = await prisma.certificat.create({
+    let certificat = await prisma.certificat.create({
       data: {
         tenantId,
         eleveId,
@@ -97,14 +213,66 @@ export const create = async (req, res) => {
       },
       include: {
         eleve: { select: { id: true, matricule: true, nom: true, prenom: true } },
+        delivrePar: { select: { id: true, nom: true, prenom: true } },
+        anneeScolaire: { select: { id: true, libelle: true } },
       },
     });
+
+    try {
+      certificat = await generateAndAttachPdf(certificat, req);
+    } catch (pdfErr) {
+      log.warn({ err: pdfErr }, 'Certificat PDF generation failed');
+    }
 
     await logAudit(req, 'certificat_genere', 'Certificat', certificat.id, { eleveId, type });
 
     res.status(201).json(certificat);
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'Create certificat error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getPdf = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+
+    const certificat = await prisma.certificat.findFirst({
+      where: { id, tenantId },
+      include: {
+        eleve: { select: { prenom: true, nom: true, matricule: true } },
+        delivrePar: { select: { prenom: true, nom: true } },
+        anneeScolaire: { select: { libelle: true } },
+      },
+    });
+    if (!certificat) return res.status(404).json({ error: 'Certificat non trouvé' });
+
+    const { config, inscription } = await loadCertificatContext(tenantId, {
+      eleveId: certificat.eleveId,
+      anneeScolaireId: certificat.anneeScolaireId,
+    });
+
+    const buffer = await buildCertificatPdf({
+      nomEcole: config?.nomEcole || req.tenant?.nom || 'GestSchool',
+      adresse: config?.adresse,
+      type: certificat.type,
+      eleve: `${certificat.eleve.prenom} ${certificat.eleve.nom}`,
+      matricule: certificat.eleve.matricule,
+      classe: inscription?.classe?.nom,
+      anneeScolaire: certificat.anneeScolaire?.libelle,
+      numeroSerie: certificat.numeroSerie,
+      dateDelivrance: certificat.dateDelivrance,
+      delivrePar: certificat.delivrePar
+        ? `${certificat.delivrePar.prenom} ${certificat.delivrePar.nom}`
+        : null,
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="certificat-${certificat.numeroSerie}.pdf"`);
+    res.send(buffer);
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Get certificat PDF error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

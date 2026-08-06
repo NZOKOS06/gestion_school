@@ -6,18 +6,28 @@ import * as ctrl from '../controllers/absences.controller.js';
 
 const router = Router();
 
+const roles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant'),
+  requireRole(...roles),
   requireTenantMatch,
   requireModule('absences'),
   paginationValidator,
   ctrl.getAll
 );
 
+router.post('/appel',
+  authenticate,
+  requireRole(...roles),
+  requireTenantMatch,
+  requireModule('absences'),
+  ctrl.faireAppel
+);
+
 router.post('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant'),
+  requireRole(...roles),
   requireTenantMatch,
   requireModule('absences'),
   absenceValidator,
@@ -26,7 +36,7 @@ router.post('/',
 
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant'),
+  requireRole(...roles),
   requireTenantMatch,
   requireModule('absences'),
   idParamValidator,
@@ -35,7 +45,7 @@ router.put('/:id',
 
 router.delete('/:id',
   authenticate,
-  requireRole('directeur', 'surveillant'),
+  requireRole('directeur', 'directeur_etudes', 'surveillant'),
   requireTenantMatch,
   requireModule('absences'),
   idParamValidator,

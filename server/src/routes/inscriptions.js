@@ -8,7 +8,7 @@ const router = Router();
 
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'comptable'),
+  requireRole('directeur', 'directeur_etudes', 'secretaire', 'comptable'),
   requireTenantMatch,
   requireModule('inscriptions'),
   paginationValidator,
@@ -17,7 +17,7 @@ router.get('/',
 
 router.get('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'comptable'),
+  requireRole('directeur', 'directeur_etudes', 'secretaire', 'comptable'),
   requireTenantMatch,
   requireModule('inscriptions'),
   idParamValidator,
@@ -26,7 +26,7 @@ router.get('/:id',
 
 router.post('/',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole('directeur', 'directeur_etudes', 'secretaire'),
   requireTenantMatch,
   requireModule('inscriptions'),
   inscriptionValidator,
@@ -35,16 +35,25 @@ router.post('/',
 
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole('directeur', 'directeur_etudes', 'secretaire'),
   requireTenantMatch,
   requireModule('inscriptions'),
   idParamValidator,
   ctrl.update
 );
 
+router.put('/:id/decision-fin-annee',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes'),
+  requireTenantMatch,
+  requireModule('inscriptions'),
+  idParamValidator,
+  ctrl.decideFinAnnee
+);
+
 router.put('/:id/validate',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole('directeur', 'secretaire', 'directeur_etudes'),
   requireTenantMatch,
   requireModule('inscriptions'),
   idParamValidator,

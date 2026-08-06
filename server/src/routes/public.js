@@ -9,4 +9,7 @@ router.get('/actualites', ctrl.getActualites);
 // GET /api/public/infos — infos école (sans auth)
 router.get('/infos', ctrl.getInfosEcole);
 
+// GET /api/public/bulletins/verify/:idOrHash — authenticité bulletin (sans auth)
+router.get('/bulletins/verify/:idOrHash', ctrl.verifyBulletin);
+
 export default router;

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
-import { PageHeader, DataTable, Badge, Button, Modal, Card } from '../../components/ui';
+import { PageHeader, DataTable, Badge, Button, Modal, Card, Input, Select, FormField, FilterBar } from '../../components/ui';
 import { Wallet, Plus, Printer, Mail, AlertCircle } from 'lucide-react';
 
 const MODE_PAIEMENT = ['espèces', 'mobile_money', 'carte', 'chèque', 'virement'];
@@ -79,18 +79,6 @@ const Paiements = () => {
     } catch { /* silent */ }
   };
 
-  const selectStyle = {
-    height: 36,
-    background: 'var(--surface-overlay)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--text-primary)',
-    fontSize: 13,
-    padding: '0 8px',
-  };
-
-  const inputStyle = { ...selectStyle, height: 38, fontSize: 14, padding: '0 12px' };
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -124,8 +112,8 @@ const Paiements = () => {
         </Card>
       )}
 
-      <div className="flex gap-3">
-        <select style={selectStyle} value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}>
+      <FilterBar>
+        <Select value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })} style={{ minWidth: 180 }}>
           <option value="">Tous les types</option>
           <option value="inscription">Inscription</option>
           <option value="scolarite">Scolarité</option>
@@ -133,14 +121,18 @@ const Paiements = () => {
           <option value="examen_officiel">Examen</option>
           <option value="cantine">Cantine</option>
           <option value="transport">Transport</option>
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
 
       <DataTable
+        sortable
+        pagination
+        pageSize={12}
         columns={[
           {
             key: 'numeroRecu',
             label: 'Reçu',
+            sortable: true,
             render: (val) => <span className="font-mono text-xs font-semibold" style={{ color: 'var(--color-primary)' }}>#{val}</span>,
           },
           {
@@ -158,6 +150,7 @@ const Paiements = () => {
           {
             key: 'montant',
             label: 'Montant',
+            sortable: true,
             render: (val) => <span className="font-semibold" style={{ color: 'var(--color-success)' }}>{formatPrice(val)}</span>,
           },
           {
@@ -168,13 +161,14 @@ const Paiements = () => {
           {
             key: 'datePaiement',
             label: 'Date',
+            sortable: true,
             render: (val) => <span style={{ color: 'var(--text-muted)' }}>{new Date(val).toLocaleDateString('fr-FR')}</span>,
           },
           {
             key: 'actions',
             label: 'Reçu',
             render: (_, row) => (
-              <button onClick={() => window.open(`/api/paiements/${row.id}/recu-pdf`, '_blank')} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Imprimer reçu">
+              <button type="button" onClick={() => window.open(`/api/paiements/${row.id}/recu-pdf`, '_blank')} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Imprimer reçu">
                 <Printer className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
               </button>
             ),
@@ -183,6 +177,8 @@ const Paiements = () => {
         data={paiements}
         loading={loading}
         emptyMessage="Aucun paiement"
+        emptyDescription="Les encaissements apparaîtront ici. Cliquez sur Encaisser pour démarrer."
+        emptyAction={<Button icon={Plus} size="sm" onClick={openEncaisser}>Encaisser</Button>}
       />
 
       <Modal
@@ -198,21 +194,19 @@ const Paiements = () => {
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Inscription (élève)</label>
-            <select style={inputStyle} value={form.inscriptionId} onChange={(e) => onInscriptionChange(e.target.value)}>
+          <FormField label="Inscription (élève)" required>
+            <Select value={form.inscriptionId} onChange={(e) => onInscriptionChange(e.target.value)}>
               <option value="">Sélectionner</option>
               {inscriptions.map((insc) => (
                 <option key={insc.id} value={insc.id}>
                   {insc.elevePrenom || insc.eleve?.prenom} {insc.eleveNom || insc.eleve?.nom} — {insc.classeNom || insc.classe?.nom}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </FormField>
           {echeances.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Échéance (optionnel)</label>
-              <select style={inputStyle} value={form.echeanceId} onChange={(e) => {
+            <FormField label="Échéance (optionnel)">
+              <Select value={form.echeanceId} onChange={(e) => {
                 const ech = echeances.find((ec) => ec.id === e.target.value);
                 setForm({ ...form, echeanceId: e.target.value, montant: ech ? (ech.montantAttendu - ech.montantPaye).toString() : form.montant });
               }}>
@@ -222,29 +216,25 @@ const Paiements = () => {
                     {ech.libelle} — {formatPrice(ech.montantAttendu - ech.montantPaye)} restant
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
           )}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Montant</label>
-              <input type="number" style={inputStyle} value={form.montant} onChange={(e) => setForm({ ...form, montant: e.target.value })} placeholder="0" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Mode de paiement</label>
-              <select style={inputStyle} value={form.modePaiement} onChange={(e) => setForm({ ...form, modePaiement: e.target.value })}>
+            <FormField label="Montant" required>
+              <Input type="number" value={form.montant} onChange={(e) => setForm({ ...form, montant: e.target.value })} placeholder="0" />
+            </FormField>
+            <FormField label="Mode de paiement">
+              <Select value={form.modePaiement} onChange={(e) => setForm({ ...form, modePaiement: e.target.value })}>
                 {MODE_PAIEMENT.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
+              </Select>
+            </FormField>
           </div>
-          <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Référence (optionnel)</label>
-            <input style={inputStyle} value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="Transaction MoMo, n° chèque..." />
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Motif (optionnel)</label>
-            <input style={inputStyle} value={form.motif} onChange={(e) => setForm({ ...form, motif: e.target.value })} placeholder="ex: Scolarité Tranche 1" />
-          </div>
+          <FormField label="Référence (optionnel)">
+            <Input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="Transaction MoMo, n° chèque..." />
+          </FormField>
+          <FormField label="Motif (optionnel)">
+            <Input value={form.motif} onChange={(e) => setForm({ ...form, motif: e.target.value })} placeholder="ex: Scolarité Tranche 1" />
+          </FormField>
         </div>
       </Modal>
     </div>

@@ -6,35 +6,62 @@ import * as ctrl from '../controllers/bulletins.controller.js';
 
 const router = Router();
 
+const staffRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant'];
+const genRoles = ['directeur', 'directeur_etudes', 'enseignant'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant'),
+  requireRole(...staffRoles),
   requireTenantMatch,
   requireModule('bulletins'),
   paginationValidator,
   ctrl.getAll
 );
 
+router.post('/calculer',
+  authenticate,
+  requireRole(...genRoles),
+  requireTenantMatch,
+  requireModule('bulletins'),
+  ctrl.calculer
+);
+
+router.post('/generer-masse',
+  authenticate,
+  requireRole(...genRoles),
+  requireTenantMatch,
+  requireModule('bulletins'),
+  ctrl.genererMasse
+);
+
+router.put('/publier',
+  authenticate,
+  requireRole('directeur'),
+  requireTenantMatch,
+  requireModule('bulletins'),
+  ctrl.publier
+);
+
+router.post('/generate',
+  authenticate,
+  requireRole(...genRoles),
+  requireTenantMatch,
+  requireModule('bulletins'),
+  ctrl.generate
+);
+
 router.get('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant'),
+  requireRole(...staffRoles),
   requireTenantMatch,
   requireModule('bulletins'),
   idParamValidator,
   ctrl.getById
 );
 
-router.post('/generate',
-  authenticate,
-  requireRole('directeur', 'enseignant'),
-  requireTenantMatch,
-  requireModule('bulletins'),
-  ctrl.generate
-);
-
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'enseignant'),
+  requireRole(...genRoles),
   requireTenantMatch,
   requireModule('bulletins'),
   idParamValidator,

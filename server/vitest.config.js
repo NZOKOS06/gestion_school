@@ -21,11 +21,10 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     fileParallelism: false,
-    // Phase 0: exclude legacy GestPharma integration suites (Phase 4 rewrite)
+    // Phase 0: suites d'intégration legacy désactivées (réécriture scolaire)
     exclude: [
       '**/node_modules/**',
       '**/src/tests/**',
-      '**/src/utils/stockFEFO.test.js',
       '**/src/controllers/auth.test.js',
     ],
     include: ['src/middleware/tenantMiddleware.test.js'],

@@ -1,16 +1,17 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { useI18n, LANGUAGES } from '../../contexts/I18nContext';
+import { useI18n } from '../../contexts/I18nContext';
 import {
   Building2, Users, ShoppingCart, TrendingUp, CheckCircle,
   Plus, Edit2, Trash2, LogOut, Settings, ExternalLink, X,
   GraduationCap, BookOpen, FileText, BarChart2, Award,
   AlertTriangle, Copy, ChevronLeft, ChevronRight,
   Upload, UserPlus, ArrowRight, Building,
-  PauseCircle, PlayCircle, Shield, LayoutDashboard, Store, Sparkles,
+  PauseCircle, PlayCircle, Shield, LayoutDashboard, Sparkles,
   Globe, Sun, Moon, ChevronDown, Smartphone, Link2, QrCode, History,
   Filter, Calendar, ArrowDown, ArrowUp, Cookie, ClipboardList
 } from 'lucide-react';
@@ -21,382 +22,36 @@ import KpiCard from '../../components/ui/KpiCard';
 import Modal from '../../components/ui/Modal';
 import SearchInput from '../../components/ui/SearchInput';
 import Badge from '../../components/ui/Badge';
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CONFIGURATION & CONSTANTES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const PLANS = {
-  starter:    { label: 'Starter',    color: 'neutral' },
-  basique:    { label: 'Basique',    color: 'info'    },
-  pro:        { label: 'Pro',        color: 'warning' },
-  enterprise: { label: 'Enterprise', color: 'success' },
-};
-
-const PALETTES = [
-  { id: 'emeraude',  label: 'Émeraude Scolaire', primary: '#16A34A', second: '#15803D', texte: '#FFFFFF' },
-  { id: 'academique',label: 'Bleu Académique',   primary: '#2563EB', second: '#1D4ED8', texte: '#FFFFFF' },
-  { id: 'ardoise',   label: 'Ardoise Pro',       primary: '#0F172A', second: '#1E293B', texte: '#FFFFFF' },
-  { id: 'prestige',  label: 'Or Prestige',       primary: '#B45309', second: '#92400E', texte: '#FFFFFF' },
-  { id: 'congo',     label: 'Congo Vert',        primary: '#15803D', second: '#166534', texte: '#FFFFFF' },
-  { id: 'nuit',      label: 'Nuit Pro',          primary: '#1E1B4B', second: '#312E81', texte: '#FFFFFF' },
-];
-
-const MODULES_CONFIG = [
-  { key: 'moduleEleves',          label: 'Élèves',          icon: GraduationCap,  desc: 'Inscriptions et dossiers élèves', locked: true,  planMinimum: 'starter',     required: true },
-  { key: 'moduleClasses',         label: 'Classes',         icon: Building2,      desc: 'Classes, niveaux et cycles',      locked: true,  planMinimum: 'starter',     required: true },
-  { key: 'modulePaiements',       label: 'Paiements',       icon: ShoppingCart,   desc: 'Scolarités et échéances',         locked: true,  planMinimum: 'starter',     required: true },
-  { key: 'moduleMatieres',        label: 'Matières',        icon: BookOpen,       desc: 'Matières et coefficients',        locked: false, planMinimum: 'basique',     required: false },
-  { key: 'moduleNotes',           label: 'Notes & Bulletins', icon: FileText,     desc: 'Saisie des notes et bulletins',   locked: false, planMinimum: 'basique',     required: false },
-  { key: 'modulePersonnel',       label: 'Personnel',       icon: Users,          desc: 'Comptes et rôles',                locked: false, planMinimum: 'basique',     required: false },
-  { key: 'moduleRapports',        label: 'Rapports',        icon: BarChart2,      desc: 'Statistiques',                    locked: false, planMinimum: 'pro',         required: false },
-  { key: 'moduleEmploiDuTemps',   label: 'Emploi du temps', icon: Calendar,       desc: 'Planification des cours',         locked: false, planMinimum: 'pro',         required: false },
-  { key: 'moduleAbsences',        label: 'Absences',        icon: ClipboardList,  desc: 'Appel et suivi des absences',     locked: false, planMinimum: 'pro',         required: false },
-  { key: 'moduleActualites',      label: 'Actualités',      icon: Globe,          desc: 'Publications et communication',   locked: false, planMinimum: 'pro',         required: false },
-  { key: 'moduleSanctions',       label: 'Sanctions',       icon: AlertTriangle,  desc: 'Discipline et sanctions',         locked: false, planMinimum: 'enterprise',  required: false },
-  { key: 'moduleCertificats',     label: 'Certificats',     icon: Award,          desc: 'Attestations et certificats',     locked: false, planMinimum: 'enterprise',  required: false },
-];
-
-const PLAN_ORDER = { starter: 1, basique: 2, pro: 3, enterprise: 4 };
-const isModuleAvailableForPlan = (modulePlan, tenantPlan) => (PLAN_ORDER[modulePlan] || 99) <= (PLAN_ORDER[tenantPlan] || 99);
-
-const FONTS = [
-  { value: 'Plus Jakarta Sans', label: 'Plus Jakarta Sans' },
-  { value: 'Inter', label: 'Inter' },
-  { value: 'Poppins', label: 'Poppins' },
-  { value: 'Roboto', label: 'Roboto' },
-  { value: 'DM Sans', label: 'DM Sans' },
-];
-
-const DEVISES = ['FCFA', 'XOF', 'USD', 'EUR', 'CDF'];
-
-const DEFAULT_CONFIG = {
-  nomApp: '',
-  nom: '',
-  messageAccueil: '',
-  sloganApp: '',
-  descriptionAbout: '',
-  anneeCreation: null,
-  rccm: '',
-  adresse: '',
-  telephone: '',
-  email: '',
-  numeroAutorisation: '',
-  numeroTVA: '',
-  nomDirecteur: '',
-  horaireOuverture: {},
-  facebookUrl: '',
-  instagramUrl: '',
-  whatsappUrl: '',
-  telegramUrl: '',
-  googleMapsUrl: '',
-  latitude: '',
-  longitude: '',
-  logoUrl: null,
-  footerLogoUrl: null,
-  faviconUrl: null,
-  pwaIconUrl: null,
-  backgroundImageUrl: null,
-  heroImageUrl: null,
-  featuresImageUrl: null,
-  aboutImageUrl: null,
-  heroVideoUrl: null,
-  featuresVideoUrl: null,
-  aboutVideoUrl: null,
-  ogImageUrl: null,
-  loaderUrl: null,
-  couleurPrimaire: '#16A34A',
-  couleurSecondaire: '#15803D',
-  couleurTexte: '#FFFFFF',
-  couleurAlerte: '#F59E0B',
-  couleurErreur: '#EF4444',
-  couleurSucces: '#22C55E',
-  darkModeDefault: false,
-  police: 'Plus Jakarta Sans',
-  devise: 'FCFA',
-  modePrix: 'TTC',
-  tauxTVA: 0,
-  anneeScolaire: '',
-  modesPaiement: ['especes', 'mobile_money'],
-  metaTitle: '',
-  metaDescription: '',
-  metaKeywords: '',
-  emailAlertes: '',
-  dureeSessionMinutes: 480,
-  ipWhitelist: [],
-  forcer2FA: false,
-  privacyPolicyUrl: '',
-  termsOfServiceUrl: '',
-  cookiePolicyUrl: '',
-  cookieBannerText: '',
-  cookieBannerEnabled: true,
-  analyticsEnabled: false,
-  moduleEleves: true,
-  moduleClasses: true,
-  modulePaiements: true,
-  moduleMatieres: false,
-  moduleNotes: false,
-  modulePersonnel: false,
-  moduleRapports: true,
-  moduleEmploiDuTemps: false,
-  moduleAbsences: false,
-  moduleActualites: false,
-  moduleSanctions: false,
-  moduleCertificats: false,
-};
-
-const JOURS_SEMAINE_CONFIG = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// UTILITAIRES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function generateSlug(nom) {
-  return nom
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
-function getInitials(nom) {
-  return nom
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-function countActiveModules(config) {
-  return MODULES_CONFIG.filter(m => config?.[m.key]).length;
-}
-
-function formatCurrency(value, devise = 'FCFA') {
-  if (value == null) return '—';
-  return new Intl.NumberFormat('fr-FR').format(value) + ' ' + devise;
-}
-
-function buildTenantUrl(tenant) {
-  // Priorité 1 : URL de production Vercel (VITE_API_URL → on en dérive le frontend)
-  const prodBase = import.meta.env.VITE_FRONTEND_URL
-    || (import.meta.env.VITE_API_URL
-          ? import.meta.env.VITE_API_URL.replace('-api.onrender.com', '-two.vercel.app').replace(/\/api.*$/, '')
-          : null);
-  const isSubdomain = import.meta.env.VITE_SUBDOMAIN_MODE === 'true';
-  if (prodBase && isSubdomain) {
-    const host = new URL(prodBase).hostname;
-    const parts = host.split('.');
-    if (parts.length >= 2) {
-      const domain = parts.slice(-2).join('.');
-      return `https://${tenant.slug}.${domain}/login`;
-    }
-  }
-  if (prodBase) return `${prodBase}/login?tenant=${tenant.slug}`;
-  // Fallback : origine courante
-  return `${window.location.origin}/login?tenant=${tenant.slug}`;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SOUS-COMPOSANTS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const Avatar = ({ src, nom, size = 36 }) => (
-  <div
-    className="rounded-full flex items-center justify-center font-semibold text-white"
-    style={{
-      width: size,
-      height: size,
-      background: src ? 'transparent' : 'linear-gradient(135deg, var(--color-primary), var(--color-secondary, var(--color-primary)))',
-      fontSize: size > 40 ? 16 : 12,
-    }}
-  >
-    {src ? (
-      <img src={src} alt={nom} className="w-full h-full rounded-full object-cover" />
-    ) : (
-      getInitials(nom)
-    )}
-  </div>
-);
-
-const TabButton = ({ active, onClick, children, icon: Icon, 'data-testid': testId, ...rest }) => (
-  <button
-    data-testid={testId}
-    onClick={onClick}
-    className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all duration-150"
-    style={{
-      color: active ? 'var(--color-primary)' : 'var(--text-secondary)',
-      borderBottom: active ? '2px solid var(--color-primary)' : '2px solid transparent',
-    }}
-  >
-    {Icon && <Icon className="h-4 w-4" />}
-    {children}
-  </button>
-);
-
-const StatusBadge = ({ actif }) => (
-  <Badge variant={actif ? 'success' : 'danger'} dot>
-    {actif ? 'Actif' : 'Inactif'}
-  </Badge>
-);
-
-const PlanBadge = ({ plan }) => {
-  const config = PLANS[plan] || PLANS.starter;
-  return <Badge variant={config.color}>{config.label}</Badge>;
-};
-
-const ModuleToggle = ({ module, value, onChange, onConfirm, tenantPlan, 'data-testid': testId }) => {
-  const Icon = module.icon;
-  const isLocked = module.locked;
-  const available = isModuleAvailableForPlan(module.planMinimum, tenantPlan);
-
-  const handleToggle = () => {
-    if (isLocked || !available) return;
-    if (value && onConfirm) {
-      onConfirm(module, () => onChange(!value));
-    } else {
-      onChange(!value);
-    }
-  };
-
-  return (
-    <div className={`flex items-start gap-3 p-3 rounded-lg ${!available ? 'opacity-60' : ''}`} style={{ background: 'var(--surface-overlay)' }}>
-      <div
-        className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
-        style={{ background: value ? 'color-mix(in srgb, var(--color-primary) 15%, transparent)' : 'var(--surface-hover)' }}
-      >
-        <Icon className="h-5 w-5" style={{ color: value ? 'var(--color-primary)' : 'var(--text-muted)' }} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
-            {module.label}
-            {isLocked && <Shield className="h-3 w-3 inline ml-1" style={{ color: 'var(--color-primary)' }} title="Obligatoire" />}
-            {!available && <Badge variant="warning" className="ml-2 text-[10px] px-1.5 py-0">{module.planMinimum}+</Badge>}
-          </span>
-          <button
-            data-testid={testId}
-            role="switch"
-            aria-checked={value}
-            onClick={handleToggle}
-            disabled={isLocked || !available}
-            className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-            style={{
-              background: value ? 'var(--color-primary)' : 'var(--border-default)',
-              cursor: (isLocked || !available) ? 'not-allowed' : 'pointer',
-              opacity: (isLocked || !available) ? 0.5 : 1,
-            }}
-          >
-            <span
-              className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
-              style={{ transform: value ? 'translateX(18px)' : 'translateX(2px)' }}
-            />
-          </button>
-        </div>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{module.desc}</p>
-      </div>
-    </div>
-  );
-};
-
-const ColorPicker = ({ label, value, onChange }) => (
-  <div className="space-y-1.5">
-    <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</label>
-    <div className="flex items-center gap-2">
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-9 w-9 rounded cursor-pointer border-0 p-0"
-      />
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-1 px-3 py-1.5 text-sm rounded-md"
-        style={{
-          background: 'var(--surface-overlay)',
-          border: '1px solid var(--border-subtle)',
-          color: 'var(--text-primary)',
-        }}
-      />
-    </div>
-  </div>
-);
-
-const PaletteSelector = ({ selected, onSelect }) => (
-  <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-    {PALETTES.map((palette) => (
-      <button
-        key={palette.id}
-        data-testid={`palette-${palette.id}`}
-        onClick={() => onSelect(palette)}
-        className="flex flex-col items-center gap-2 p-2 rounded-lg transition-all"
-        style={{
-          background: selected?.id === palette.id ? 'var(--surface-hover)' : 'transparent',
-          border: selected?.id === palette.id ? '2px solid var(--color-primary)' : '2px solid transparent',
-        }}
-      >
-        <div
-          className="w-12 h-12 rounded-lg shadow-sm"
-          style={{ background: `linear-gradient(135deg, ${palette.primary}, ${palette.second})` }}
-        />
-        <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{palette.label}</span>
-      </button>
-    ))}
-  </div>
-);
-
-const PreviewCard = ({ config, nom }) => (
-  <div
-    className="p-4 rounded-lg"
-    style={{
-      background: 'var(--surface-raised)',
-      border: '1px solid var(--border-subtle)',
-    }}
-  >
-    <p className="text-xs font-medium mb-3" style={{ color: 'var(--text-muted)' }}>Aperçu</p>
-    <div className="space-y-3">
-      <h4
-        className="text-lg font-bold"
-        style={{
-          fontFamily: config.police || 'var(--font-sans)',
-          color: 'var(--text-primary)',
-        }}
-      >
-        {nom || 'Votre Établissement'}
-      </h4>
-      <div className="flex items-center gap-2">
-        <button
-          className="px-4 py-2 rounded-md text-sm font-medium text-white"
-          style={{
-            background: config.couleurPrimaire || '#16A34A',
-            fontFamily: config.police || 'var(--font-sans)',
-          }}
-        >
-          Bouton primaire
-        </button>
-        <span
-          className="px-2 py-1 rounded text-xs font-medium"
-          style={{
-            background: `color-mix(in srgb, ${config.couleurPrimaire || '#16A34A'} 15%, transparent)`,
-            color: config.couleurPrimaire || '#16A34A',
-          }}
-        >
-          Badge
-        </span>
-      </div>
-    </div>
-  </div>
-);
+import {
+  PLANS,
+  PALETTES,
+  MODULES_CONFIG,
+  FONTS,
+  DEVISES,
+  DEFAULT_CONFIG,
+  JOURS_SEMAINE_CONFIG,
+  SUPERADMIN_TABS,
+  generateSlug,
+  countActiveModules,
+  formatCurrency,
+  tabFromPathname,
+} from './constants';
+import {
+  Avatar,
+  TabButton,
+  StatusBadge,
+  PlanBadge,
+  ModuleToggle,
+  ColorPicker,
+  PaletteSelector,
+  PreviewCard,
+} from './SharedUI';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LANGUAGE PICKER — sélecteur de langue global
 // ─────────────────────────────────────────────────────────────────────────────
 const LanguagePicker = () => {
   const { lang, setLang, currentLang, LANGUAGES: langs } = useI18n();
-  const { isDark } = useTheme();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -410,16 +65,17 @@ const LanguagePicker = () => {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
         style={{
-          background: open ? (isDark ? '#1a2e1a' : '#F0FDF4') : (isDark ? '#21262d' : '#F1F5F9'),
-          color: isDark ? '#e6edf3' : '#334155',
-          border: `1px solid ${isDark ? '#30363d' : '#E2E8F0'}`,
+          background: open ? 'var(--surface-brand-soft)' : 'var(--surface-hover)',
+          color: 'var(--text-secondary)',
+          border: '1px solid var(--border-subtle)',
         }}
         title="Choisir la langue"
       >
-        <Globe className="h-3.5 w-3.5 text-green-600" />
+        <Globe className="h-3.5 w-3.5" style={{ color: 'var(--color-primary)' }} />
         <span>{currentLang.flag} {currentLang.code.toUpperCase()}</span>
         <ChevronDown className="h-3 w-3 opacity-50" />
       </button>
@@ -431,33 +87,34 @@ const LanguagePicker = () => {
             top: 'calc(100% + 6px)',
             right: 0,
             minWidth: 160,
-            background: isDark ? '#161b22' : '#FFFFFF',
-            border: `1px solid ${isDark ? '#30363d' : '#E2E8F0'}`,
+            background: 'var(--surface-raised)',
+            border: '1px solid var(--border-subtle)',
             borderRadius: 10,
-            boxShadow: isDark ? '0 8px 24px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.10)',
+            boxShadow: 'var(--shadow-dropdown)',
             zIndex: 200,
             overflow: 'hidden',
           }}
         >
-          <div style={{ padding: '6px 10px 4px', borderBottom: `1px solid ${isDark ? '#30363d' : '#F1F5F9'}` }}>
-            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: isDark ? '#6e7681' : '#94A3B8' }}>
-              Langue de l'interface
+          <div style={{ padding: '6px 10px 4px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+              Langue de l&apos;interface
             </p>
           </div>
           {langs.map((l) => (
             <button
+              type="button"
               key={l.code}
               onClick={() => { setLang(l.code); setOpen(false); }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors"
               style={{
-                color: l.code === lang ? '#16A34A' : (isDark ? '#e6edf3' : '#334155'),
+                color: l.code === lang ? 'var(--color-primary)' : 'var(--text-secondary)',
                 fontWeight: l.code === lang ? 600 : 400,
-                background: l.code === lang ? (isDark ? '#1a2e1a' : '#F0FDF4') : 'transparent',
+                background: l.code === lang ? 'var(--surface-brand-soft)' : 'transparent',
               }}
             >
               <span className="text-base">{l.flag}</span>
               <span className="flex-1 text-left">{l.label}</span>
-              {l.code === lang && <CheckCircle className="h-3.5 w-3.5 text-green-600" />}
+              {l.code === lang && <CheckCircle className="h-3.5 w-3.5" style={{ color: 'var(--color-primary)' }} />}
             </button>
           ))}
         </div>
@@ -466,23 +123,21 @@ const LanguagePicker = () => {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SUPERADMIN THEME TOGGLE
-// ─────────────────────────────────────────────────────────────────────────────
 const SuperAdminThemeToggle = () => {
   const { isDark, toggle } = useTheme();
   return (
     <button
+      type="button"
       onClick={toggle}
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
       style={{
-        background: isDark ? '#1E293B' : '#F1F5F9',
-        color: isDark ? '#F1F5F9' : '#334155',
-        border: `1px solid ${isDark ? '#334155' : '#E2E8F0'}`,
+        background: 'var(--surface-hover)',
+        color: 'var(--text-secondary)',
+        border: '1px solid var(--border-subtle)',
       }}
       title={isDark ? 'Mode clair' : 'Mode sombre'}
     >
-      {isDark ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-slate-500" />}
+      {isDark ? <Sun className="h-3.5 w-3.5" style={{ color: 'var(--color-warning)' }} /> : <Moon className="h-3.5 w-3.5" />}
       <span className="hidden sm:inline">{isDark ? 'Clair' : 'Sombre'}</span>
     </button>
   );
@@ -801,29 +456,42 @@ const TenantAccessSection = ({ tenant }) => {
 // COMPOSANT PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const SuperAdminPanel = () => {
+const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSetTab } = {}) => {
   const { get, post, put, delete: del, loading } = useAxios();
   const { logout, user } = useAuth();
   const { t } = useI18n();
-  const { isDark } = useTheme();
-
-  // Tokens de couleur dynamiques — remplacent les hardcoded
+  // Tokens de couleur — CSS variables only
   const C = {
-    bg:        isDark ? '#0d1117' : '#F8FAFC',
-    surface:   isDark ? '#161b22' : '#FFFFFF',
-    surface2:  isDark ? '#1c2230' : '#F8FAFC',
-    surface3:  isDark ? '#21262d' : '#F1F5F9',
-    border:    isDark ? '#30363d' : '#E2E8F0',
-    text:      isDark ? '#e6edf3' : '#0F172A',
-    textSub:   isDark ? '#8d96a0' : '#334155',
-    textMuted: isDark ? '#6e7681' : '#64748B',
+    bg: 'var(--surface-base)',
+    surface: 'var(--surface-raised)',
+    overlay: 'var(--surface-overlay)',
+    border: 'var(--border-subtle)',
+    text: 'var(--text-primary)',
+    muted: 'var(--text-muted)',
+    secondary: 'var(--text-secondary)',
+    primary: 'var(--color-primary)',
+    danger: 'var(--color-danger)',
+    success: 'var(--color-success)',
+    warning: 'var(--color-warning)',
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
   // ÉTAT GLOBAL
   // ─────────────────────────────────────────────────────────────────────────────
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const tabFromUrl = tabFromPathname(location.pathname);
+  const isControlled = controlledTab !== undefined && controlledSetTab !== undefined;
+  const activeTab = isControlled ? controlledTab : tabFromUrl;
+  const setActiveTab = useCallback((tab) => {
+    const next = SUPERADMIN_TABS.includes(tab) ? tab : 'dashboard';
+    if (isControlled) {
+      controlledSetTab(next);
+      return;
+    }
+    navigate(`/super-admin/${next}`, { replace: false });
+  }, [isControlled, controlledSetTab, navigate]);
   const [tenants, setTenants] = useState([]);
   const [stats, setStats] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1227,8 +895,8 @@ const SuperAdminPanel = () => {
   if (isLoading && tenants.length === 0) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: '#F8FAFC' }}
+        className="min-h-screen flex items-center justify-center superadmin-panel"
+        style={{ background: C.bg }}
       >
         <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: 'var(--color-primary, #16A34A)' }} />
       </div>
@@ -1273,7 +941,7 @@ const SuperAdminPanel = () => {
 
             <div className="flex items-center gap-2">
               <Avatar nom={user?.nom || 'SA'} size={32} />
-              <span className="hidden md:inline text-sm font-medium" style={{ color: C.textSub }}>
+              <span className="hidden md:inline text-sm font-medium" style={{ color: C.secondary }}>
                 {user?.nom || 'Super Admin'}
               </span>
             </div>
@@ -1319,7 +987,7 @@ const SuperAdminPanel = () => {
               <TabButton
                 active={activeTab === 'etablissements'}
                 onClick={() => setActiveTab('etablissements')}
-                icon={Store}
+                icon={Building2}
                 data-testid="tab-etablissements"
               >
                 {t('établissements')}
@@ -1414,7 +1082,7 @@ const SuperAdminPanel = () => {
                   <h2 className="text-base md:text-lg font-semibold" style={{ color: C.text }}>
                     Vue d'ensemble des établissements
                   </h2>
-                  <p className="text-sm" style={{ color: C.textMuted }}>
+                  <p className="text-sm" style={{ color: C.muted }}>
                     {totalTenants} établissements enregistrés
                   </p>
                 </div>
@@ -1428,19 +1096,19 @@ const SuperAdminPanel = () => {
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr style={{ background: C.surface2 }}>
-                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.textMuted }}>ÉTABLISSEMENT</th>
-                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.textMuted }}>SLUG</th>
-                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.textMuted }}>PLAN</th>
-                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.textMuted }}>MODULES</th>
-                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.textMuted }}>STATUT</th>
-                      <th className="px-6 py-3 text-right font-medium text-xs" style={{ color: C.textMuted }}>ACTIONS</th>
+                    <tr style={{ background: C.overlay }}>
+                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.muted }}>ÉTABLISSEMENT</th>
+                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.muted }}>SLUG</th>
+                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.muted }}>PLAN</th>
+                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.muted }}>MODULES</th>
+                      <th className="px-6 py-3 text-left font-medium text-xs" style={{ color: C.muted }}>STATUT</th>
+                      <th className="px-6 py-3 text-right font-medium text-xs" style={{ color: C.muted }}>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {tenants.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center" style={{ color: C.textMuted }}>
+                        <td colSpan={6} className="px-6 py-12 text-center" style={{ color: C.muted }}>
                           Aucune établissement enregistrée
                         </td>
                       </tr>
@@ -1459,11 +1127,11 @@ const SuperAdminPanel = () => {
                                 <Avatar nom={tenant.nom} size={36} />
                                 <div>
                                   <p className="font-medium" style={{ color: C.text }}>{tenant.nom}</p>
-                                  <p className="text-xs" style={{ color: C.textMuted }}>{tenant.numeroAutorisation || '—'}</p>
+                                  <p className="text-xs" style={{ color: C.muted }}>{tenant.numeroAutorisation || '—'}</p>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-4 font-mono text-xs" style={{ color: C.textMuted }}>{tenant.slug}</td>
+                            <td className="px-6 py-4 font-mono text-xs" style={{ color: C.muted }}>{tenant.slug}</td>
                             <td className="px-6 py-4">
                               <PlanBadge plan={tenant.plan} />
                             </td>
@@ -1522,7 +1190,7 @@ const SuperAdminPanel = () => {
               {/* Cards mobile */}
               <div className="md:hidden divide-y" style={{ borderColor: C.border }}>
                 {tenants.length === 0 ? (
-                  <p className="px-4 py-12 text-center" style={{ color: C.textMuted }}>Aucune établissement enregistrée</p>
+                  <p className="px-4 py-12 text-center" style={{ color: C.muted }}>Aucune établissement enregistrée</p>
                 ) : (
                   tenants.slice(0, 10).map((tenant) => {
                     const activeCount = countActiveModules(tenant.config);
@@ -1534,19 +1202,19 @@ const SuperAdminPanel = () => {
                             <Avatar nom={tenant.nom} size={36} />
                             <div>
                               <p className="font-medium" style={{ color: C.text }}>{tenant.nom}</p>
-                              <p className="text-xs font-mono" style={{ color: C.textMuted }}>{tenant.slug}</p>
+                              <p className="text-xs font-mono" style={{ color: C.muted }}>{tenant.slug}</p>
                             </div>
                           </div>
                           <StatusBadge actif={tenant.actif} />
                         </div>
                         <div className="flex items-center gap-2">
                           <PlanBadge plan={tenant.plan} />
-                          <span className="text-xs" style={{ color: C.textMuted }}>{activeCount}/{totalCount} modules</span>
+                          <span className="text-xs" style={{ color: C.muted }}>{activeCount}/{totalCount} modules</span>
                         </div>
                         <div className="flex gap-2 flex-wrap">
-                          <button onClick={() => openConfigModal(tenant)} className="p-2 rounded-lg" style={{ background: C.surface3, color: C.textSub }} title="Configurer"><Settings className="h-4 w-4" /></button>
-                          <button onClick={() => window.open(`/p/${tenant.slug}/login`, '_blank')} className="p-2 rounded-lg" style={{ background: C.surface3, color: C.textSub }} title="Accéder"><ExternalLink className="h-4 w-4" /></button>
-                          <button onClick={() => openStaffModal(tenant)} className="p-2 rounded-lg" style={{ background: C.surface3, color: C.textSub }} title="Créer gérant"><UserPlus className="h-4 w-4" /></button>
+                          <button onClick={() => openConfigModal(tenant)} className="p-2 rounded-lg" style={{ background: C.overlay, color: C.secondary }} title="Configurer"><Settings className="h-4 w-4" /></button>
+                          <button onClick={() => window.open(`/p/${tenant.slug}/login`, '_blank')} className="p-2 rounded-lg" style={{ background: C.overlay, color: C.secondary }} title="Accéder"><ExternalLink className="h-4 w-4" /></button>
+                          <button onClick={() => openStaffModal(tenant)} className="p-2 rounded-lg" style={{ background: C.overlay, color: C.secondary }} title="Créer gérant"><UserPlus className="h-4 w-4" /></button>
                         </div>
                       </div>
                     );
@@ -1586,7 +1254,7 @@ const SuperAdminPanel = () => {
                 style={{
                   background: C.surface,
                   border: `1px solid ${C.border}`,
-                  color: C.textSub,
+                  color: C.secondary,
                   minWidth: 140,
                 }}
               >
@@ -1603,7 +1271,7 @@ const SuperAdminPanel = () => {
                 style={{
                   background: C.surface,
                   border: `1px solid ${C.border}`,
-                  color: C.textSub,
+                  color: C.secondary,
                   minWidth: 140,
                 }}
               >
@@ -1637,7 +1305,7 @@ const SuperAdminPanel = () => {
                         <Avatar nom={tenant.nom} size={48} />
                         <div>
                           <h3 className="font-semibold" style={{ color: C.text }}>{tenant.nom}</h3>
-                          <p className="text-xs" style={{ color: C.textMuted }}>slug: {tenant.slug}</p>
+                          <p className="text-xs" style={{ color: C.muted }}>slug: {tenant.slug}</p>
                         </div>
                       </div>
                       <StatusBadge actif={tenant.actif} />
@@ -1645,13 +1313,13 @@ const SuperAdminPanel = () => {
 
                     {/* Plan */}
                     <div className="flex items-center gap-2 mb-4">
-                      <span className="text-sm" style={{ color: C.textMuted }}>Plan:</span>
+                      <span className="text-sm" style={{ color: C.muted }}>Plan:</span>
                       <PlanBadge plan={tenant.plan} />
                     </div>
 
                     {/* Modules */}
                     <div className="mb-4">
-                      <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: C.textMuted }}>
+                      <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: C.muted }}>
                         MODULES ACTIFS
                       </p>
                       <div className="flex flex-wrap gap-1.5">
@@ -1673,8 +1341,8 @@ const SuperAdminPanel = () => {
                             key={m.key}
                             className="px-2 py-1 rounded text-xs font-medium border"
                             style={{
-                              background: C.surface3,
-                              color: C.textMuted,
+                              background: C.overlay,
+                              color: C.muted,
                               borderColor: C.border,
                             }}
                           >
@@ -1682,7 +1350,7 @@ const SuperAdminPanel = () => {
                           </span>
                         ))}
                         {inactiveModules.length > Math.max(0, 5 - activeModules.length) && (
-                          <span className="px-2 py-1 rounded text-xs" style={{ color: C.textMuted }}>
+                          <span className="px-2 py-1 rounded text-xs" style={{ color: C.muted }}>
                             +{inactiveModules.length - Math.max(0, 5 - activeModules.length)} autres
                           </span>
                         )}
@@ -1691,7 +1359,7 @@ const SuperAdminPanel = () => {
 
                     {/* Contact */}
                     {tenant.contact?.email && (
-                      <div className="text-sm mb-4" style={{ color: C.textMuted }}>
+                      <div className="text-sm mb-4" style={{ color: C.muted }}>
                         {tenant.contact.email} {tenant.contact.telephone && `| ${tenant.contact.telephone}`}
                       </div>
                     )}
@@ -1739,7 +1407,7 @@ const SuperAdminPanel = () => {
 
             {filteredTenants.length === 0 && (
               <div className="text-center py-16">
-                <Store className="h-12 w-12 mx-auto mb-4" style={{ color: '#94A3B8' }} />
+                <Building2 className="h-12 w-12 mx-auto mb-4" style={{ color: '#94A3B8' }} />
                 <p className="text-lg font-medium" style={{ color: '#64748B' }}>Aucun établissement trouvé</p>
                 <p className="text-sm" style={{ color: '#94A3B8' }}>Modifiez vos filtres ou créez un nouvel établissement</p>
               </div>

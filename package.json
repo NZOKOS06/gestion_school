@@ -4,10 +4,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report e2e/reports",
-    "test:all": "cd server && npx vitest run && cd .. && npx playwright test",
-    "perf:normal": "k6 run k6/test-charge-ventes.js",
-    "perf:stock": "k6 run k6/test-charge-concurrent-stock.js --env MED_ID=YOUR_MED_ID",
-    "perf:report": "k6 run --out json=k6/results.json k6/test-charge-ventes.js"
+    "test:all": "cd server && npx vitest run && cd .. && npx playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

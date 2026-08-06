@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, DataTable, Badge, Button, Modal, Card } from '../../components/ui';
 import { Award, Plus, Eye, FileDown } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const TYPE_LABEL = {
   scolarite: 'Certificat de scolarité',
@@ -47,19 +48,22 @@ const Certificats = () => {
 
   const handlePreview = async () => {
     try {
-      const res = await get(`/api/certificats/preview?eleveId=${form.eleveId}&type=${form.type}&anneeScolaireId=${form.anneeScolaireId}`, { silent: true });
+      const res = await get(`/api/certificats/preview?eleveId=${form.eleveId}&type=${form.type}&anneeScolaireId=${form.anneeScolaireId}`);
       setPreview(res);
-    } catch { /* silent */ }
+    } catch {
+      setPreview(null);
+    }
   };
 
   const handleGenerate = async () => {
     try {
       await post('/api/certificats', form);
+      toast.success('Certificat généré');
       setCreateOpen(false);
       setForm({ eleveId: '', type: 'scolarite', anneeScolaireId: '' });
       setPreview(null);
       fetchCertificats();
-    } catch { /* silent */ }
+    } catch { /* toast via useAxios */ }
   };
 
   const inputStyle = {
@@ -113,11 +117,17 @@ const Certificats = () => {
           {
             key: 'actions',
             label: 'PDF',
-            render: (_, row) => row.pdfUrl ? (
-              <a href={row.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-md hover:bg-[var(--surface-hover)] inline-flex">
+            render: (_, row) => (
+              <a
+                href={row.pdfUrl || `/api/certificats/${row.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-md hover:bg-[var(--surface-hover)] inline-flex"
+                title="Télécharger PDF"
+              >
                 <FileDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
               </a>
-            ) : <span style={{ color: 'var(--text-muted)' }}>—</span>,
+            ),
           },
         ]}
         data={certificats}

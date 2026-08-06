@@ -22,6 +22,7 @@ const getDashboardRoute = (role) => {
   switch (role) {
     case 'super_admin': return '/super-admin/dashboard';
     case 'directeur':
+    case 'directeur_etudes':
     case 'secretaire':
     case 'surveillant': return '/admin/dashboard';
     case 'enseignant': return '/enseignant/dashboard';

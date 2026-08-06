@@ -6,18 +6,38 @@ import * as ctrl from '../controllers/certificats.controller.js';
 
 const router = Router();
 
+const readRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'comptable'];
+const writeRoles = ['directeur', 'directeur_etudes', 'secretaire'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'comptable'),
+  requireRole(...readRoles),
   requireTenantMatch,
   requireModule('certificats'),
   paginationValidator,
   ctrl.getAll
 );
 
+router.get('/preview',
+  authenticate,
+  requireRole(...writeRoles),
+  requireTenantMatch,
+  requireModule('certificats'),
+  ctrl.preview
+);
+
+router.get('/:id/pdf',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  requireModule('certificats'),
+  idParamValidator,
+  ctrl.getPdf
+);
+
 router.get('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'comptable'),
+  requireRole(...readRoles),
   requireTenantMatch,
   requireModule('certificats'),
   idParamValidator,
@@ -26,7 +46,7 @@ router.get('/:id',
 
 router.post('/',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   requireModule('certificats'),
   ctrl.create

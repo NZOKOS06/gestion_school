@@ -205,6 +205,7 @@ async function main() {
   // ==================== STAFF COMPLET (démo) ====================
   const staffDemo = [
     { email: 'directeur@demo.cg', password: 'Directeur123!', role: 'directeur', nom: 'Mbemba', prenom: 'Jean', typeContrat: 'titulaire' },
+    { email: 'de@demo.cg', password: 'DirecteurEtudes123!', role: 'directeur_etudes', nom: 'Makosso', prenom: 'Claire', typeContrat: 'titulaire' },
     { email: 'secretaire@demo.cg', password: 'Secretaire123!', role: 'secretaire', nom: 'Ngoma', prenom: 'Marie', typeContrat: 'titulaire' },
     { email: 'enseignant@demo.cg', password: 'Enseignant123!', role: 'enseignant', nom: 'Kouassi', prenom: 'Paul', typeContrat: 'titulaire' },
     { email: 'surveillant@demo.cg', password: 'Surveillant123!', role: 'surveillant', nom: 'Moussa', prenom: 'Amadou', typeContrat: 'titulaire' },
@@ -233,54 +234,203 @@ async function main() {
         actif: true,
       },
     });
-    staffMap[s.role] = created;
+    staffMap[s.email] = created;
+    staffMap[s.role] = created; // last writer wins for duplicate roles (vacataire)
+    if (s.email === 'enseignant@demo.cg') staffMap.enseignantTitulaire = created;
     console.log(`✓ ${s.role} : ${created.email} / ${s.password}`);
+  }
+
+  // ==================== RÉFÉRENTIEL CONGO ====================
+  const { NIVEAUX_CG_ACTUEL, FILIERES_CG_ACTUEL, PERIODES_2025_2026 } = await import('../src/data/referentielCongo.js');
+
+  const refActuel = await prisma.referentielVersion.upsert({
+    where: { tenantId_code: { tenantId: demoTenant.id, code: 'cg_actuel' } },
+    update: { actif: true, libelle: 'Référentiel Congo actuel' },
+    create: {
+      tenantId: demoTenant.id,
+      code: 'cg_actuel',
+      libelle: 'Référentiel Congo actuel',
+      actif: true,
+    },
+  });
+
+  // Vague 4 — stub réforme inactive
+  await prisma.referentielVersion.upsert({
+    where: { tenantId_code: { tenantId: demoTenant.id, code: 'cg_reforme_2026' } },
+    update: { actif: false, libelle: 'Réforme 2026 (préparation)' },
+    create: {
+      tenantId: demoTenant.id,
+      code: 'cg_reforme_2026',
+      libelle: 'Réforme 2026 (préparation)',
+      actif: false,
+    },
+  });
+  console.log('✓ Référentiels cg_actuel (actif) + cg_reforme_2026 (stub)');
+
+  const niveauxMap = {};
+  for (const n of NIVEAUX_CG_ACTUEL) {
+    const created = await prisma.niveauOfficiel.upsert({
+      where: { referentielVersionId_code: { referentielVersionId: refActuel.id, code: n.code } },
+      update: {
+        libelle: n.libelle,
+        cycle: n.cycle,
+        ordre: n.ordre,
+        ageIndicatif: n.ageIndicatif || null,
+        typeExamenSortie: n.typeExamenSortie || null,
+      },
+      create: {
+        tenantId: demoTenant.id,
+        referentielVersionId: refActuel.id,
+        code: n.code,
+        libelle: n.libelle,
+        cycle: n.cycle,
+        ordre: n.ordre,
+        ageIndicatif: n.ageIndicatif || null,
+        typeExamenSortie: n.typeExamenSortie || null,
+      },
+    });
+    niveauxMap[n.code] = created;
+  }
+  console.log(`✓ ${NIVEAUX_CG_ACTUEL.length} niveaux officiels PS→Tle`);
+
+  const filieresMap = {};
+  for (const f of FILIERES_CG_ACTUEL) {
+    const created = await prisma.filiereOfficielle.upsert({
+      where: { referentielVersionId_code: { referentielVersionId: refActuel.id, code: f.code } },
+      update: { libelle: f.libelle, cycle: f.cycle },
+      create: {
+        tenantId: demoTenant.id,
+        referentielVersionId: refActuel.id,
+        code: f.code,
+        libelle: f.libelle,
+        cycle: f.cycle,
+      },
+    });
+    filieresMap[f.code] = created;
   }
 
   // ==================== ANNÉE SCOLAIRE ====================
   const anneeScolaire = await prisma.anneeScolaire.upsert({
     where: { tenantId_libelle: { tenantId: demoTenant.id, libelle: '2025-2026' } },
-    update: { actif: true },
+    update: { actif: true, referentielVersionId: refActuel.id },
     create: {
       tenantId: demoTenant.id,
       libelle: '2025-2026',
       dateDebut: new Date('2025-10-01'),
       dateFin: new Date('2026-07-15'),
       actif: true,
+      referentielVersionId: refActuel.id,
     },
   });
   console.log(`✓ Année scolaire : ${anneeScolaire.libelle}`);
 
+  await prisma.tenantConfig.update({
+    where: { tenantId: demoTenant.id },
+    data: {
+      anneeScolaireActiveId: anneeScolaire.id,
+      conventionPeriode: 'trimestre',
+      nombrePeriodes: 3,
+    },
+  });
+
+  for (const p of PERIODES_2025_2026) {
+    await prisma.periodeScolaire.upsert({
+      where: { anneeScolaireId_index: { anneeScolaireId: anneeScolaire.id, index: p.index } },
+      update: {
+        libelle: p.libelle,
+        dateDebut: new Date(p.dateDebut),
+        dateFin: new Date(p.dateFin),
+        dateEvaluationDebut: p.dateEvaluationDebut ? new Date(p.dateEvaluationDebut) : null,
+        dateEvaluationFin: p.dateEvaluationFin ? new Date(p.dateEvaluationFin) : null,
+        poids: p.poids,
+      },
+      create: {
+        tenantId: demoTenant.id,
+        anneeScolaireId: anneeScolaire.id,
+        index: p.index,
+        libelle: p.libelle,
+        dateDebut: new Date(p.dateDebut),
+        dateFin: new Date(p.dateFin),
+        dateEvaluationDebut: p.dateEvaluationDebut ? new Date(p.dateEvaluationDebut) : null,
+        dateEvaluationFin: p.dateEvaluationFin ? new Date(p.dateEvaluationFin) : null,
+        poids: p.poids,
+      },
+    });
+  }
+  console.log('✓ 3 périodes scolaires 2025-2026');
+
+  // Sessions examens nationaux (vague 2)
+  for (const sess of [
+    { typeExamen: 'CEPE', libelle: 'CEPE 2026' },
+    { typeExamen: 'BEPC', libelle: 'BEPC 2026' },
+    { typeExamen: 'BAC_GENERAL', libelle: 'BAC Général 2026' },
+  ]) {
+    const exists = await prisma.examenSession.findFirst({
+      where: { tenantId: demoTenant.id, anneeScolaireId: anneeScolaire.id, typeExamen: sess.typeExamen },
+    });
+    if (!exists) {
+      await prisma.examenSession.create({
+        data: {
+          tenantId: demoTenant.id,
+          anneeScolaireId: anneeScolaire.id,
+          typeExamen: sess.typeExamen,
+          libelle: sess.libelle,
+          dateDebut: new Date('2026-06-01'),
+          dateFin: new Date('2026-06-20'),
+          centre: 'Brazzaville',
+        },
+      });
+    }
+  }
+  console.log('✓ Sessions examens CEPE / BEPC / BAC');
+
   // ==================== CLASSES ====================
   const classesData = [
-    { nom: '6ème A', niveau: '6eme', cycle: 'college', filiere: 'Générale', capacite: 40, fraisScolarite: 150000 },
-    { nom: '5ème B', niveau: '5eme', cycle: 'college', filiere: 'Générale', capacite: 35, fraisScolarite: 150000 },
-    { nom: 'Terminale S1', niveau: 'terminale', cycle: 'lycee', filiere: 'Scientifique', capacite: 30, fraisScolarite: 200000 },
+    { nom: 'GS A', niveauCode: 'GS', cycle: 'prescolaire', capacite: 25, fraisScolarite: 80000 },
+    { nom: 'CM2 A', niveauCode: 'CM2', cycle: 'primaire', capacite: 40, fraisScolarite: 120000 },
+    { nom: '6ème A', niveauCode: '6e', cycle: 'college', capacite: 40, fraisScolarite: 150000 },
+    { nom: '5ème B', niveauCode: '5e', cycle: 'college', capacite: 35, fraisScolarite: 150000 },
+    { nom: '3ème A', niveauCode: '3e', cycle: 'college', capacite: 35, fraisScolarite: 160000 },
+    { nom: '2nde A', niveauCode: '2nde', cycle: 'lycee', filiereCode: 'generale', capacite: 35, fraisScolarite: 180000 },
+    { nom: 'Terminale S1', niveauCode: 'Tle', cycle: 'lycee', filiereCode: 'scientifique', capacite: 30, fraisScolarite: 200000 },
   ];
 
   const classesMap = {};
   for (const c of classesData) {
+    const niv = niveauxMap[c.niveauCode];
+    const fil = c.filiereCode ? filieresMap[c.filiereCode] : null;
     const existing = await prisma.classe.findFirst({
       where: { tenantId: demoTenant.id, anneeScolaireId: anneeScolaire.id, nom: c.nom },
     });
     if (existing) {
-      classesMap[c.nom] = existing;
+      classesMap[c.nom] = await prisma.classe.update({
+        where: { id: existing.id },
+        data: {
+          niveau: c.niveauCode,
+          cycle: c.cycle,
+          filiere: fil?.libelle || null,
+          niveauOfficielId: niv?.id || null,
+          filiereOfficielleId: fil?.id || null,
+        },
+      });
     } else {
       classesMap[c.nom] = await prisma.classe.create({
         data: {
           tenantId: demoTenant.id,
           anneeScolaireId: anneeScolaire.id,
           nom: c.nom,
-          niveau: c.niveau,
+          niveau: c.niveauCode,
           cycle: c.cycle,
-          filiere: c.filiere,
+          filiere: fil?.libelle || null,
+          niveauOfficielId: niv?.id || null,
+          filiereOfficielleId: fil?.id || null,
           capacite: c.capacite,
           fraisScolarite: c.fraisScolarite,
         },
       });
     }
   }
-  console.log(`✓ ${classesData.length} classes créées`);
+  console.log(`✓ ${classesData.length} classes créées (référentiel Congo)`);
 
   // ==================== MATIÈRES ====================
   const matieresData = [
@@ -365,7 +515,7 @@ async function main() {
   console.log(`✓ ${elevesData.length} inscriptions créées`);
 
   // ==================== ENSEIGNANT-CLASSE-MATIERE ====================
-  const enseignant = staffMap['enseignant'];
+  const enseignant = staffMap.enseignantTitulaire || staffMap['enseignant@demo.cg'];
   const ecLinks = [
     { classe: '6ème A', matiere: 'MATH' },
     { classe: '6ème A', matiere: 'FR' },
@@ -566,6 +716,238 @@ async function main() {
   }
   console.log(`✓ 1 message de démonstration créé (directeur → parent)`);
 
+  // ==================== PHASE 1 — EDT / NOTES / BULLETIN / PAIEMENT / NOTIFS ====================
+  const salleA12 = await prisma.salle.findFirst({
+    where: { tenantId: demoTenant.id, nom: 'A12' },
+  });
+  const todayJs = new Date().getDay();
+  const todayJour = todayJs === 0 ? 7 : todayJs;
+
+  const edtSlots = [
+    { classe: '6ème A', matiere: 'MATH', jourSemaine: todayJour, heureDebut: '08:00', heureFin: '09:00', salle: 'A12' },
+    { classe: '6ème A', matiere: 'FR', jourSemaine: todayJour, heureDebut: '09:00', heureFin: '10:00', salle: 'A12' },
+    { classe: '6ème A', matiere: 'MATH', jourSemaine: 1, heureDebut: '08:00', heureFin: '09:00', salle: 'A12' },
+    { classe: '6ème A', matiere: 'FR', jourSemaine: 2, heureDebut: '10:00', heureFin: '11:00', salle: 'A12' },
+    { classe: '5ème B', matiere: 'MATH', jourSemaine: 3, heureDebut: '08:00', heureFin: '09:00', salle: 'B05' },
+    { classe: 'Terminale S1', matiere: 'PHY', jourSemaine: 4, heureDebut: '14:00', heureFin: '16:00', salle: 'Labo Sciences' },
+  ];
+
+  let edtCount = 0;
+  for (const slot of edtSlots) {
+    const classe = classesMap[slot.classe];
+    const matiere = matieresMap[slot.matiere];
+    if (!classe || !matiere || !enseignant) continue;
+    const existing = await prisma.emploiDuTemps.findFirst({
+      where: {
+        tenantId: demoTenant.id,
+        enseignantId: enseignant.id,
+        classeId: classe.id,
+        matiereId: matiere.id,
+        jourSemaine: slot.jourSemaine,
+        heureDebut: slot.heureDebut,
+      },
+    });
+    if (!existing) {
+      const salleRef = await prisma.salle.findFirst({
+        where: { tenantId: demoTenant.id, nom: slot.salle },
+      });
+      await prisma.emploiDuTemps.create({
+        data: {
+          tenantId: demoTenant.id,
+          classeId: classe.id,
+          matiereId: matiere.id,
+          enseignantId: enseignant.id,
+          jourSemaine: slot.jourSemaine,
+          heureDebut: slot.heureDebut,
+          heureFin: slot.heureFin,
+          salle: slot.salle,
+          salleId: salleRef?.id || salleA12?.id || null,
+        },
+      });
+      edtCount++;
+    }
+  }
+  console.log(`✓ ${edtCount} créneaux EDT créés (dont cours du jour)`);
+
+  // Evaluation + notes (6ème A MATH)
+  const classe6A = classesMap['6ème A'];
+  const matiereMath = matieresMap['MATH'];
+  let evaluation = await prisma.evaluation.findFirst({
+    where: {
+      tenantId: demoTenant.id,
+      classeId: classe6A.id,
+      matiereId: matiereMath.id,
+      nom: 'Devoir de Table n°1',
+    },
+  });
+  if (!evaluation) {
+    evaluation = await prisma.evaluation.create({
+      data: {
+        tenantId: demoTenant.id,
+        classeId: classe6A.id,
+        matiereId: matiereMath.id,
+        anneeScolaireId: anneeScolaire.id,
+        periodeIndex: 1,
+        nom: 'Devoir de Table n°1',
+        type: 'devoir',
+        dateEvaluation: new Date('2025-11-20'),
+        coefficient: 2,
+        noteMaximale: 20,
+      },
+    });
+  }
+
+  const eleves6A = [elevesMap['GS-2026-0001'], elevesMap['GS-2026-0002']].filter(Boolean);
+  const notesDemo = [14.5, 12.0];
+  for (let i = 0; i < eleves6A.length; i++) {
+    const el = eleves6A[i];
+    const existingNote = await prisma.note.findFirst({
+      where: { evaluationId: evaluation.id, eleveId: el.id },
+    });
+    if (!existingNote) {
+      await prisma.note.create({
+        data: {
+          tenantId: demoTenant.id,
+          evaluationId: evaluation.id,
+          eleveId: el.id,
+          valeur: notesDemo[i],
+          appreciation: notesDemo[i] >= 14 ? 'Bon travail' : 'Peut mieux faire',
+          saisiParId: enseignant.id,
+        },
+      });
+    }
+  }
+  console.log('✓ 1 évaluation + notes (6ème A MATH)');
+
+  // Bulletin published for parent's child
+  const eleveParent = elevesMap['GS-2026-0001'];
+  if (eleveParent && classe6A) {
+    const existingBul = await prisma.bulletin.findFirst({
+      where: {
+        tenantId: demoTenant.id,
+        eleveId: eleveParent.id,
+        anneeScolaireId: anneeScolaire.id,
+        periodeIndex: 1,
+      },
+    });
+    if (!existingBul) {
+      await prisma.bulletin.create({
+        data: {
+          tenantId: demoTenant.id,
+          eleveId: eleveParent.id,
+          classeId: classe6A.id,
+          anneeScolaireId: anneeScolaire.id,
+          periodeIndex: 1,
+          moyenneGenerale: 13.75,
+          rang: 2,
+          effectifClasse: 2,
+          mention: 'encouragements',
+          decisionConseil: 'Continue ainsi',
+          absencesHeures: 2,
+          notesDetaillees: { MATH: 14.5, FR: 13.0 },
+          valide: true,
+        },
+      });
+    }
+  }
+  console.log('✓ 1 bulletin publié (David Ossobi)');
+
+  // Sanction
+  if (eleveParent) {
+    const existingSan = await prisma.sanction.findFirst({
+      where: { tenantId: demoTenant.id, eleveId: eleveParent.id, motif: 'Retard répété' },
+    });
+    if (!existingSan) {
+      await prisma.sanction.create({
+        data: {
+          tenantId: demoTenant.id,
+          eleveId: eleveParent.id,
+          type: 'avertissement',
+          motif: 'Retard répété',
+          dateSanction: new Date('2025-11-10'),
+        },
+      });
+    }
+  }
+  console.log('✓ 1 sanction (avertissement)');
+
+  // Paiement + notification
+  const inscriptionParent = eleveParent
+    ? await prisma.inscription.findFirst({
+        where: {
+          tenantId: demoTenant.id,
+          eleveId: eleveParent.id,
+          anneeScolaireId: anneeScolaire.id,
+        },
+        include: { echeances: true },
+      })
+    : null;
+  const comptable = staffMap['comptable@demo.cg'] || staffMap['comptable'];
+  if (inscriptionParent && comptable) {
+    const existingPay = await prisma.paiement.findFirst({
+      where: { tenantId: demoTenant.id, inscriptionId: inscriptionParent.id, numeroRecu: 1 },
+    });
+    if (!existingPay) {
+      const echeance = inscriptionParent.echeances?.[0];
+      await prisma.paiement.create({
+        data: {
+          tenantId: demoTenant.id,
+          inscriptionId: inscriptionParent.id,
+          echeanceId: echeance?.id || null,
+          recuParId: comptable.id,
+          numeroRecu: 1,
+          montant: 25000,
+          typePaiement: 'inscription',
+          modePaiement: 'especes',
+          motif: 'Frais d\'inscription',
+          datePaiement: new Date('2025-10-10'),
+        },
+      });
+      if (echeance) {
+        await prisma.echeance.update({
+          where: { id: echeance.id },
+          data: { montantPaye: 25000, statut: 'payee' },
+        });
+      }
+      await prisma.inscription.update({
+        where: { id: inscriptionParent.id },
+        data: { soldeScolarite: Math.max(0, Number(inscriptionParent.soldeScolarite) - 25000) },
+      });
+    }
+  }
+  console.log('✓ 1 paiement (frais d\'inscription)');
+
+  if (parentUser) {
+    const existingNotif = await prisma.notification.findFirst({
+      where: { tenantId: demoTenant.id, userId: parentUser.id, titre: 'Bulletin disponible' },
+    });
+    if (!existingNotif) {
+      await prisma.notification.createMany({
+        data: [
+          {
+            tenantId: demoTenant.id,
+            userId: parentUser.id,
+            type: 'bulletin',
+            titre: 'Bulletin disponible',
+            contenu: 'Le bulletin du 1er trimestre de David Ossobi est disponible.',
+            lu: false,
+            lien: '/parent/bulletins',
+          },
+          {
+            tenantId: demoTenant.id,
+            userId: parentUser.id,
+            type: 'paiement',
+            titre: 'Paiement reçu',
+            contenu: 'Nous avons bien reçu le paiement des frais d\'inscription (25 000 FCFA).',
+            lu: true,
+            lien: '/parent/facturation',
+          },
+        ],
+      });
+    }
+  }
+  console.log('✓ 2 notifications parent');
+
   console.log('✅ Seed terminé avec succès !\n');
   console.log('═══════════════════════════════════════════════════════');
   console.log('  🎭 IDENTIFIANTS DE CONNEXION - TENANT DE TEST');
@@ -621,6 +1003,7 @@ async function main() {
   console.log('     • 7 événements calendrier scolaire');
   console.log('     • 4 absences (3 types: absent, retard, départ anticipé)');
   console.log('     • 1 message (directeur → parent)');
+  console.log('     • EDT + évaluation + bulletin + sanction + paiement + notifs (Phase 1)');
   console.log('═══════════════════════════════════════════════════════');
 }
 

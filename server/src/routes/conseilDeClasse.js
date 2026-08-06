@@ -5,9 +5,12 @@ import * as ctrl from '../controllers/conseilDeClasse.controller.js';
 
 const router = Router();
 
+const readRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant'];
+const writeRoles = ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant'),
+  requireRole(...readRoles),
   requireTenantMatch,
   paginationValidator,
   ctrl.getAll
@@ -15,7 +18,7 @@ router.get('/',
 
 router.get('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant'),
+  requireRole(...readRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.getOne
@@ -23,14 +26,14 @@ router.get('/:id',
 
 router.post('/',
   authenticate,
-  requireRole('directeur', 'surveillant'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   ctrl.create
 );
 
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'surveillant'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.update
@@ -38,7 +41,7 @@ router.put('/:id',
 
 router.post('/:id/participants',
   authenticate,
-  requireRole('directeur', 'surveillant'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.addParticipant
@@ -46,7 +49,7 @@ router.post('/:id/participants',
 
 router.delete('/:id',
   authenticate,
-  requireRole('directeur'),
+  requireRole('directeur', 'directeur_etudes'),
   requireTenantMatch,
   idParamValidator,
   ctrl.remove

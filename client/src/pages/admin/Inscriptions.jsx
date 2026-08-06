@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader, DataTable, Badge, Button, Modal, SearchInput } from '../../components/ui';
-import { ClipboardList, Plus, Check, X, Pause } from 'lucide-react';
+import { Plus, Check, X, Pause } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 
 const STATUT_VARIANT = {
@@ -29,15 +30,27 @@ const DECISION_LABEL = {
 const Inscriptions = () => {
   const { get, post, put } = useAxios();
   const { formatPrice } = useTenant();
+  const { user } = useAuth();
+  const canDecideFinAnnee = ['directeur', 'directeur_etudes'].includes(user?.role);
   const [inscriptions, setInscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const [createOpen, setCreateOpen] = useState(false);
+  const [decisionOpen, setDecisionOpen] = useState(null);
   const [eleves, setEleves] = useState([]);
   const [classes, setClasses] = useState([]);
   const [annees, setAnnees] = useState([]);
+  const [niveaux, setNiveaux] = useState([]);
   const [form, setForm] = useState({ eleveId: '', classeId: '', anneeScolaireId: '' });
+  const [decisionForm, setDecisionForm] = useState({
+    decisionFinAnnee: 'passage',
+    niveauCibleId: '',
+    classeCibleId: '',
+    motifDecision: '',
+    anneeCibleId: '',
+    genererInscription: true,
+  });
 
   const fetchInscriptions = useCallback(async () => {
     setLoading(true);
@@ -64,6 +77,45 @@ const Inscriptions = () => {
       setAnnees(an?.data || an || []);
       const activeAnnee = (an?.data || an || []).find((a) => a.actif);
       if (activeAnnee) setForm((f) => ({ ...f, anneeScolaireId: activeAnnee.id }));
+    } catch { /* silent */ }
+  };
+
+  const openDecision = async (insc) => {
+    setDecisionOpen(insc);
+    try {
+      const an = await get('/api/annees-scolaires', { silent: true });
+      const anneesList = an?.data || an || [];
+      setAnnees(anneesList);
+      const cible = anneesList.find((a) => !a.actif) || anneesList.find((a) => a.actif);
+      const qs = cible?.id ? `?anneeScolaireId=${cible.id}` : '';
+      const [niv, cl] = await Promise.all([
+        get(`/api/referentiel/niveaux${qs}`, { silent: true }),
+        get(cible?.id ? `/api/classes?anneeScolaireId=${cible.id}&limit=200` : '/api/classes?limit=200', { silent: true }),
+      ]);
+      setNiveaux(niv?.data || niv || []);
+      setClasses(cl?.data || cl || []);
+      setDecisionForm({
+        decisionFinAnnee: insc.decisionFinAnnee || 'passage',
+        niveauCibleId: insc.niveauCibleId || '',
+        classeCibleId: insc.classeCibleId || '',
+        motifDecision: insc.motifDecision || '',
+        anneeCibleId: cible?.id || '',
+        genererInscription: true,
+      });
+    } catch { /* silent */ }
+  };
+
+  const submitDecision = async () => {
+    if (!decisionOpen) return;
+    try {
+      await put(`/api/inscriptions/${decisionOpen.id}/decision-fin-annee`, {
+        ...decisionForm,
+        niveauCibleId: decisionForm.niveauCibleId || null,
+        classeCibleId: decisionForm.classeCibleId || null,
+        anneeCibleId: decisionForm.anneeCibleId || null,
+      });
+      setDecisionOpen(null);
+      fetchInscriptions();
     } catch { /* silent */ }
   };
 
@@ -158,6 +210,16 @@ const Inscriptions = () => {
             label: 'Actions',
             render: (_, row) => (
               <div className="flex items-center gap-1">
+                {canDecideFinAnnee && (
+                  <button
+                    onClick={() => openDecision(row)}
+                    className="px-2 py-1 rounded-md text-xs font-medium"
+                    style={{ background: 'var(--surface-overlay)', color: 'var(--color-primary)', border: '1px solid var(--border-subtle)' }}
+                    title="Décision fin d'année"
+                  >
+                    Fin d'année
+                  </button>
+                )}
                 {row.statut !== 'validee' && (
                   <button onClick={() => changeStatut(row, 'validee')} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Valider">
                     <Check className="h-4 w-4" style={{ color: 'var(--color-success)' }} />
@@ -181,6 +243,79 @@ const Inscriptions = () => {
         loading={loading}
         emptyMessage="Aucune inscription"
       />
+
+      <Modal
+        open={!!decisionOpen}
+        onClose={() => setDecisionOpen(null)}
+        title="Décision de fin d'année"
+        subtitle={decisionOpen ? `${decisionOpen.elevePrenom || decisionOpen.eleve?.prenom || ''} ${decisionOpen.eleveNom || decisionOpen.eleve?.nom || ''}` : ''}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDecisionOpen(null)}>Annuler</Button>
+            <Button onClick={submitDecision}>Enregistrer</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Décision</label>
+            <select
+              style={inputStyle}
+              value={decisionForm.decisionFinAnnee}
+              onChange={(e) => setDecisionForm({ ...decisionForm, decisionFinAnnee: e.target.value })}
+            >
+              <option value="passage">Passage</option>
+              <option value="redoublement">Redoublement</option>
+              <option value="orientation">Orientation</option>
+              <option value="exclusion">Exclusion</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Niveau cible</label>
+            <select
+              style={inputStyle}
+              value={decisionForm.niveauCibleId}
+              onChange={(e) => setDecisionForm({ ...decisionForm, niveauCibleId: e.target.value })}
+            >
+              <option value="">Auto (niveau suivant) / inchangé</option>
+              {niveaux.map((n) => <option key={n.id} value={n.id}>{n.libelle} ({n.code})</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Classe cible (année N+1)</label>
+            <select
+              style={inputStyle}
+              value={decisionForm.classeCibleId}
+              onChange={(e) => setDecisionForm({ ...decisionForm, classeCibleId: e.target.value })}
+            >
+              <option value="">Sans inscription auto</option>
+              {classes
+                .filter((c) => !decisionForm.anneeCibleId || c.anneeScolaireId === decisionForm.anneeCibleId)
+                .map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Année cible</label>
+            <select
+              style={inputStyle}
+              value={decisionForm.anneeCibleId}
+              onChange={(e) => setDecisionForm({ ...decisionForm, anneeCibleId: e.target.value })}
+            >
+              <option value="">—</option>
+              {annees.map((a) => <option key={a.id} value={a.id}>{a.libelle}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Motif / justificatif</label>
+            <input
+              style={inputStyle}
+              value={decisionForm.motifDecision}
+              onChange={(e) => setDecisionForm({ ...decisionForm, motifDecision: e.target.value })}
+              placeholder="Ex: admis CEPE, décision interne GS→CP1…"
+            />
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={createOpen}

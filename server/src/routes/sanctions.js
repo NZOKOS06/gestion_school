@@ -6,9 +6,11 @@ import * as ctrl from '../controllers/sanctions.controller.js';
 
 const router = Router();
 
+const roles = ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'surveillant'),
+  requireRole(...roles),
   requireTenantMatch,
   requireModule('sanctions'),
   paginationValidator,
@@ -17,7 +19,7 @@ router.get('/',
 
 router.post('/',
   authenticate,
-  requireRole('directeur', 'surveillant'),
+  requireRole(...roles),
   requireTenantMatch,
   requireModule('sanctions'),
   sanctionValidator,
@@ -26,7 +28,7 @@ router.post('/',
 
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'surveillant'),
+  requireRole(...roles),
   requireTenantMatch,
   requireModule('sanctions'),
   idParamValidator,
@@ -35,7 +37,7 @@ router.put('/:id',
 
 router.delete('/:id',
   authenticate,
-  requireRole('directeur'),
+  requireRole('directeur', 'directeur_etudes'),
   requireTenantMatch,
   requireModule('sanctions'),
   idParamValidator,

@@ -6,9 +6,12 @@ import * as ctrl from '../controllers/classes.controller.js';
 
 const router = Router();
 
+const readRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant', 'comptable'];
+const writeRoles = ['directeur', 'directeur_etudes', 'secretaire'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable'),
+  requireRole(...readRoles),
   requireTenantMatch,
   requireModule('classes'),
   paginationValidator,
@@ -17,16 +20,25 @@ router.get('/',
 
 router.get('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable'),
+  requireRole(...readRoles),
   requireTenantMatch,
   requireModule('classes'),
   idParamValidator,
   ctrl.getById
 );
 
+router.get('/:id/eleves',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant'),
+  requireTenantMatch,
+  requireModule('classes'),
+  idParamValidator,
+  ctrl.getEleves
+);
+
 router.post('/',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   requireModule('classes'),
   classeValidator,
@@ -35,7 +47,7 @@ router.post('/',
 
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   requireModule('classes'),
   idParamValidator,
@@ -44,7 +56,7 @@ router.put('/:id',
 
 router.delete('/:id',
   authenticate,
-  requireRole('directeur'),
+  requireRole('directeur', 'directeur_etudes'),
   requireTenantMatch,
   requireModule('classes'),
   idParamValidator,

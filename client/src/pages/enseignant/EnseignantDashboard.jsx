@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
-import { PageHeader, Card, KpiCard, Badge, DataTable } from '../../components/ui';
+import { PageHeader, Card, KpiCard, Badge, DataTable, Skeleton, EmptyState, Button } from '../../components/ui';
 import { Users, BookOpen, CalendarCheck, Clock } from 'lucide-react';
 
 const EnseignantDashboard = () => {
@@ -9,29 +9,48 @@ const EnseignantDashboard = () => {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
+      setError(null);
       try {
         const res = await get('/api/enseignant/dashboard', { silent: true });
         setData(res);
-      } catch { /* silent */ }
+      } catch {
+        setError('Impossible de charger le tableau de bord');
+        setData(null);
+      }
       setLoading(false);
     })();
   }, []);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="space-y-8">
-        <div className="skeleton h-8 w-56 rounded-lg" />
+        <Skeleton height={28} width={220} />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-xl p-5" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
-              <div className="skeleton h-3 w-24 rounded mb-3" />
-              <div className="skeleton h-8 w-36 rounded" />
+              <Skeleton height={12} width={96} className="mb-3" />
+              <Skeleton height={32} width={140} />
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Tableau de bord" subtitle={`Bonjour ${user?.prenom || ''}`} />
+        <EmptyState
+          title="Impossible de charger le tableau de bord"
+          description={error || 'Réessayez dans un instant.'}
+          action={<Button size="sm" onClick={() => window.location.reload()}>Réessayer</Button>}
+        />
       </div>
     );
   }

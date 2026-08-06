@@ -18,7 +18,7 @@ const parseSender = (from) => {
   if (match) {
     return { name: match[1].trim(), email: match[2].trim() };
   }
-  return { name: '', email: from || 'noreply@gestpharma.local' };
+  return { name: '', email: from || 'noreply@gestschool.local' };
 };
 
 const sendEmailViaBrevoApi = async ({ to, subject, html, text }) => {
@@ -158,7 +158,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
   }
 };
 
-export const sendPasswordResetEmail = async ({ to, resetUrl, nomApp = 'GestPharma' }) => {
+export const sendPasswordResetEmail = async ({ to, resetUrl, nomApp = 'GestSchool' }) => {
   const subject = `Réinitialisation de votre mot de passe ${nomApp}`;
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
@@ -181,7 +181,7 @@ export const sendPasswordResetEmail = async ({ to, resetUrl, nomApp = 'GestPharm
   return sendEmail({ to, subject, html, text });
 };
 
-export const sendStaffWelcomeEmail = async ({ to, password, loginUrl, nomApp = 'GestPharma', tenantName = '' }) => {
+export const sendStaffWelcomeEmail = async ({ to, password, loginUrl, nomApp = 'GestSchool', tenantName = '' }) => {
   const displayName = tenantName || nomApp;
   const subject = `Votre compte ${displayName} a été créé`;
   const html = `
@@ -207,7 +207,7 @@ export const sendStaffWelcomeEmail = async ({ to, password, loginUrl, nomApp = '
   return sendEmail({ to, subject, html, text });
 };
 
-export const sendEmailVerificationEmail = async ({ to, verificationUrl, nomApp = 'GestPharma' }) => {
+export const sendEmailVerificationEmail = async ({ to, verificationUrl, nomApp = 'GestSchool' }) => {
   const subject = `Vérifiez votre adresse email ${nomApp}`;
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
@@ -230,7 +230,7 @@ export const sendEmailVerificationEmail = async ({ to, verificationUrl, nomApp =
   return sendEmail({ to, subject, html, text });
 };
 
-export const sendPasswordChangedEmail = async ({ to, nomApp = 'GestPharma', changedAt = new Date() }) => {
+export const sendPasswordChangedEmail = async ({ to, nomApp = 'GestSchool', changedAt = new Date() }) => {
   const dateStr = changedAt.toLocaleString('fr-FR');
   const subject = `Votre mot de passe ${nomApp} a été modifié`;
   const html = `
@@ -249,7 +249,7 @@ export const sendPasswordChangedEmail = async ({ to, nomApp = 'GestPharma', chan
   return sendEmail({ to, subject, html, text });
 };
 
-export const sendNewDeviceLoginEmail = async ({ to, nomApp = 'GestPharma', ipAddress, userAgent, loginAt = new Date() }) => {
+export const sendNewDeviceLoginEmail = async ({ to, nomApp = 'GestSchool', ipAddress, userAgent, loginAt = new Date() }) => {
   const dateStr = loginAt.toLocaleString('fr-FR');
   const ua = userAgent || 'Navigateur inconnu';
   const ip = ipAddress || 'IP inconnue';
@@ -272,7 +272,7 @@ export const sendNewDeviceLoginEmail = async ({ to, nomApp = 'GestPharma', ipAdd
   return sendEmail({ to, subject, html, text });
 };
 
-export const sendAccountDeactivatedEmail = async ({ to, nomApp = 'GestPharma', deactivatedAt = new Date(), reason = '' }) => {
+export const sendAccountDeactivatedEmail = async ({ to, nomApp = 'GestSchool', deactivatedAt = new Date(), reason = '' }) => {
   const dateStr = deactivatedAt.toLocaleString('fr-FR');
   const subject = `Votre compte ${nomApp} a été désactivé`;
   const html = `
@@ -288,4 +288,44 @@ export const sendAccountDeactivatedEmail = async ({ to, nomApp = 'GestPharma', d
   return sendEmail({ to, subject, html, text });
 };
 
-export default { sendEmail, sendPasswordResetEmail, sendEmailVerificationEmail, sendPasswordChangedEmail, sendNewDeviceLoginEmail, sendAccountDeactivatedEmail };
+export const sendRelanceEcheance = async ({
+  to,
+  nomApp = 'GestSchool',
+  eleveNom = '',
+  libelle = '',
+  montantReste = 0,
+  devise = 'FCFA',
+  dateEcheance,
+}) => {
+  const dateStr = dateEcheance ? new Date(dateEcheance).toLocaleDateString('fr-FR') : '—';
+  const montantStr = Number(montantReste).toLocaleString('fr-FR');
+  const subject = `Relance de paiement — ${nomApp}`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #b45309;">Relance de scolarité</h2>
+      <p>Cher parent,</p>
+      <p>Nous vous rappelons qu'une échéance relative à <strong>${eleveNom}</strong> est en retard ou arrive à échéance.</p>
+      <ul>
+        <li><strong>Échéance :</strong> ${libelle}</li>
+        <li><strong>Date limite :</strong> ${dateStr}</li>
+        <li><strong>Reste à payer :</strong> ${montantStr} ${devise}</li>
+      </ul>
+      <p>Merci de régulariser auprès de la caisse de l'établissement.</p>
+      <p style="color:#666;font-size:12px;">Message automatique — ${nomApp}</p>
+    </div>
+  `;
+  const text = `Relance ${nomApp}\nÉlève: ${eleveNom}\nÉchéance: ${libelle}\nDate: ${dateStr}\nReste: ${montantStr} ${devise}`;
+
+  return sendEmail({ to, subject, html, text });
+};
+
+export default {
+  sendEmail,
+  sendPasswordResetEmail,
+  sendEmailVerificationEmail,
+  sendPasswordChangedEmail,
+  sendNewDeviceLoginEmail,
+  sendAccountDeactivatedEmail,
+  sendRelanceEcheance,
+  sendStaffWelcomeEmail,
+};

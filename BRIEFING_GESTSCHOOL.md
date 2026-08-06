@@ -1,6 +1,6 @@
 # GESTSCHOOL V1 — BRIEFING TECHNIQUE COMPLET
 ### Document de référence pour IA et développeurs
-*Basé sur l'architecture de référence GestPharma V1*
+*Architecture SaaS multi-tenant GestSchool*
 *Date : Juin 2026*
 
 ---
@@ -21,7 +21,7 @@
 
 ## ━━━ SECTION 2 — STACK TECHNIQUE ━━━
 
-GestSchool V1 hérite rigoureusement de la stack moderne, éprouvée et sécurisée de GestPharma V1 :
+GestSchool V1 hérite rigoureusement de la stack moderne, éprouvée et sécurisée de GestSchool :
 
 ### BACKEND
 *   **Runtime** : Node.js `>=18.0.0` (recommandé v20 LTS)
@@ -46,12 +46,12 @@ GestSchool V1 hérite rigoureusement de la stack moderne, éprouvée et sécuris
 *   **HTTP Client** : Axios `^1.7.7` (configuré avec `withCredentials: true` pour le transfert des cookies sécurisés et injection automatique du header `X-Tenant-Slug`)
 *   **Temps réel** : Socket.IO Client `^4.8.1`
 *   **Fonts** : Plus Jakarta Sans (corps du texte et titres) + JetBrains Mono (chiffres, montants, codes barres cartes scolaires) via Google Fonts
-*   **Animations** : CSS custom déclarées dans `@/client/src/styles/index.css` hérité de GestPharma (classes utilitaires `fade-up`, `animate-slide-in`, `animate-modal-enter`, `pulse-danger`, `skeleton` pour le chargement)
+*   **Animations** : CSS custom déclarées dans `@/client/src/styles/index.css` hérité de GestSchool (classes utilitaires `fade-up`, `animate-slide-in`, `animate-modal-enter`, `pulse-danger`, `skeleton` pour le chargement)
 *   **PWA** : `vite-plugin-pwa` `^0.21.0` (gestion hors ligne de l'application, mise en cache sélective des ressources statiques et images)
 *   **Charts & Visualisation** : Recharts `^2.13.3` (statistiques de réussite, évolution des moyennes, répartition des paiements)
 *   **Toast Notifications** : `react-hot-toast` `^2.4.1`
 
-### ARCHITECTURE MULTI-TENANT (Identique GestPharma V1)
+### ARCHITECTURE MULTI-TENANT (Identique GestSchool)
 L'isolation multi-tenant de GestSchool repose sur 4 piliers technologiques :
 1.  **tenantMiddleware** : Intercepte chaque requête HTTP, résout le tenant via 5 méthodes imbriquées (voir ci-dessous), vérifie son statut actif, et injecte le tenant résolu dans `req.tenant` et `req.tenantId`.
 2.  **AsyncLocalStorage** : Encapsule la requête dans un magasin de contexte asynchrone pour propager le `tenantId` à travers toute l'exécution asynchrone de la requête, sans avoir à le passer de fonction en fonction.
@@ -108,7 +108,7 @@ GestSchool V1 utilise la stratégie d'isolation **Logical Tenant Separation (Sha
 
 ## ━━━ SECTION 4 — BASE DE DONNÉES (PRISMA SCHEMA) ━━━
 
-Voici le schéma Prisma complet pour GestSchool V1, conçu pour hériter des performances et des patterns d'indexation de GestPharma V1.
+Voici le schéma Prisma complet pour GestSchool V1, conçu pour hériter des performances et des patterns d'indexation de GestSchool.
 
 ```prisma
 generator client {
@@ -121,7 +121,7 @@ datasource db {
 }
 
 // ==========================================
-// 1. MODÈLES CORE & MULTI-TENANT (Identiques GestPharma)
+// 1. MODÈLES CORE & MULTI-TENANT (Identiques GestSchool)
 // ==========================================
 
 model Tenant {
@@ -251,7 +251,7 @@ model Staff {
   @@index([role])
 }
 
-// Représente le Parent connecté au système (équivalent du Client connecté dans GestPharma)
+// Représente le Parent connecté au système (équivalent du Client connecté dans GestSchool)
 model User {
   id                String    @id @default(uuid())
   tenantId          String
@@ -336,7 +336,7 @@ model CookieConsent {
 }
 
 // ==========================================
-// 2. MODÈLES MÉTIER SCOLARISE (Adaptation GestPharma)
+// 2. MODÈLES MÉTIER SCOLARISE (Adaptation GestSchool)
 // ==========================================
 
 model AnneeScolaire {
@@ -438,7 +438,7 @@ model Eleve {
   @@index([nom, prenom])
 }
 
-// Table de liaison d'inscriptions annuelles (Équivalent de DossierPatient dans GestPharma)
+// Table de liaison d'inscriptions annuelles (Équivalent de DossierPatient dans GestSchool)
 model Inscription {
   id              String            @id @default(uuid())
   tenantId        String
@@ -521,7 +521,7 @@ model Note {
   @@index([evaluationId])
 }
 
-// Les bulletins scolaires calculés et archivés (Équivalent de Dossier/Rapport dans GestPharma)
+// Les bulletins scolaires calculés et archivés (Équivalent de Dossier/Rapport dans GestSchool)
 model Bulletin {
   id              String   @id @default(uuid())
   tenantId        String
@@ -550,7 +550,7 @@ model Bulletin {
   @@index([eleveId])
 }
 
-// Paiement de la scolarité (Équivalent de Vente / PaymentTransaction dans GestPharma)
+// Paiement de la scolarité (Équivalent de Vente / PaymentTransaction dans GestSchool)
 model Paiement {
   id            String         @id @default(uuid())
   tenantId      String
@@ -663,7 +663,7 @@ model Actualite {
 
 enum StaffRole {
   super_admin  // Administrateur système global
-  directeur    // Équivalent Pharmacien Titulaire : accès total
+  directeur    // Équivalent Directeur : accès total
   secretaire   // Équivalent Gestionnaire / Vendeur : inscriptions, classes
   enseignant   // Équivalent Préparateur : notes, cahier de texte
   surveillant  // Équivalent Livreur/Préparateur : discipline, absences
@@ -712,7 +712,7 @@ enum TypeSanction {
 }
 
 // ==========================================
-// 4. AUDIT SYSTEM (Identique GestPharma)
+// 4. AUDIT SYSTEM (Identique GestSchool)
 // ==========================================
 
 enum AuditAction {
@@ -780,42 +780,42 @@ Chaque acteur interagit avec le système via des permissions isolées, des URL d
 *   **Actions Autorisées** : Créer/Désactiver une école, modifier le plan de facturation d'une école, forcer la maintenance globale de la plateforme, visionner l'état technique des serveurs.
 
 ### ACTEUR 2 — DIRECTEUR / PROVISEUR
-*   **Rôle** : `directeur` (L'équivalent du Pharmacien titulaire dans GestPharma).
+*   **Rôle** : `directeur` (L'équivalent du Directeur dans GestSchool).
 *   **Description** : Chef d'établissement avec pouvoir de décision et visibilité complète.
 *   **URL de Redirection** : `/admin/dashboard`
 *   **Pages Accessibles** : Toutes les pages de l'espace administratif (`/admin/*`), financiers, pédagogiques et de paramétrage.
 *   **Actions Autorisées** : Définir les taux de scolarité, configurer l'année scolaire active, gérer le personnel (`Staff`), valider les bulletins, consulter les bilans financiers complexes, configurer la charte graphique de l'école (white-label).
 
 ### ACTEUR 3 — SECRÉTAIRE / ADMIN SCOLAIRE
-*   **Rôle** : `secretaire` (L'équivalent du profil "Gestionnaire" dans GestPharma).
+*   **Rôle** : `secretaire` (L'équivalent du profil "Gestionnaire" dans GestSchool).
 *   **Description** : Gère l'administration quotidienne des élèves, classes et inscriptions.
 *   **URL de Redirection** : `/admin/dashboard`
 *   **Pages Accessibles** : `/admin/eleves`, `/admin/classes`, `/admin/inscriptions`, `/admin/emploi-du-temps`, `/admin/actualites`.
 *   **Actions Autorisées** : Saisir de nouveaux élèves, valider les dossiers d'inscription, affecter les élèves aux classes, composer les emplois du temps, éditer les listes de classes, publier les actualités de l'école.
 
 ### ACTEUR 4 — ENSEIGNANT / PROFESSEUR
-*   **Rôle** : `enseignant` (Équivalent du profil "Préparateur" de GestPharma).
+*   **Rôle** : `enseignant` (Équivalent du profil "Préparateur" de GestSchool).
 *   **Description** : Intervenant pédagogique responsable de ses classes et matières attribuées.
 *   **URL de Redirection** : `/enseignant/dashboard`
 *   **Pages Accessibles** : `/enseignant/mes-classes`, `/enseignant/evaluations`, `/enseignant/saisie-notes`, `/enseignant/appel` (absences), `/enseignant/mon-emploi-du-temps`.
 *   **Actions Autorisées** : Créer une évaluation (devoir/interro) pour ses classes attribuées, saisir/modifier les notes de ses élèves dans sa matière, faire l'appel quotidien (marquer les absences), saisir les appréciations sur les notes.
 
 ### ACTEUR 5 — SURVEILLANT / CENSEUR
-*   **Rôle** : `surveillant` (Équivalent du profil "Livreur / Vendeur" dans GestPharma).
+*   **Rôle** : `surveillant` (Équivalent du profil "Livreur / Vendeur" dans GestSchool).
 *   **Description** : Responsable de la discipline générale, de l'assiduité et de l'encadrement des élèves.
 *   **URL de Redirection** : `/admin/dashboard`
 *   **Pages Accessibles** : `/admin/eleves`, `/admin/absences`, `/admin/sanctions`, `/admin/emploi-du-temps`.
 *   **Actions Autorisées** : Enregistrer et valider des absences, contacter ou convoquer les parents, saisir des sanctions disciplinaires (avertissements, exclusions temporaires), modifier les justificatifs d'absences présentés par les familles.
 
 ### ACTEUR 6 — COMPTABLE / CAISSIER
-*   **Rôle** : `comptable` (Équivalent du profil "Caissier" de GestPharma).
+*   **Rôle** : `comptable` (Équivalent du profil "Caissier" de GestSchool).
 *   **Description** : Responsable de la trésorerie et de la comptabilité interne de l'école.
 *   **URL de Redirection** : `/admin/dashboard`
 *   **Pages Accessibles** : `/admin/paiements`, `/admin/inscriptions`, `/admin/statistiques-financieres`.
 *   **Actions Autorisées** : Encaisser les frais de scolarité et d'inscription, générer et imprimer les reçus numérotés, définir les échéances de paiement des élèves insolvables, lancer les relances automatiques par e-mail/Socket, exporter les rapports de caisse du jour.
 
 ### ACTEUR 7 — PARENT D'ÉLÈVE
-*   **Rôle** : `parent` (Le "Client connecté" de GestPharma).
+*   **Rôle** : `parent` (Le "Client connecté" de GestSchool).
 *   **Description** : Accède à l'espace famille pour suivre la scolarité de son ou ses enfant(s).
 *   **URL de Redirection** : `/parent/dashboard`
 *   **Pages Accessibles** : `/parent/mes-enfants`, `/parent/notes`, `/parent/bulletins`, `/parent/absences`, `/parent/sanctions`, `/parent/paiements-factures`.
@@ -825,7 +825,7 @@ Chaque acteur interagit avec le système via des permissions isolées, des URL d
 
 ## ━━━ SECTION 6 — TOUTES LES PAGES (FRONTEND) ━━━
 
-La structure des composants et des routes est rigoureusement alignée sur le design unifié de GestPharma.
+La structure des composants et des routes est rigoureusement alignée sur le design unifié de GestSchool.
 
 ```
 client/src/pages/
@@ -916,7 +916,7 @@ GestSchool V1 implémente un système de modules applicatifs activables/désacti
 | **moduleTransport** | `OFF` | Gestion des lignes de bus scolaire, affectation des élèves par bus, suivi des paiements transport. | Pas de gestion de transport. |
 | **moduleCertificats** | `ON` | Impression automatique en un clic de documents officiels (Certificat de scolarité, inscription). | Documents administratifs rédigés manuellement par le secrétariat. |
 
-*Note sur l'adaptation backend* : Le décorateur `requireModule` est appliqué au niveau des routeurs Express de la même façon que dans GestPharma.
+*Note sur l'adaptation backend* : Le décorateur `requireModule` est appliqué au niveau des routeurs Express de la même façon que dans GestSchool.
 
 ---
 
@@ -1061,13 +1061,13 @@ Lors du handshake Socket.IO, l'utilisateur est authentifié via son token JWT. S
 *   *Payload* : `{ titre: "Convocation Assemblée Générale des Parents", date: "29 Juin" }`
 
 ### FICHIER CENTRAL DE SERVICE : `server/utils/schoolEvents.js`
-Ce fichier centralise l'émission de tous les événements temps réel de l'application, héritant directement de `pharmacyEvents.js` en l'adaptant au vocabulaire scolaire.
+Ce fichier centralise l'émission de tous les événements temps réel de l'application, héritant directement de `schoolEvents.js` en l'adaptant au vocabulaire scolaire.
 
 ---
 
 ## ━━━ SECTION 11 — AUTHENTIFICATION JWT ━━━
 
-GestSchool V1 implémente un système d'authentification robuste inspiré des meilleures pratiques de sécurité bancaire et hérité de GestPharma.
+GestSchool V1 implémente un système d'authentification robuste inspiré des meilleures pratiques de sécurité bancaire et hérité de GestSchool.
 
 ```
                   ┌───────────────────────────────┐

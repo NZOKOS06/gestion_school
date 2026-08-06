@@ -23,10 +23,11 @@ import { Button, Card, Badge, PageHeader } from '../../components/ui';
 const ROLE_LABELS = {
   super_admin: 'Super Admin',
   directeur: 'Directeur',
+  directeur_etudes: 'Directeur des études',
   secretaire: 'Secrétaire',
   enseignant: 'Enseignant',
   surveillant: 'Surveillant',
-  comptable: 'Comptable',
+  comptable: 'Gestionnaire',
   parent: 'Parent',
 };
 
@@ -298,7 +299,7 @@ const Profil = () => {
               </div>
             </Card>
 
-            <Card title={t('pharmacy_info')} subtitle={t('pharmacy_info_desc')} icon={Building2}>
+            <Card title={t('etablissement_info')} subtitle={t('etablissement_info_desc')} icon={Building2}>
               <div className="space-y-3">
                 <div>
                   <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>

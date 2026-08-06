@@ -1,41 +1,62 @@
 import { Router } from 'express';
 import { authenticate, requireRole, requireTenantMatch } from '../middleware/authMiddleware.js';
 import { requireModule } from '../middleware/tenantMiddleware.js';
-import { evaluationValidator, noteValidator, paginationValidator, idParamValidator } from '../utils/validators.js';
+import { evaluationValidator, paginationValidator, idParamValidator } from '../utils/validators.js';
 import * as ctrl from '../controllers/evaluations.controller.js';
 
 const router = Router();
 
+const readRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant'];
+const writeRoles = ['directeur', 'directeur_etudes', 'enseignant'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant'),
+  requireRole(...readRoles),
   requireTenantMatch,
   requireModule('notes'),
   paginationValidator,
   ctrl.getAll
 );
 
-router.get('/:id',
-  authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant'),
-  requireTenantMatch,
-  requireModule('notes'),
-  idParamValidator,
-  ctrl.getById
-);
-
 router.post('/',
   authenticate,
-  requireRole('directeur', 'enseignant'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   requireModule('notes'),
   evaluationValidator,
   ctrl.create
 );
 
+router.get('/:id/notes',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  requireModule('notes'),
+  idParamValidator,
+  ctrl.getNotes
+);
+
+router.post('/:id/notes',
+  authenticate,
+  requireRole(...writeRoles),
+  requireTenantMatch,
+  requireModule('notes'),
+  idParamValidator,
+  ctrl.saveNotes
+);
+
+router.get('/:id',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  requireModule('notes'),
+  idParamValidator,
+  ctrl.getById
+);
+
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'enseignant'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   requireModule('notes'),
   idParamValidator,
@@ -44,20 +65,11 @@ router.put('/:id',
 
 router.delete('/:id',
   authenticate,
-  requireRole('directeur', 'enseignant'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   requireModule('notes'),
   idParamValidator,
   ctrl.remove
-);
-
-router.post('/:id/notes',
-  authenticate,
-  requireRole('directeur', 'enseignant'),
-  requireTenantMatch,
-  requireModule('notes'),
-  idParamValidator,
-  ctrl.saveNotes
 );
 
 export default router;

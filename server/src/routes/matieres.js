@@ -1,22 +1,47 @@
 import { Router } from 'express';
 import { authenticate, requireRole, requireTenantMatch } from '../middleware/authMiddleware.js';
-import { requireModule } from '../middleware/tenantMiddleware.js';
 import { matiereValidator, paginationValidator, idParamValidator } from '../utils/validators.js';
 import * as ctrl from '../controllers/matieres.controller.js';
 
 const router = Router();
 
+const readRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant'];
+const writeRoles = ['directeur', 'directeur_etudes', 'secretaire'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant'),
+  requireRole(...readRoles),
   requireTenantMatch,
   paginationValidator,
   ctrl.getAll
 );
 
+router.delete('/affectations/:affId',
+  authenticate,
+  requireRole(...writeRoles),
+  requireTenantMatch,
+  ctrl.deleteAffectation
+);
+
+router.get('/:id/affectations',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  idParamValidator,
+  ctrl.getAffectations
+);
+
+router.post('/:id/affectations',
+  authenticate,
+  requireRole(...writeRoles),
+  requireTenantMatch,
+  idParamValidator,
+  ctrl.createAffectation
+);
+
 router.get('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant'),
+  requireRole(...readRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.getById
@@ -24,7 +49,7 @@ router.get('/:id',
 
 router.post('/',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   matiereValidator,
   ctrl.create
@@ -32,7 +57,7 @@ router.post('/',
 
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.update
@@ -40,7 +65,7 @@ router.put('/:id',
 
 router.delete('/:id',
   authenticate,
-  requireRole('directeur'),
+  requireRole('directeur', 'directeur_etudes'),
   requireTenantMatch,
   idParamValidator,
   ctrl.remove

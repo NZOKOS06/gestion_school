@@ -106,6 +106,7 @@ const Rapports = () => {
   const { formatPrice } = useTenant();
   const { get, loading } = useAxios();
   const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState(null);
   const [periode, setPeriode] = useState('30j');
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
@@ -124,12 +125,13 @@ const Rapports = () => {
 
   const fetchRapports = useCallback(async () => {
     if (!canFetch) return;
+    setLoadError(null);
     try {
       const qs = new URLSearchParams(queryParams).toString();
-      const response = await get(`/api/rapports?${qs}`, { silent: true });
+      const response = await get(`/api/rapports?${qs}`);
       setData(response);
     } catch (error) {
-      console.error('Error fetching rapports:', error);
+      setLoadError(error.response?.data?.error || 'Impossible de charger les rapports');
       setData(null);
     }
   }, [get, queryParams, canFetch]);
@@ -303,6 +305,29 @@ const Rapports = () => {
         }
       />
 
+      {loadError && (
+        <Card>
+          <p style={{ color: 'var(--color-danger)' }}>{loadError}</p>
+          <button
+            type="button"
+            className="mt-2 text-sm font-medium underline"
+            style={{ color: 'var(--color-primary)' }}
+            onClick={fetchRapports}
+          >
+            Réessayer
+          </button>
+        </Card>
+      )}
+
+      {!loadError && !data && loading && (
+        <p style={{ color: 'var(--text-muted)' }}>Chargement des rapports…</p>
+      )}
+
+      {!loadError && !data && !loading && (
+        <Card>
+          <p style={{ color: 'var(--text-secondary)' }}>Aucune donnée pour cette période.</p>
+        </Card>
+      )}
       {/* Sélecteur de période */}
       <div className="flex flex-wrap items-center gap-3">
         <div

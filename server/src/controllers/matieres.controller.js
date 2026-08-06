@@ -141,3 +141,102 @@ export const remove = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const getAffectations = async (req, res) => {
+  try {
+    const matiereId = req.params.id;
+    const tenantId = req.tenantId;
+
+    const matiere = await prisma.matiere.findFirst({ where: { id: matiereId, tenantId } });
+    if (!matiere) return res.status(404).json({ error: 'Matière non trouvée' });
+
+    const rows = await prisma.enseignantClasse.findMany({
+      where: { tenantId, matiereId },
+      include: {
+        enseignant: { select: { id: true, nom: true, prenom: true } },
+        classe: { select: { id: true, nom: true } },
+      },
+      orderBy: { classe: { nom: 'asc' } },
+    });
+
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        enseignantId: r.enseignantId,
+        classeId: r.classeId,
+        enseignantPrenom: r.enseignant?.prenom,
+        enseignantNom: r.enseignant?.nom,
+        classeNom: r.classe?.nom,
+      }))
+    );
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'getAffectations error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const createAffectation = async (req, res) => {
+  try {
+    const matiereId = req.params.id;
+    const tenantId = req.tenantId;
+    const { enseignantId, classeId } = req.body;
+
+    if (!enseignantId || !classeId) {
+      return res.status(400).json({ error: 'enseignantId et classeId requis' });
+    }
+
+    const matiere = await prisma.matiere.findFirst({ where: { id: matiereId, tenantId } });
+    if (!matiere) return res.status(404).json({ error: 'Matière non trouvée' });
+
+    const existing = await prisma.enseignantClasse.findFirst({
+      where: { tenantId, enseignantId, classeId, matiereId },
+    });
+    if (existing) {
+      return res.status(409).json({ error: 'Affectation déjà existante' });
+    }
+
+    const row = await prisma.enseignantClasse.create({
+      data: { tenantId, enseignantId, classeId, matiereId },
+      include: {
+        enseignant: { select: { id: true, nom: true, prenom: true } },
+        classe: { select: { id: true, nom: true } },
+      },
+    });
+
+    await logAudit(req, 'affectation_created', 'EnseignantClasse', row.id, {
+      enseignantId,
+      classeId,
+      matiereId,
+    });
+
+    res.status(201).json({
+      id: row.id,
+      enseignantPrenom: row.enseignant?.prenom,
+      enseignantNom: row.enseignant?.nom,
+      classeNom: row.classe?.nom,
+    });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'createAffectation error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const deleteAffectation = async (req, res) => {
+  try {
+    const { affId } = req.params;
+    const tenantId = req.tenantId;
+
+    const existing = await prisma.enseignantClasse.findFirst({
+      where: { id: affId, tenantId },
+    });
+    if (!existing) return res.status(404).json({ error: 'Affectation non trouvée' });
+
+    await prisma.enseignantClasse.delete({ where: { id: affId } });
+    await logAudit(req, 'affectation_deleted', 'EnseignantClasse', affId, {});
+
+    res.json({ message: 'Affectation supprimée' });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'deleteAffectation error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

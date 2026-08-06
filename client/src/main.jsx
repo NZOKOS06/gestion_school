@@ -8,9 +8,14 @@ import axios from 'axios';
 import App from './App.jsx';
 import './styles/index.css';
 
-// Anti-FOUC : appliquer le thème sauvegardé avant le premier rendu
-const savedTheme = localStorage.getItem('gestschool-theme')
+// Anti-FOUC : clé unifiée GestSchool-theme (+ migration ancienne clé)
+const savedTheme = localStorage.getItem('GestSchool-theme')
+  || localStorage.getItem('gestschool-theme')
   || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+if (localStorage.getItem('gestschool-theme') && !localStorage.getItem('GestSchool-theme')) {
+  localStorage.setItem('GestSchool-theme', localStorage.getItem('gestschool-theme'));
+  localStorage.removeItem('gestschool-theme');
+}
 if (savedTheme === 'dark') {
   document.documentElement.classList.add('dark');
 }

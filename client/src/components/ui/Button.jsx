@@ -13,7 +13,7 @@ const SIZES = {
 
 const VARIANTS = {
   primary:
-    'bg-[var(--color-primary)] text-white hover:brightness-110 active:scale-[0.98]',
+    'bg-[var(--color-primary)] text-[var(--color-primary-fg)] hover:brightness-110 active:scale-[0.98]',
   secondary:
     'bg-[var(--surface-overlay)] border border-[var(--border-default)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)] hover:border-[var(--border-subtle)]',
   danger:

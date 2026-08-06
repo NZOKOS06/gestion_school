@@ -51,12 +51,10 @@ router.post('/',
   ctrl.create
 );
 
-// PUT /api/staff/:id
+// PUT /api/staff/:id — admin RH ou self-profile
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire'),
   requireTenantMatch,
-  requireModule('personnel'),
   idParamValidator,
   ctrl.update
 );

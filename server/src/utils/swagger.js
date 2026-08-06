@@ -4,10 +4,10 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'GestPharma API',
+      title: 'GestSchool API',
       version: '1.0.0',
       description: `
-API REST de GestPharma — SaaS multi-tenant de gestion de pharmacies.
+API REST de GestSchool — SaaS multi-tenant de gestion scolaire.
 
 ## Authentification
 Toutes les routes protégées utilisent des cookies HttpOnly (JWT dual-token).
@@ -18,10 +18,10 @@ Appeler POST /api/auth/login pour obtenir les cookies,
 puis toutes les requêtes suivantes les envoient automatiquement.
 
 ## Multi-tenant
-Chaque requête doit identifier la pharmacie cible via :
-- Header **X-Tenant-Slug** : slug de la pharmacie (ex: demo)
+Chaque requête doit identifier l'établissement cible via :
+- Header **X-Tenant-Slug** : slug de l'école (ex: demo)
 - OU URL : /p/:slug/...
-- OU sous-domaine : pharmacie.gestpharma.com
+- OU sous-domaine : ecole.gestschool.com
 
 ## Codes de réponse
 - **200** : Succès
@@ -34,8 +34,8 @@ Chaque requête doit identifier la pharmacie cible via :
 - **500** : Erreur serveur
       `,
       contact: {
-        name: 'Support GestPharma',
-        email: 'support@gestpharma.com',
+        name: 'Support GestSchool',
+        email: 'support@gestschool.com',
       },
     },
     servers: [
@@ -44,7 +44,7 @@ Chaque requête doit identifier la pharmacie cible via :
         description: 'Développement local',
       },
       {
-        url: 'https://api.gestpharma.com',
+        url: 'https://api.gestschool.com',
         description: 'Production',
       },
     ],
@@ -62,11 +62,10 @@ Chaque requête doit identifier la pharmacie cible via :
           name: 'X-Tenant-Slug',
           required: true,
           schema: { type: 'string', example: 'demo' },
-          description: 'Slug de la pharmacie cible',
+          description: "Slug de l'établissement cible",
         },
       },
       schemas: {
-        // Réponse succès générique
         SuccessResponse: {
           type: 'object',
           properties: {
@@ -74,77 +73,63 @@ Chaque requête doit identifier la pharmacie cible via :
             message: { type: 'string', example: 'Opération réussie' },
           },
         },
-        // Réponse erreur générique
         ErrorResponse: {
           type: 'object',
           properties: {
             success: { type: 'boolean', example: false },
-            message: { type: 'string', example: 'Description de l\'erreur' },
+            message: { type: 'string', example: "Description de l'erreur" },
           },
         },
-        // Medicament
-        Medicament: {
+        Eleve: {
           type: 'object',
           properties: {
             id: { type: 'string', format: 'uuid' },
-            dci: { type: 'string', example: 'Paracétamol' },
-            nomCommercial: { type: 'string', example: 'Doliprane 500mg' },
-            formeGalenique: {
-              type: 'string',
-              enum: ['comprime', 'sirop', 'injectable', 'pommade', 'autre'],
-            },
-            dosage: { type: 'string', example: '500mg' },
-            prixVente: { type: 'number', example: 550 },
-            stockTotal: { type: 'integer', example: 100 },
+            matricule: { type: 'string', example: 'ELV-2026-001' },
+            nom: { type: 'string', example: 'Mbemba' },
+            prenom: { type: 'string', example: 'Jean' },
+            dateNaissance: { type: 'string', format: 'date' },
+            sexe: { type: 'string', enum: ['M', 'F'] },
             actif: { type: 'boolean', example: true },
           },
         },
-        // Vente
-        Vente: {
+        Classe: {
           type: 'object',
           properties: {
             id: { type: 'string', format: 'uuid' },
-            numeroVente: { type: 'integer', example: 14 },
-            statut: {
-              type: 'string',
-              enum: ['en_cours', 'finalisee', 'annulee'],
-            },
-            montantTotal: { type: 'number', example: 13700 },
-            modePaiement: {
-              type: 'string',
-              enum: ['especes', 'mobile_money', 'carte', 'credit'],
-            },
-            nomClient: { type: 'string', example: 'Patient Dupont' },
-            createdAt: { type: 'string', format: 'date-time' },
+            nom: { type: 'string', example: '6ème A' },
+            capacite: { type: 'integer', example: 40 },
+            fraisScolarite: { type: 'number', example: 150000 },
           },
         },
-        // LigneVente
-        LigneVente: {
+        Paiement: {
           type: 'object',
           properties: {
-            medicamentId: { type: 'string', format: 'uuid' },
-            quantite: { type: 'integer', example: 3, minimum: 1 },
+            id: { type: 'string', format: 'uuid' },
+            numeroRecu: { type: 'integer', example: 14 },
+            montant: { type: 'number', example: 50000 },
+            modePaiement: {
+              type: 'string',
+              enum: ['especes', 'mobile_money', 'carte', 'cheque', 'virement'],
+            },
+            datePaiement: { type: 'string', format: 'date-time' },
           },
-          required: ['medicamentId', 'quantite'],
         },
       },
     },
     security: [{ cookieAuth: [] }],
     tags: [
       { name: 'Auth', description: 'Authentification et gestion des tokens' },
-      { name: 'Médicaments', description: 'Catalogue des médicaments' },
-      { name: 'Stock', description: 'Gestion des stocks et lots' },
-      { name: 'Ventes', description: 'Ventes et encaissements' },
-      { name: 'Ordonnances', description: 'Ordonnances et prescriptions' },
-      { name: 'Fournisseurs', description: 'Fournisseurs et commandes' },
-      { name: 'Livraisons', description: 'Livraisons à domicile' },
+      { name: 'Élèves', description: 'Dossiers élèves et inscriptions' },
+      { name: 'Classes', description: 'Classes, niveaux et cycles' },
+      { name: 'Notes', description: 'Notes, évaluations et bulletins' },
+      { name: 'Absences', description: 'Présences et absences' },
+      { name: 'Paiements', description: 'Scolarités et encaissements' },
       { name: 'Dashboard', description: 'KPIs et tableaux de bord' },
       { name: 'Rapports', description: 'Rapports et exports' },
       { name: 'Personnel', description: 'Gestion du staff' },
       { name: 'Super Admin', description: 'Gestion multi-tenant (super admin uniquement)' },
     ],
   },
-  // Lire les annotations JSDoc dans les routes
   apis: ['./src/routes/*.js'],
 };
 

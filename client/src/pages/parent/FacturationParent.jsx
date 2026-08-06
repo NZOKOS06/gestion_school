@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { PageHeader, Card, DataTable, Badge, Button } from '../../components/ui';
-import { Wallet, FileDown, AlertCircle, CheckCircle } from 'lucide-react';
+import { Wallet, FileDown, AlertCircle, CheckCircle, Smartphone } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const FacturationParent = () => {
   const { get, post } = useAxios();
@@ -10,6 +11,7 @@ const FacturationParent = () => {
   const [echeances, setEcheances] = useState([]);
   const [paiements, setPaiements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [payingId, setPayingId] = useState(null);
   const [selectedEnfant, setSelectedEnfant] = useState('');
   const [enfants, setEnfants] = useState([]);
 
@@ -20,7 +22,9 @@ const FacturationParent = () => {
         const data = res?.data || res || [];
         setEnfants(data);
         if (data.length > 0) setSelectedEnfant(data[0].id);
-      } catch { /* silent */ }
+      } catch {
+        toast.error('Impossible de charger les enfants');
+      }
     })();
   }, []);
 
@@ -34,11 +38,35 @@ const FacturationParent = () => {
       ]);
       setEcheances(ech?.data || ech || []);
       setPaiements(paie?.data || paie || []);
-    } catch { /* silent */ }
+    } catch {
+      toast.error('Impossible de charger la facturation');
+    }
     setLoading(false);
-  }, [selectedEnfant]);
+  }, [selectedEnfant, get]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const payerMomo = async (echeance) => {
+    const reste = Math.max(0, Number(echeance.montantAttendu) - Number(echeance.montantPaye));
+    if (reste <= 0 || !selectedEnfant) return;
+    setPayingId(echeance.id);
+    try {
+      const intent = await post(`/api/parent/enfants/${selectedEnfant}/paiements/init`, {
+        echeanceId: echeance.id,
+        montant: reste,
+      });
+      const ref = intent?.reference || intent?.paymentId;
+      if (!ref) {
+        toast.error('Initiation Mobile Money échouée');
+        setPayingId(null);
+        return;
+      }
+      await post(`/api/parent/paiements/${ref}/confirm`, {});
+      toast.success('Paiement Mobile Money confirmé');
+      await fetchData();
+    } catch { /* toast via useAxios */ }
+    setPayingId(null);
+  };
 
   const selectStyle = {
     height: 38,
@@ -50,7 +78,7 @@ const FacturationParent = () => {
     padding: '0 12px',
   };
 
-  const totalDu = echeances.reduce((sum, e) => sum + (e.montantAttendu - e.montantPaye), 0);
+  const totalDu = echeances.reduce((sum, e) => sum + Math.max(0, Number(e.montantAttendu) - Number(e.montantPaye)), 0);
   const totalPaye = paiements.reduce((sum, p) => sum + Number(p.montant), 0);
 
   return (
@@ -110,10 +138,29 @@ const FacturationParent = () => {
               key: 'statut',
               label: 'Statut',
               render: (_, row) => {
-                const restant = row.montantAttendu - row.montantPaye;
+                const restant = Number(row.montantAttendu) - Number(row.montantPaye);
                 if (restant <= 0) return <Badge variant="success" dot>Payé</Badge>;
                 const overdue = new Date(row.dateEcheance) < new Date();
                 return <Badge variant={overdue ? 'danger' : 'warning'}>{overdue ? 'En retard' : 'À venir'}</Badge>;
+              },
+            },
+            {
+              key: 'actions',
+              label: 'Payer',
+              render: (_, row) => {
+                const restant = Number(row.montantAttendu) - Number(row.montantPaye);
+                if (restant <= 0) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+                return (
+                  <Button
+                    icon={Smartphone}
+                    size="sm"
+                    loading={payingId === row.id}
+                    onClick={() => payerMomo(row)}
+                    title="Payer via Mobile Money (démo)"
+                  >
+                    MoMo
+                  </Button>
+                );
               },
             },
           ]}

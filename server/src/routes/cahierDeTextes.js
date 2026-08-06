@@ -5,9 +5,12 @@ import * as ctrl from '../controllers/cahierDeTextes.controller.js';
 
 const router = Router();
 
+const readRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant'];
+const writeRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant'];
+
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant'),
+  requireRole(...readRoles),
   requireTenantMatch,
   paginationValidator,
   ctrl.getAll
@@ -15,7 +18,7 @@ router.get('/',
 
 router.get('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant', 'surveillant'),
+  requireRole(...readRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.getOne
@@ -23,14 +26,14 @@ router.get('/:id',
 
 router.post('/',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   ctrl.create
 );
 
 router.put('/:id',
   authenticate,
-  requireRole('directeur', 'secretaire', 'enseignant'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.update
@@ -38,7 +41,7 @@ router.put('/:id',
 
 router.delete('/:id',
   authenticate,
-  requireRole('directeur', 'enseignant'),
+  requireRole('directeur', 'directeur_etudes', 'enseignant'),
   requireTenantMatch,
   idParamValidator,
   ctrl.remove

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
-import { PageHeader, DataTable, Badge, Button, SearchInput, Modal } from '../../components/ui';
+import { PageHeader, DataTable, Badge, Button, SearchInput, Modal, Input, Select, FormField, FilterBar, Spinner } from '../../components/ui';
 import { Eye, Pencil, Ban, Check, UserPlus } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import toast from 'react-hot-toast';
@@ -28,6 +28,8 @@ const Eleves = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -65,6 +67,46 @@ const Eleves = () => {
     } catch { /* silent */ }
   };
 
+  const openEdit = (eleve) => {
+    setEditing(eleve);
+    setForm({
+      matricule: eleve.matricule || '',
+      nom: eleve.nom || '',
+      prenom: eleve.prenom || '',
+      dateNaissance: eleve.dateNaissance ? String(eleve.dateNaissance).slice(0, 10) : '',
+      sexe: eleve.sexe || 'M',
+      lieuNaissance: eleve.lieuNaissance || '',
+      adresse: eleve.adresse || '',
+    });
+    setEditOpen(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!editing) return;
+    if (!form.matricule.trim() || !form.nom.trim() || !form.prenom.trim() || !form.dateNaissance || !form.sexe) {
+      toast.error('Matricule, nom, prénom, date de naissance et sexe sont requis');
+      return;
+    }
+    setSaving(true);
+    try {
+      await put(`/api/eleves/${editing.id}`, {
+        matricule: form.matricule.trim(),
+        nom: form.nom.trim(),
+        prenom: form.prenom.trim(),
+        dateNaissance: form.dateNaissance,
+        sexe: form.sexe,
+        lieuNaissance: form.lieuNaissance.trim() || undefined,
+        adresse: form.adresse.trim() || undefined,
+      });
+      toast.success('Élève mis à jour');
+      setEditOpen(false);
+      setEditing(null);
+      setForm(EMPTY_FORM);
+      fetchEleves();
+    } catch { /* toast via useAxios */ }
+    setSaving(false);
+  };
+
   const handleCreate = async () => {
     if (!form.matricule.trim() || !form.nom.trim() || !form.prenom.trim() || !form.dateNaissance || !form.sexe) {
       toast.error('Matricule, nom, prénom, date de naissance et sexe sont requis');
@@ -89,57 +131,38 @@ const Eleves = () => {
     setSaving(false);
   };
 
-  const selectStyle = {
-    height: 36,
-    background: 'var(--surface-overlay)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--text-primary)',
-    fontSize: 13,
-    padding: '0 8px',
-  };
-
-  const inputStyle = {
-    width: '100%',
-    height: 38,
-    background: 'var(--surface-overlay)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--text-primary)',
-    fontSize: 14,
-    padding: '0 12px',
-  };
+  const selectStyle = { height: 36, minWidth: 140 };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Élèves"
         subtitle="Gestion des élèves inscrits"
-        actions={<Button icon={UserPlus} onClick={() => setCreateOpen(true)}>Nouvel élève</Button>}
+        actions={<Button icon={UserPlus} onClick={() => { setForm(EMPTY_FORM); setCreateOpen(true); }}>Nouvel élève</Button>}
       />
 
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        <div className="flex-1 max-w-xs">
+      <FilterBar>
+        <div className="flex-1 min-w-[200px] max-w-xs">
           <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nom, prénom, matricule..." />
         </div>
-        <select style={selectStyle} value={filters.cycle} onChange={(e) => setFilters({ ...filters, cycle: e.target.value })}>
+        <Select style={selectStyle} value={filters.cycle} onChange={(e) => setFilters({ ...filters, cycle: e.target.value })}>
           <option value="">Tous les cycles</option>
           <option value="prescolaire">Préscolaire</option>
           <option value="primaire">Primaire</option>
           <option value="college">Collège</option>
           <option value="lycee">Lycée</option>
-        </select>
-        <select style={selectStyle} value={filters.sexe} onChange={(e) => setFilters({ ...filters, sexe: e.target.value })}>
+        </Select>
+        <Select style={selectStyle} value={filters.sexe} onChange={(e) => setFilters({ ...filters, sexe: e.target.value })}>
           <option value="">Tous</option>
           <option value="M">Garçons</option>
           <option value="F">Filles</option>
-        </select>
-        <select style={selectStyle} value={filters.statut} onChange={(e) => setFilters({ ...filters, statut: e.target.value })}>
+        </Select>
+        <Select style={selectStyle} value={filters.statut} onChange={(e) => setFilters({ ...filters, statut: e.target.value })}>
           <option value="">Tous statuts</option>
           <option value="actif">Actif</option>
           <option value="inactif">Inactif</option>
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
 
       <DataTable
         columns={[
@@ -188,7 +211,7 @@ const Eleves = () => {
                 <button onClick={(e) => { e.stopPropagation(); openDetail(row); }} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Voir fiche">
                   <Eye className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </button>
-                <button className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Modifier">
+                <button onClick={(e) => { e.stopPropagation(); openEdit(row); }} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Modifier">
                   <Pencil className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); toggleActif(row); }} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title={row.actif ? 'Désactiver' : 'Activer'}>
@@ -201,7 +224,12 @@ const Eleves = () => {
         data={eleves}
         loading={loading}
         emptyMessage="Aucun élève trouvé"
+        emptyDescription="Ajoutez un élève ou ajustez vos filtres de recherche."
+        emptyAction={<Button icon={UserPlus} size="sm" onClick={() => { setForm(EMPTY_FORM); setCreateOpen(true); }}>Nouvel élève</Button>}
         onRowClick={openDetail}
+        sortable
+        pagination
+        pageSize={15}
       />
 
       <Modal
@@ -218,37 +246,71 @@ const Eleves = () => {
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Matricule *</label>
-            <input style={inputStyle} value={form.matricule} onChange={(e) => setForm({ ...form, matricule: e.target.value })} placeholder="EX: ELV-2026-001" />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Sexe *</label>
-            <select style={{ ...inputStyle, appearance: 'auto' }} value={form.sexe} onChange={(e) => setForm({ ...form, sexe: e.target.value })}>
+          <FormField label="Matricule" required>
+            <Input value={form.matricule} onChange={(e) => setForm({ ...form, matricule: e.target.value })} placeholder="EX: ELV-2026-001" />
+          </FormField>
+          <FormField label="Sexe" required>
+            <Select value={form.sexe} onChange={(e) => setForm({ ...form, sexe: e.target.value })}>
               <option value="M">Garçon</option>
               <option value="F">Fille</option>
-            </select>
+            </Select>
+          </FormField>
+          <FormField label="Nom" required>
+            <Input value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} />
+          </FormField>
+          <FormField label="Prénom" required>
+            <Input value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} />
+          </FormField>
+          <FormField label="Date de naissance" required>
+            <Input type="date" value={form.dateNaissance} onChange={(e) => setForm({ ...form, dateNaissance: e.target.value })} />
+          </FormField>
+          <FormField label="Lieu de naissance">
+            <Input value={form.lieuNaissance} onChange={(e) => setForm({ ...form, lieuNaissance: e.target.value })} />
+          </FormField>
+          <FormField label="Adresse" className="sm:col-span-2">
+            <Input value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
+          </FormField>
+        </div>
+      </Modal>
+
+      <Modal
+        open={editOpen}
+        onClose={() => { setEditOpen(false); setEditing(null); setForm(EMPTY_FORM); }}
+        title="Modifier l'élève"
+        subtitle={editing?.matricule}
+        size="lg"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => { setEditOpen(false); setEditing(null); setForm(EMPTY_FORM); }}>Annuler</Button>
+            <Button onClick={handleUpdate} disabled={saving}>{saving ? 'Enregistrement...' : 'Enregistrer'}</Button>
           </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Nom *</label>
-            <input style={inputStyle} value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Prénom *</label>
-            <input style={inputStyle} value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Date de naissance *</label>
-            <input type="date" style={inputStyle} value={form.dateNaissance} onChange={(e) => setForm({ ...form, dateNaissance: e.target.value })} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Lieu de naissance</label>
-            <input style={inputStyle} value={form.lieuNaissance} onChange={(e) => setForm({ ...form, lieuNaissance: e.target.value })} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Adresse</label>
-            <input style={inputStyle} value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
-          </div>
+        }
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField label="Matricule" required>
+            <Input value={form.matricule} onChange={(e) => setForm({ ...form, matricule: e.target.value })} />
+          </FormField>
+          <FormField label="Sexe" required>
+            <Select value={form.sexe} onChange={(e) => setForm({ ...form, sexe: e.target.value })}>
+              <option value="M">Garçon</option>
+              <option value="F">Fille</option>
+            </Select>
+          </FormField>
+          <FormField label="Nom" required>
+            <Input value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} />
+          </FormField>
+          <FormField label="Prénom" required>
+            <Input value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} />
+          </FormField>
+          <FormField label="Date de naissance" required>
+            <Input type="date" value={form.dateNaissance} onChange={(e) => setForm({ ...form, dateNaissance: e.target.value })} />
+          </FormField>
+          <FormField label="Lieu de naissance">
+            <Input value={form.lieuNaissance} onChange={(e) => setForm({ ...form, lieuNaissance: e.target.value })} />
+          </FormField>
+          <FormField label="Adresse" className="sm:col-span-2">
+            <Input value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
+          </FormField>
         </div>
       </Modal>
 
@@ -345,7 +407,7 @@ const Eleves = () => {
           </div>
         ) : (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--color-primary)' }} />
+            <div className="flex justify-center py-12"><Spinner className="h-8 w-8" /></div>
           </div>
         )}
       </Modal>

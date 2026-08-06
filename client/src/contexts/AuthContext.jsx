@@ -11,6 +11,7 @@ const SESSION_KEY = 'gestschool_has_session';
 const ROLE_REDIRECTIONS = {
   super_admin: '/super-admin/dashboard',
   directeur: '/admin/dashboard',
+  directeur_etudes: '/admin/dashboard',
   secretaire: '/admin/dashboard',
   comptable: '/caissier',
   surveillant: '/admin/dashboard',
@@ -209,7 +210,8 @@ export const AuthProvider = ({ children }) => {
   const isComptable = () => user?.role === 'comptable';
   const isSurveillant = () => user?.role === 'surveillant';
   const isSecretaire = () => user?.role === 'secretaire';
-  const isStaff = () => ['directeur', 'secretaire', 'enseignant', 'surveillant', 'comptable', 'super_admin'].includes(user?.role);
+  const isStaff = () => ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant', 'comptable', 'super_admin'].includes(user?.role);
+  const isDirecteurEtudes = () => user?.role === 'directeur_etudes';
   const isParent = () => user?.role === 'parent';
 
   const value = {
@@ -223,6 +225,7 @@ export const AuthProvider = ({ children }) => {
     hasRole,
     isSuperAdmin,
     isDirecteur,
+    isDirecteurEtudes,
     isEnseignant,
     isComptable,
     isSurveillant,

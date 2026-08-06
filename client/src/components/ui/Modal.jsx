@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 
 const WIDTHS = {
@@ -9,100 +8,71 @@ const WIDTHS = {
   xl: 'max-w-4xl',
 };
 
-const Modal = ({ open, onClose, title, subtitle, size = 'md', children, footer }) => {
-  useEffect(() => {
-    const onEscape = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-
-    if (open) {
-      document.addEventListener('keydown', onEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', onEscape);
-      document.body.style.overflow = '';
-    };
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4"
-      onClick={onClose}
-    >
-      <div
-        className="absolute inset-0"
+const Modal = ({ open, onClose, title, subtitle, size = 'md', children, footer }) => (
+  <Dialog.Root open={open} onOpenChange={(v) => !v && onClose?.()}>
+    <Dialog.Portal>
+      <Dialog.Overlay
+        className="fixed inset-0 z-50"
         style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)' }}
       />
-
-      <div
-        className={`relative w-full ${WIDTHS[size]} max-h-[90vh] flex flex-col mt-10 mb-4 animate-modal-enter`}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'var(--surface-raised)',
-          border: '1px solid var(--border-default)',
-          borderRadius: 'var(--radius-xl)',
-          boxShadow: 'var(--shadow-modal)',
-        }}
-      >
-        {/* Header */}
-        <div
-          className="flex shrink-0 items-start justify-between px-6 py-5"
-          style={{ borderBottom: '1px solid var(--border-subtle)' }}
-        >
-          <div>
-            {title && (
-              <h3
-                className="text-base font-semibold"
-                style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}
-              >
-                {title}
-              </h3>
-            )}
-            {subtitle && (
-              <p className="mt-0.5 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
-                {subtitle}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md transition-colors hover:bg-[var(--surface-hover)]"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div
-          className="flex-1 min-h-0 overflow-y-auto px-6 py-5"
+      {/* Centrage via flex : l'animation scale ne doit pas écraser translate */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+        <Dialog.Content
+          className={`pointer-events-auto w-full ${WIDTHS[size]} max-h-[min(85vh,calc(100%-2rem))] flex flex-col outline-none animate-modal-enter`}
           style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'var(--border-default) transparent',
+            background: 'var(--surface-raised)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-xl)',
+            boxShadow: 'var(--shadow-modal)',
           }}
+          aria-describedby={undefined}
         >
-          {children}
-        </div>
-
-        {/* Footer */}
-        {footer && (
           <div
-            className="flex shrink-0 items-center justify-end gap-3 px-6 py-4"
-            style={{ borderTop: '1px solid var(--border-subtle)' }}
+            className="flex shrink-0 items-start justify-between px-6 py-5"
+            style={{ borderBottom: '1px solid var(--border-subtle)' }}
           >
-            {footer}
+            <div>
+              {title && (
+                <Dialog.Title
+                  className="text-base font-semibold"
+                  style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}
+                >
+                  {title}
+                </Dialog.Title>
+              )}
+              {subtitle && (
+                <Dialog.Description className="mt-0.5 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
+                  {subtitle}
+                </Dialog.Description>
+              )}
+              {!subtitle && <Dialog.Description className="sr-only">{title}</Dialog.Description>}
+            </div>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                className="p-1 rounded-md transition-colors hover:bg-[var(--surface-hover)]"
+                style={{ color: 'var(--text-secondary)' }}
+                aria-label="Fermer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </Dialog.Close>
           </div>
-        )}
+
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">{children}</div>
+
+          {footer && (
+            <div
+              className="flex shrink-0 items-center justify-end gap-3 px-6 py-4"
+              style={{ borderTop: '1px solid var(--border-subtle)' }}
+            >
+              {footer}
+            </div>
+          )}
+        </Dialog.Content>
       </div>
-    </div>,
-    document.body
-  );
-};
+    </Dialog.Portal>
+  </Dialog.Root>
+);
 
 export default Modal;

@@ -26,7 +26,7 @@ const CookiePolicy = () => {
           <h2 className="text-xl font-semibold mb-3">{t('cookies_types_title') || 'Types de cookies utilisés'}</h2>
           <ul className="list-disc pl-6 space-y-2" style={{ color: 'var(--text-secondary)' }}>
             <li>
-              <strong>{t('cookies_necessary') || 'Cookies nécessaires'}</strong> : {t('cookies_necessary_text') || 'indispensables au fonctionnement du site (authentification, sécurité, panier).'}
+              <strong>{t('cookies_necessary') || 'Cookies nécessaires'}</strong> : {t('cookies_necessary_text') || 'indispensables au fonctionnement du site (authentification, sécurité, session).'}
             </li>
             <li>
               <strong>{t('cookies_analytics') || 'Cookies analytiques'}</strong> : {t('cookies_analytics_text') || 'nous aident à comprendre comment le site est utilisé, avec votre consentement.'}

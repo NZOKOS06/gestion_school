@@ -68,3 +68,47 @@ export const getInfosEcole = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const verifyBulletin = async (req, res) => {
+  try {
+    const { idOrHash } = req.params;
+    const tenantId = req.tenantId;
+
+    const bulletin = await prisma.bulletin.findFirst({
+      where: {
+        tenantId,
+        OR: [{ id: idOrHash }, { qrCodeHash: idOrHash }],
+        valide: true,
+      },
+      include: {
+        eleve: { select: { prenom: true, nom: true, matricule: true } },
+        classe: { select: { nom: true, niveau: true } },
+        anneeScolaire: { select: { libelle: true } },
+      },
+    });
+
+    if (!bulletin) {
+      return res.status(404).json({
+        authentique: false,
+        error: 'Bulletin introuvable ou non publié',
+      });
+    }
+
+    res.json({
+      authentique: true,
+      eleve: `${bulletin.eleve.prenom} ${bulletin.eleve.nom}`,
+      matricule: bulletin.eleve.matricule,
+      classe: bulletin.classe?.nom,
+      anneeScolaire: bulletin.anneeScolaire?.libelle,
+      periodeIndex: bulletin.periodeIndex,
+      moyenneGenerale: Number(bulletin.moyenneGenerale),
+      rang: bulletin.rang,
+      effectifClasse: bulletin.effectifClasse,
+      mention: bulletin.mention,
+      qrCodeHash: bulletin.qrCodeHash,
+    });
+  } catch (error) {
+    console.error('[PublicController] verifyBulletin error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

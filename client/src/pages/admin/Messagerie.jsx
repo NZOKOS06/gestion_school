@@ -29,8 +29,9 @@ const Messagerie = () => {
 
   const fetchRecipients = async () => {
     try {
-      const stRes = await get('/api/personnel', { silent: true });
-      setStaff(stRes?.staff || stRes || []);
+      const res = await get('/api/messages/recipients', { silent: true });
+      setStaff(res?.staff || []);
+      setParents(res?.parents || []);
     } catch { /* silent */ }
   };
 
@@ -143,7 +144,7 @@ const Messagerie = () => {
                 </div>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                   {tab === 'inbox'
-                    ? `De: ${msg.expediteur?.prenom} ${msg.expediteur?.nom}`
+                    ? `De: ${msg.expediteur?.prenom || msg.expediteurUser?.prenom || ''} ${msg.expediteur?.nom || msg.expediteurUser?.nom || ''}`
                     : `À: ${msg.destinataireStaff?.prenom || msg.destinataireUser?.prenom} ${msg.destinataireStaff?.nom || msg.destinataireUser?.nom}`}
                   {' · '}
                   {new Date(msg.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -178,14 +179,27 @@ const Messagerie = () => {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Destinataire (staff)</label>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Destinataire {user?.role === 'parent' ? '(personnel)' : '(staff)'}
+            </label>
             <select style={inputStyle} value={form.destinataireStaffId} onChange={(e) => setForm({ ...form, destinataireStaffId: e.target.value, destinataireUserId: '' })}>
-              <option value="">Sélectionner un membre du staff</option>
+              <option value="">Sélectionner</option>
               {staff.filter((s) => s.id !== user?.id).map((s) => (
                 <option key={s.id} value={s.id}>{s.prenom} {s.nom} ({s.role})</option>
               ))}
             </select>
           </div>
+          {user?.role !== 'parent' && parents.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Ou parent</label>
+              <select style={inputStyle} value={form.destinataireUserId} onChange={(e) => setForm({ ...form, destinataireUserId: e.target.value, destinataireStaffId: '' })}>
+                <option value="">Sélectionner un parent</option>
+                {parents.map((p) => (
+                  <option key={p.id} value={p.id}>{p.prenom} {p.nom}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Sujet *</label>
             <input style={inputStyle} value={form.sujet} onChange={(e) => setForm({ ...form, sujet: e.target.value })} placeholder="Objet du message" />

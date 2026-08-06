@@ -1,6 +1,6 @@
 import { Outlet, useLocation, Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
-import { Store, Phone, MapPin, Clock } from 'lucide-react';
+import { GraduationCap, Phone, MapPin, Clock } from 'lucide-react';
 import { ThemeToggle } from '../ui';
 import { CookieConsent } from '../ui/CookieConsent';
 
@@ -44,7 +44,7 @@ const PublicLayout = () => {
               {config?.logoUrl ? (
                 <img src={config.logoUrl} alt={config.nomApp} className="h-10 w-auto" />
               ) : (
-                <Store className="h-8 w-8" style={{ color: 'var(--color-primary)' }} />
+                <GraduationCap className="h-8 w-8" style={{ color: 'var(--color-primary)' }} />
               )}
               <span
                 className="text-xl font-semibold"

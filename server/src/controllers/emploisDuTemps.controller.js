@@ -126,3 +126,41 @@ export const remove = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const getEleves = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+
+    const cours = await prisma.emploiDuTemps.findFirst({ where: { id, tenantId } });
+    if (!cours) return res.status(404).json({ error: 'Cours non trouvé' });
+
+    if (req.user.role === 'enseignant' && cours.enseignantId !== req.user.id) {
+      return res.status(403).json({ error: 'Ce cours ne vous est pas assigné' });
+    }
+
+    const inscriptions = await prisma.inscription.findMany({
+      where: { tenantId, classeId: cours.classeId, statut: 'validee' },
+      include: {
+        eleve: {
+          select: { id: true, prenom: true, nom: true, matricule: true, actif: true },
+        },
+      },
+      orderBy: { eleve: { nom: 'asc' } },
+    });
+
+    res.json(
+      inscriptions
+        .filter((i) => i.eleve?.actif !== false)
+        .map((i) => ({
+          id: i.eleve.id,
+          prenom: i.eleve.prenom,
+          nom: i.eleve.nom,
+          matricule: i.eleve.matricule,
+        }))
+    );
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'getEleves EDT error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

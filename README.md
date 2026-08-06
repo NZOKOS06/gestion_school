@@ -1,6 +1,6 @@
-# GestPharma V1
+# GestSchool V1
 
-> Progiciel SaaS multi-tenant de gestion de pharmacies
+> Progiciel SaaS multi-tenant de gestion scolaire  
 > Marché cible : Congo-Brazzaville et Afrique francophone
 
 ---
@@ -14,20 +14,20 @@
 | Temps réel | Socket.IO 4 |
 | Auth | JWT dual-token (cookies HttpOnly + refresh rotation) |
 | Tests | Vitest (unitaire + intégration) + Playwright (E2E) |
-| Infra | Docker Compose, Nginx |
+| Infra | Docker Compose, Nginx, Render |
 
 ---
 
 ## Fonctionnalités principales
 
-- **Multi-tenant** : chaque pharmacie a son espace isolé
-- **White-label** : couleurs, logo, police configurables par tenant
-- **13 modules SaaS** activables/désactivables par pharmacie
-- **Stock FEFO** : traçabilité par lot, alertes péremption automatiques
-- **Circuit médicament complet** : commande fournisseur → réception → vente → encaissement
-- **Gestion ordonnances** : upload, validation pharmacien, dispensation
-- **Temps réel** : notifications stock, ordonnances, livraisons via Socket.IO
-- **PWA** : fonctionne hors-ligne (coupures réseau fréquentes en Afrique)
+- **Multi-tenant** : chaque établissement a son espace isolé (données, branding, modules)
+- **White-label** : couleurs, logo, police configurables par école (thème dérivé automatiquement)
+- **Modules SaaS** activables/désactivables (élèves, notes, bulletins, absences, paiements, etc.)
+- **Vie scolaire** : classes, inscriptions, emploi du temps, cahier de textes, sanctions
+- **Pédagogie** : notes, bulletins, conseil de classe, certificats
+- **Finances** : scolarités, échéances, encaissements, reçus
+- **Portails** : directeur / secrétariat, enseignant, parent, caissier, super-admin
+- **Temps réel** : notifications via Socket.IO
 
 ---
 
@@ -35,19 +35,19 @@
 
 La documentation interactive de l'API est disponible sur **http://localhost:3000/api/docs** (Swagger UI).
 
-Cette documentation permet de :
-- Explorer tous les endpoints REST
-- Tester les requêtes directement depuis l'interface
-- Voir les schémas de requête/réponse
-- Télécharger la spec OpenAPI JSON via `/api/docs.json`
+- Explorer les endpoints REST
+- Tester les requêtes depuis l'interface
+- Consulter les schémas requête/réponse
+- Télécharger la spec OpenAPI via `/api/docs.json`
 
-**Note** : Pour les endpoints protégés, connectez-vous d'abord via `POST /api/auth/login` pour obtenir les cookies d'authentification.
+**Note** : pour les endpoints protégés, connectez-vous d'abord via `POST /api/auth/login` afin d'obtenir les cookies d'authentification.
 
 ---
 
 ## Démarrage rapide
 
 ### Prérequis
+
 - Node.js 20+
 - PostgreSQL 16+ (ou Docker)
 - npm 10+
@@ -55,16 +55,17 @@ Cette documentation permet de :
 ### Option 1 — Docker (recommandé)
 
 ```bash
-git clone https://github.com/[username]/gestpharma.git
-cd gestpharma
+git clone https://github.com/[username]/GestSchool.git
+cd GestSchool
 cp server/.env.example server/.env
 # Éditer server/.env avec vos valeurs
 docker-compose up -d
 ```
 
 L'app sera disponible sur :
+
 - Frontend : http://localhost:5173
-- API : http://localhost:3001
+- API : http://localhost:3000 (ou le port défini dans `.env`)
 
 ### Option 2 — Installation manuelle
 
@@ -72,7 +73,7 @@ L'app sera disponible sur :
 # 1. Backend
 cd server
 cp .env.example .env
-# Éditer .env avec DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET
+# Éditer .env : DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET
 npm install
 npx prisma migrate dev
 npm run db:seed
@@ -91,69 +92,73 @@ npm run dev
 
 | Rôle | Email | Mot de passe | Accès |
 |------|-------|--------------|-------|
-| Super Admin | superadmin@gestpharma.com | SuperAdmin123! | /super-admin |
-| Pharmacien | pharmacien@demo.cg | Pharmacien123! | /admin/dashboard |
+| Super Admin | superadmin@gestschool.com | SuperAdmin123! | /super-admin |
+| Directeur | directeur@demo.cg | Directeur123! | /admin/dashboard |
+| Directeur des études | de@demo.cg | DirecteurEtudes123! | /admin/dashboard |
+| Secrétaire | secretaire@demo.cg | Secretaire123! | /admin/dashboard |
+| Enseignant | enseignant@demo.cg | Enseignant123! | /enseignant/dashboard |
+| Surveillant | surveillant@demo.cg | Surveillant123! | /admin/dashboard |
+| Comptable | comptable@demo.cg | Comptable123! | /caissier |
 
-URL de la pharmacie démo : http://localhost:5173/p/demo
+URL de l'école démo : http://localhost:5173/p/demo
 
 ---
 
 ## Architecture multi-tenant
 
-Chaque pharmacie accède à son espace via :
-- **Sous-domaine** (production) : `pharmacie.gestpharma.com` 
-- **URL** (développement) : `localhost:5173/p/demo` 
+Chaque établissement accède à son espace via :
+
+- **Sous-domaine** (production) : `ecole.gestschool.com`
+- **URL** (développement) : `localhost:5173/p/demo`
 
 L'isolation des données est garantie par :
-1. `tenantMiddleware` — résout le slug depuis l'URL/sous-domaine/header
-2. `AsyncLocalStorage` — propage le tenantId dans tout le contexte async
-3. `extendedPrisma` — injecte automatiquement `{ where: { tenantId } }` 
-   sur toutes les requêtes Prisma
+
+1. `tenantMiddleware` — résout le slug depuis l'URL / sous-domaine / header
+2. `AsyncLocalStorage` — propage le `tenantId` dans le contexte async
+3. `extendedPrisma` — injecte automatiquement `{ where: { tenantId } }` sur les requêtes Prisma
 
 ---
 
-## Modules disponibles (13)
+## Modules disponibles
 
 | Module | Défaut | Description |
 |--------|--------|-------------|
-| Catalogue | ✅ ON | Catalogue médicaments (verrouillé) |
-| Stock | ✅ ON | Gestion stocks et lots FEFO |
-| Ventes | ✅ ON | Ventes et encaissement |
-| Ordonnances | ✅ ON | Ordonnances et prescriptions |
-| Fournisseurs | ✅ ON | Commandes fournisseurs |
-| Personnel | ✅ ON | Gestion du staff |
-| Rapports | ✅ ON | Statistiques et exports |
-| Livraison | ❌ OFF | Livraison à domicile |
-| Commande en ligne | ❌ OFF | Vitrine + commandes web |
-| Patients | ❌ OFF | Dossiers patients |
-| Interactions | ❌ OFF | Alertes interactions médicamenteuses |
-| Fidélité | ❌ OFF | Programme de points |
-| Multi-dépôt | ❌ OFF | Plusieurs points de vente |
+| Élèves | ✅ ON | Dossiers et inscriptions élèves |
+| Classes | ✅ ON | Classes, niveaux et cycles |
+| Matières | ✅ ON | Matières et coefficients |
+| Notes & Bulletins | ✅ ON | Saisie des notes, génération de bulletins |
+| Emploi du temps | ✅ ON | Planification des cours |
+| Absences / Présences | ✅ ON | Appel et suivi des absences |
+| Paiements | ✅ ON | Scolarités et échéances |
+| Parents | ✅ ON | Portail parents |
+| Sanctions | configurable | Discipline |
+| Certificats | configurable | Attestations officielles |
+| Personnel | ✅ ON | Comptes et rôles |
+| Rapports | ✅ ON | Statistiques et analytics |
+| Bibliothèque / Cantine / Transport | ❌ OFF | Modules optionnels |
 
 ---
 
-## Rôles utilisateurs (7)
+## Rôles utilisateurs
 
 | Rôle | Accès | Responsabilités |
 |------|-------|-----------------|
-| super_admin | /super-admin | Gestion de toutes les pharmacies |
-| pharmacien | /admin/dashboard | Administration complète de la pharmacie |
-| admin | /admin/dashboard | Administration (sans certaines fonctions pharmacien) |
-| vendeur | /staff/dashboard | Ventes comptoir, ordonnances |
-| preparateur | /staff/dashboard | Préparation commandes |
-| caissier | /staff/caisse | Encaissement uniquement |
-| livreur | /staff/livraisons | Livraisons à domicile |
+| super_admin | /super-admin | Gestion de toutes les écoles (tenants, plans, modules) |
+| directeur | /admin | Administration complète de l'établissement |
+| directeur_etudes | /admin | Pilotage pédagogique |
+| secretaire | /admin | Inscriptions, classes, secrétariat |
+| enseignant | /enseignant | Classes, notes, appel, cahier de textes |
+| surveillant | /admin | Absences, discipline |
+| comptable | /caissier | Encaissements et suivi des paiements |
+| parent | /parent | Suivi des enfants (notes, absences, facturation) |
 
 ---
 
 ## Tests
 
 ```bash
-# Tests unitaires (Vitest)
+# Tests unitaires / intégration (Vitest)
 cd server && npx vitest run
-
-# Tests intégration (Supertest)
-cd server && npm run test:integration
 
 # Tests E2E (Playwright)
 npx playwright test
@@ -164,49 +169,25 @@ npx playwright show-report e2e/reports
 
 ---
 
-## Tests de performance
-
-```bash
-# Installer k6
-winget install k6  # Windows
-brew install k6    # macOS
-sudo apt install k6  # Linux
-
-# Test de charge normal
-npm run perf:normal
-
-# Test race condition stock
-npm run perf:stock --env MED_ID=[uuid-medicament]
-
-# Exporter résultats JSON
-npm run perf:report
-```
-
-Seuils de performance cibles :
-- 95% des requêtes < 500ms
-- 99% des requêtes auth < 1s
-- Taux d'erreur < 1%
-
----
-
 ## Structure du projet
 
 ```
-GestPharma/
+GestSchool/
 ├── server/                  # API Node.js + Express + Prisma
 │   ├── src/
-│   │   ├── controllers/     # Logique métier (14 controllers)
-│   │   ├── routes/          # Routes Express (14 groupes)
-│   │   ├── middleware/       # Auth, tenant, upload
-│   │   └── utils/           # FEFO, Socket.IO events, Prisma
+│   │   ├── controllers/     # Logique métier
+│   │   ├── routes/          # Routes Express
+│   │   ├── middleware/      # Auth, tenant, upload
+│   │   ├── services/        # Email, métier
+│   │   └── utils/           # Prisma, theme, Socket.IO
 │   └── prisma/
-│       ├── schema.prisma    # 19 modèles, 9 enums
+│       ├── schema.prisma    # Modèles scolaires
 │       └── seed.js          # Données de démonstration
 ├── client/                  # SPA React 19 + Vite
 │   └── src/
-│       ├── pages/           # 31 pages (admin, staff, public, client)
-│       ├── components/      # UI system + layouts
-│       ├── contexts/        # TenantContext, AuthContext
+│       ├── pages/           # admin, enseignant, parent, public, superadmin
+│       ├── components/      # UI kit + AppShell + layouts
+│       ├── contexts/        # Tenant, Auth, Theme, I18n, Density
 │       └── hooks/           # useAxios, useSocket, useNotifications
 ├── e2e/                     # Tests Playwright
 ├── .github/workflows/       # CI/CD GitHub Actions
@@ -220,6 +201,7 @@ GestPharma/
 Voir `server/.env.example` et `client/.env.example` pour la liste complète.
 
 Variables obligatoires :
+
 ```bash
 DATABASE_URL=postgresql://...
 JWT_SECRET=chaine-aleatoire-min-32-chars
@@ -228,19 +210,6 @@ JWT_REFRESH_SECRET=autre-chaine-differente
 
 ---
 
-## Conformité pharmaceutique
-
-- ✅ Circuit médicament complet (OMS)
-- ✅ Principe FEFO (First Expired, First Out)
-- ✅ Traçabilité par numéro de lot
-- ✅ Journal des mouvements de stock (audit trail)
-- ✅ DCI obligatoire sur toutes les fiches
-- ✅ Validation ordonnances avant dispensation
-- ✅ Alertes péremption configurables
-- ⚠️ Module stupéfiants (prévu V2)
-
----
-
 ## Licence
 
-Propriétaire — © 2026 GestPharma. Tous droits réservés.
+Propriétaire — © 2026 GestSchool. Tous droits réservés.

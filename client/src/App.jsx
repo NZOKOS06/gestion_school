@@ -4,6 +4,7 @@ import { TenantProvider } from './contexts/TenantContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { I18nProvider } from './contexts/I18nContext';
+import { DensityProvider } from './contexts/DensityContext';
 
 // Layouts
 import PublicLayout from './components/layouts/PublicLayout';
@@ -48,6 +49,8 @@ const ConseilDeClasse = lazy(() => import('./pages/admin/ConseilDeClasse'));
 const Salles = lazy(() => import('./pages/admin/Salles'));
 const CalendrierScolaire = lazy(() => import('./pages/admin/CalendrierScolaire'));
 const Messagerie = lazy(() => import('./pages/admin/Messagerie'));
+const AnneesScolaires = lazy(() => import('./pages/admin/AnneesScolaires'));
+const Examens = lazy(() => import('./pages/admin/Examens'));
 
 // Enseignant pages (lazy)
 const EnseignantDashboard = lazy(() => import('./pages/enseignant/EnseignantDashboard'));
@@ -65,7 +68,7 @@ const SanctionsParent = lazy(() => import('./pages/parent/SanctionsParent'));
 const FacturationParent = lazy(() => import('./pages/parent/FacturationParent'));
 
 // Super Admin (lazy)
-const SuperAdminPanel = lazy(() => import('./pages/superadmin/SuperAdminPanel'));
+const SuperAdminPanel = lazy(() => import('./pages/superadmin/SuperAdminShell'));
 
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--surface-base)' }}>
@@ -77,6 +80,7 @@ const PageLoader = () => (
 const ROLE_REDIRECTIONS = {
   super_admin: '/super-admin/dashboard',
   directeur: '/admin/dashboard',
+  directeur_etudes: '/admin/dashboard',
   secretaire: '/admin/dashboard',
   comptable: '/caissier',
   surveillant: '/admin/dashboard',
@@ -150,28 +154,47 @@ const AppRoutes = () => {
           <Route path="/maintenance" element={<Maintenance />} />
         </Route>
 
-        {/* Routes admin — directeur, secretaire, surveillant */}
-        <Route element={<ProtectedRoute allowedRoles={['directeur', 'secretaire', 'surveillant']} />}>
+        {/* Routes communes admin — directeur, DE, secretaire, surveillant */}
+        <Route element={<ProtectedRoute allowedRoles={['directeur', 'directeur_etudes', 'secretaire', 'surveillant']} />}>
           <Route element={<AdminLayout />}>
             <Route path="/admin/dashboard" element={<Dashboard />} />
             <Route path="/admin/eleves" element={<Eleves />} />
-            <Route path="/admin/classes" element={<Classes />} />
-            <Route path="/admin/inscriptions" element={<Inscriptions />} />
-            <Route path="/admin/matieres" element={<Matieres />} />
             <Route path="/admin/emploi-du-temps" element={<EmploiDuTemps />} />
             <Route path="/admin/absences" element={<Absences />} />
             <Route path="/admin/sanctions" element={<Sanctions />} />
-            <Route path="/admin/bulletins" element={<Bulletins />} />
-            <Route path="/admin/certificats" element={<Certificats />} />
-            <Route path="/admin/cahier-de-textes" element={<CahierDeTextes />} />
-            <Route path="/admin/conseil-de-classe" element={<ConseilDeClasse />} />
+            <Route path="/admin/profil" element={<Profil />} />
+          </Route>
+        </Route>
+
+        {/* Secretaire + directeur + DE — vie scolaire élargie */}
+        <Route element={<ProtectedRoute allowedRoles={['directeur', 'directeur_etudes', 'secretaire']} />}>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/classes" element={<Classes />} />
+            <Route path="/admin/inscriptions" element={<Inscriptions />} />
+            <Route path="/admin/matieres" element={<Matieres />} />
             <Route path="/admin/salles" element={<Salles />} />
             <Route path="/admin/calendrier" element={<CalendrierScolaire />} />
+            <Route path="/admin/annees-scolaires" element={<AnneesScolaires />} />
+            <Route path="/admin/examens" element={<Examens />} />
+            <Route path="/admin/cahier-de-textes" element={<CahierDeTextes />} />
+            <Route path="/admin/conseil-de-classe" element={<ConseilDeClasse />} />
+            <Route path="/admin/certificats" element={<Certificats />} />
             <Route path="/admin/messagerie" element={<Messagerie />} />
-            <Route path="/admin/rapports" element={<Rapports />} />
+          </Route>
+        </Route>
+
+        {/* Directeur + DE — pédagogie (bulletins) ; finances = directeur seul */}
+        <Route element={<ProtectedRoute allowedRoles={['directeur', 'directeur_etudes']} />}>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/bulletins" element={<Bulletins />} />
+          </Route>
+        </Route>
+
+        <Route element={<ProtectedRoute allowedRoles={['directeur']} />}>
+          <Route element={<AdminLayout />}>
             <Route path="/admin/paiements" element={<Paiements />} />
+            <Route path="/admin/rapports" element={<Rapports />} />
             <Route path="/admin/personnel" element={<PersonnelMgmt />} />
-            <Route path="/admin/profil" element={<Profil />} />
           </Route>
         </Route>
 
@@ -179,6 +202,7 @@ const AppRoutes = () => {
         <Route element={<ProtectedRoute allowedRoles={['comptable', 'directeur']} />}>
           <Route element={<CaissierLayout />}>
             <Route path="/caissier" element={<Paiements />} />
+            <Route path="/caissier/encaisser" element={<Paiements />} />
             <Route path="/caissier/retards" element={<Paiements />} />
             <Route path="/caissier/historique" element={<Paiements />} />
           </Route>
@@ -234,11 +258,13 @@ function App() {
   return (
     <ThemeProvider>
       <I18nProvider>
-        <TenantProvider>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </TenantProvider>
+        <DensityProvider>
+          <TenantProvider>
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
+          </TenantProvider>
+        </DensityProvider>
       </I18nProvider>
     </ThemeProvider>
   );

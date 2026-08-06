@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Pill, Menu, X, Phone } from 'lucide-react';
+import { GraduationCap, Menu, X, Phone } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
 
 const PublicNavbar = ({ config, links, loginLabel = 'Connexion', menuOuvert, setMenuOuvert }) => {
@@ -21,7 +21,7 @@ const PublicNavbar = ({ config, links, loginLabel = 'Connexion', menuOuvert, set
               {config?.logoUrl ? (
                 <img src={config.logoUrl} alt={nomApp} className="h-9 w-auto" />
               ) : (
-                <Pill className="h-7 w-7" style={{ color: 'var(--color-primary)' }} />
+                <GraduationCap className="h-7 w-7" style={{ color: 'var(--color-primary)' }} />
               )}
               <span className="text-xl font-semibold tracking-tight" style={{ color: 'var(--color-primary)' }}>
                 {nomApp}

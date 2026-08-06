@@ -8,8 +8,7 @@ const CREDENTIALS = {
   comptable:   { email: 'comptable@demo.cg',   password: 'Comptable123!' },
   parent:      { email: 'parent@demo.cg',      password: 'Parent123!' },
   superadmin:  { email: 'superadmin@gestschool.com', password: 'SuperAdmin123!' },
-  // Legacy aliases (GestPharma) — map to school roles until e2e rewrite
-  pharmacien:  { email: 'directeur@demo.cg',   password: 'Directeur123!' },
+  // Alias rôles UI
   admin:       { email: 'directeur@demo.cg',   password: 'Directeur123!' },
   caissier:    { email: 'comptable@demo.cg',   password: 'Comptable123!' },
 }

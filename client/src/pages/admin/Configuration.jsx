@@ -61,7 +61,7 @@ const moduleDefinitions = [
 
 const Configuration = () => {
   const { put, post, loading } = useAxios();
-  const { config: tenantConfig, slug } = useTenant();
+  const { config: tenantConfig, slug, previewTheme, refreshConfig } = useTenant();
   const fileInputRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState('identite');
@@ -115,7 +115,17 @@ const Configuration = () => {
   }, [tenantConfig]);
 
   const updateForm = (key, value) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm(prev => {
+      const next = { ...prev, [key]: value };
+      if (['couleurPrimaire', 'couleurSecondaire', 'police'].includes(key)) {
+        previewTheme?.({
+          couleurPrimaire: next.couleurPrimaire,
+          couleurSecondaire: next.couleurSecondaire,
+          police: next.police,
+        });
+      }
+      return next;
+    });
   };
 
   const handleLogoChange = (e) => {
@@ -172,9 +182,11 @@ const Configuration = () => {
 
       await put(`/api/config/${slug}`, payload);
       toast.success('Configuration sauvegardée');
-
-      // Refresh tenant context
-      window.location.reload();
+      if (refreshConfig) {
+        await refreshConfig();
+      } else {
+        window.location.reload();
+      }
     } catch (error) {
       console.error('Save config error:', error);
       toast.error('Erreur lors de la sauvegarde');
@@ -184,8 +196,15 @@ const Configuration = () => {
   };
 
   const handlePaletteClick = (palette) => {
-    updateForm('couleurPrimaire', palette.primary);
-    updateForm('couleurSecondaire', palette.secondary);
+    setForm(prev => {
+      const next = { ...prev, couleurPrimaire: palette.primary, couleurSecondaire: palette.secondary };
+      previewTheme?.({
+        couleurPrimaire: next.couleurPrimaire,
+        couleurSecondaire: next.couleurSecondaire,
+        police: next.police,
+      });
+      return next;
+    });
   };
 
   const handleModuleToggle = (mod) => {
