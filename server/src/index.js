@@ -52,6 +52,7 @@ import calendrierRoutes from './routes/calendrierScolaire.js';
 import messagesRoutes from './routes/messages.js';
 import rapportsRoutes from './routes/rapports.js';
 import parentRoutes from './routes/parent.js';
+import parentsRoutes from './routes/parents.js';
 import enseignantRoutes from './routes/enseignant.js';
 import referentielRoutes from './routes/referentiel.js';
 import examensRoutes from './routes/examens.js';
@@ -286,6 +287,7 @@ app.use('/api/calendrier', tenantMiddleware, calendrierRoutes);
 app.use('/api/messages', tenantMiddleware, messagesRoutes);
 app.use('/api/rapports', tenantMiddleware, rapportsRoutes);
 app.use('/api/parent', tenantMiddleware, parentRoutes);
+app.use('/api/parents', tenantMiddleware, parentsRoutes);
 app.use('/api/enseignant', tenantMiddleware, enseignantRoutes);
 
 // Super admin routes

@@ -1,23 +1,64 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { messageErreurDateNaissance } from '../utils/formatters.js';
 
 const log = createLogger('ElevesController');
 
 export const getAll = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { page = 1, limit = 20, search, classeId, sortBy = 'nom', order = 'asc' } = req.query;
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      classeId,
+      classe,
+      cycle,
+      sexe,
+      statut,
+      inscription,
+      sortBy = 'nom',
+      order = 'asc',
+    } = req.query;
     const take = parseInt(limit);
     const skip = (parseInt(page) - 1) * take;
+    const resolvedClasseId = classeId || classe || null;
 
-    const where = { tenantId, actif: true };
+    const where = { tenantId };
+    if (statut === 'inactif') where.actif = false;
+    else where.actif = true;
+
+    if (sexe) where.sexe = sexe;
     if (search) {
       where.OR = [
         { matricule: { contains: search, mode: 'insensitive' } },
         { nom: { contains: search, mode: 'insensitive' } },
         { prenom: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    if (inscription === 'sans') {
+      where.inscriptions = {
+        none: { anneeScolaire: { actif: true } },
+      };
+    } else if (inscription === 'en_attente' || inscription === 'validee') {
+      where.inscriptions = {
+        some: {
+          anneeScolaire: { actif: true },
+          statut: inscription,
+          ...(resolvedClasseId ? { classeId: resolvedClasseId } : {}),
+          ...(cycle ? { classe: { cycle } } : {}),
+        },
+      };
+    } else if (resolvedClasseId || cycle) {
+      where.inscriptions = {
+        some: {
+          anneeScolaire: { actif: true },
+          ...(resolvedClasseId ? { classeId: resolvedClasseId } : {}),
+          ...(cycle ? { classe: { cycle } } : {}),
+        },
+      };
     }
 
     const orderBy = {};
@@ -30,7 +71,12 @@ export const getAll = async (req, res) => {
           parent: { select: { id: true, nom: true, prenom: true, email: true, telephone: true } },
           inscriptions: {
             where: { anneeScolaire: { actif: true } },
-            select: { id: true, statut: true, classe: { select: { id: true, nom: true, niveau: true } } },
+            select: {
+              id: true,
+              statut: true,
+              soldeScolarite: true,
+              classe: { select: { id: true, nom: true, niveau: true, cycle: true } },
+            },
             take: 1,
           },
         },
@@ -67,9 +113,10 @@ export const getById = async (req, res) => {
         parent: { select: { id: true, nom: true, prenom: true, email: true, telephone: true } },
         inscriptions: {
           include: {
-            classe: { select: { id: true, nom: true, niveau: true } },
-            anneeScolaire: { select: { id: true, libelle: true } },
+            classe: { select: { id: true, nom: true, niveau: true, cycle: true } },
+            anneeScolaire: { select: { id: true, libelle: true, actif: true } },
           },
+          orderBy: { createdAt: 'desc' },
         },
       },
     });
@@ -89,6 +136,11 @@ export const create = async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { matricule, nom, prenom, dateNaissance, sexe, lieuNaissance, adresse, parentId, photoUrl } = req.body;
+
+    const errNaissance = messageErreurDateNaissance(dateNaissance);
+    if (errNaissance) {
+      return res.status(400).json({ error: errNaissance });
+    }
 
     const existing = await prisma.eleve.findFirst({
       where: { tenantId, matricule },
@@ -130,6 +182,13 @@ export const update = async (req, res) => {
     const existing = await prisma.eleve.findFirst({ where: { id, tenantId } });
     if (!existing) {
       return res.status(404).json({ error: 'Élève non trouvé' });
+    }
+
+    if (dateNaissance !== undefined) {
+      const errNaissance = messageErreurDateNaissance(dateNaissance);
+      if (errNaissance) {
+        return res.status(400).json({ error: errNaissance });
+      }
     }
 
     const data = {};

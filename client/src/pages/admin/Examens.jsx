@@ -26,16 +26,19 @@ const Examens = () => {
   const { get, post, put } = useAxios();
   const [sessions, setSessions] = useState([]);
   const [annees, setAnnees] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [candidatures, setCandidatures] = useState([]);
   const [eleves, setEleves] = useState([]);
+  const [filterClasseId, setFilterClasseId] = useState('');
   const [form, setForm] = useState({
-    anneeScolaireId: '', typeExamen: 'CEPE', libelle: '', dateDebut: '', dateFin: '', centre: '',
+    anneeScolaireId: '', typeExamen: 'CEPE', libelle: '', dateDebut: '', dateFin: '', centre: '', classeId: '',
   });
   const [candForm, setCandForm] = useState({ eleveId: '', serieFiliere: '' });
   const [resultForm, setResultForm] = useState({ candidatureId: '', statut: 'admis', mention: '', moyenne: '' });
+  const [enrolling, setEnrolling] = useState(false);
 
   const inputStyle = {
     width: '100%',
@@ -61,32 +64,81 @@ const Examens = () => {
     fetchSessions();
     (async () => {
       try {
-        const an = await get('/api/annees-scolaires', { silent: true });
+        const [an, cl] = await Promise.all([
+          get('/api/annees-scolaires', { silent: true }),
+          get('/api/classes?limit=200', { silent: true }),
+        ]);
         const list = an?.data || an || [];
         setAnnees(list);
+        setClasses(cl?.data || cl || []);
         const active = list.find((a) => a.actif);
         if (active) setForm((f) => ({ ...f, anneeScolaireId: active.id }));
       } catch { /* silent */ }
     })();
   }, [fetchSessions]);
 
-  const openDetail = async (session) => {
-    setDetail(session);
+  const loadElevesForClasse = async (classeId, anneeScolaireId) => {
+    if (!classeId) {
+      setEleves([]);
+      return;
+    }
     try {
-      const [cands, els] = await Promise.all([
-        get(`/api/examens/sessions/${session.id}/candidatures`, { silent: true }),
-        get('/api/eleves?limit=500', { silent: true }),
-      ]);
-      setCandidatures(cands?.data || cands || []);
+      const qs = new URLSearchParams({ limit: '500', classe: classeId });
+      if (anneeScolaireId) qs.set('anneeScolaireId', anneeScolaireId);
+      const els = await get(`/api/eleves?${qs}`, { silent: true });
       setEleves(els?.data || els || []);
+    } catch {
+      setEleves([]);
+    }
+  };
+
+  const openDetail = async (session, preferredClasseId = '') => {
+    setDetail(session);
+    const classeId = preferredClasseId || filterClasseId || '';
+    setFilterClasseId(classeId);
+    try {
+      const cands = await get(`/api/examens/sessions/${session.id}/candidatures`, { silent: true });
+      setCandidatures(cands?.data || cands || []);
+      if (classeId) {
+        await loadElevesForClasse(classeId, session.anneeScolaireId);
+      } else {
+        setEleves([]);
+      }
     } catch { /* silent */ }
   };
 
   const handleCreate = async () => {
     try {
-      await post('/api/examens/sessions', form);
+      const { classeId, ...payload } = form;
+      const session = await post('/api/examens/sessions', payload);
       setCreateOpen(false);
-      fetchSessions();
+      await fetchSessions();
+      if (classeId && session?.id) {
+        setFilterClasseId(classeId);
+        await openDetail(session, classeId);
+        // Inscrire toute la classe
+        setEnrolling(true);
+        try {
+          const qs = new URLSearchParams({ limit: '500', classe: classeId });
+          if (form.anneeScolaireId) qs.set('anneeScolaireId', form.anneeScolaireId);
+          const els = await get(`/api/eleves?${qs}`, { silent: true });
+          const list = els?.data || els || [];
+          let n = 0;
+          for (const el of list) {
+            try {
+              await post(`/api/examens/sessions/${session.id}/candidatures`, { eleveId: el.id });
+              n += 1;
+            } catch { /* déjà inscrit */ }
+          }
+          if (n) {
+            const cands = await get(`/api/examens/sessions/${session.id}/candidatures`, { silent: true });
+            setCandidatures(cands?.data || cands || []);
+          }
+        } finally {
+          setEnrolling(false);
+        }
+      }
+      setForm((f) => ({ ...f, libelle: '', classeId: '', centre: '' }));
     } catch { /* silent */ }
   };
 
@@ -95,9 +147,32 @@ const Examens = () => {
     try {
       await post(`/api/examens/sessions/${detail.id}/candidatures`, candForm);
       setCandForm({ eleveId: '', serieFiliere: '' });
-      openDetail(detail);
+      openDetail(detail, filterClasseId);
     } catch { /* silent */ }
   };
+
+  const enrollWholeClass = async () => {
+    if (!detail || !filterClasseId) return;
+    setEnrolling(true);
+    try {
+      let n = 0;
+      for (const el of eleves) {
+        try {
+          await post(`/api/examens/sessions/${detail.id}/candidatures`, { eleveId: el.id });
+          n += 1;
+        } catch { /* skip */ }
+      }
+      void n;
+      const cands = await get(`/api/examens/sessions/${detail.id}/candidatures`, { silent: true });
+      setCandidatures(cands?.data || cands || []);
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const elevesDisponibles = eleves.filter(
+    (e) => !candidatures.some((c) => c.eleveId === e.id)
+  );
 
   const saveResultat = async () => {
     if (!resultForm.candidatureId) return;
@@ -175,6 +250,16 @@ const Examens = () => {
             <input style={inputStyle} value={form.libelle} onChange={(e) => setForm({ ...form, libelle: e.target.value })} />
           </div>
           <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Classe concernée</label>
+            <select style={{ ...inputStyle, appearance: 'auto' }} value={form.classeId} onChange={(e) => setForm({ ...form, classeId: e.target.value })}>
+              <option value="">— Optionnel (filtrer les candidats) —</option>
+              {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+            </select>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              Si renseignée, les élèves de cette classe seront proposés / inscrits — pas ceux des autres classes.
+            </p>
+          </div>
+          <div>
             <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Centre</label>
             <input style={inputStyle} value={form.centre} onChange={(e) => setForm({ ...form, centre: e.target.value })} placeholder="Brazzaville" />
           </div>
@@ -184,13 +269,35 @@ const Examens = () => {
       <Modal open={!!detail} onClose={() => setDetail(null)} title={detail?.libelle || 'Session'} size="xl">
         {detail && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              <select style={{ ...inputStyle, appearance: 'auto' }} value={candForm.eleveId} onChange={(e) => setCandForm({ ...candForm, eleveId: e.target.value })}>
-                <option value="">Ajouter un candidat…</option>
-                {eleves.map((e) => <option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
+            {enrolling && <p className="text-sm" style={{ color: 'var(--color-primary)' }}>Inscription des candidats en cours…</p>}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Classe (filtre candidats)</label>
+                <select
+                  style={{ ...inputStyle, appearance: 'auto' }}
+                  value={filterClasseId}
+                  onChange={async (e) => {
+                    const id = e.target.value;
+                    setFilterClasseId(id);
+                    setCandForm((f) => ({ ...f, eleveId: '' }));
+                    await loadElevesForClasse(id, detail.anneeScolaireId);
+                  }}
+                >
+                  <option value="">Sélectionner une classe…</option>
+                  {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                </select>
+              </div>
+              <select style={{ ...inputStyle, appearance: 'auto' }} value={candForm.eleveId} onChange={(e) => setCandForm({ ...candForm, eleveId: e.target.value })} disabled={!filterClasseId}>
+                <option value="">{filterClasseId ? 'Ajouter un candidat…' : 'Choisir d’abord une classe'}</option>
+                {elevesDisponibles.map((e) => <option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
               </select>
               <input style={inputStyle} placeholder="Série / filière" value={candForm.serieFiliere} onChange={(e) => setCandForm({ ...candForm, serieFiliere: e.target.value })} />
-              <Button onClick={addCandidat} disabled={!candForm.eleveId}>Inscrire candidat</Button>
+              <div className="flex gap-2">
+                <Button onClick={addCandidat} disabled={!candForm.eleveId}>Inscrire</Button>
+                <Button variant="secondary" onClick={enrollWholeClass} disabled={!filterClasseId || !elevesDisponibles.length} loading={enrolling}>
+                  Toute la classe
+                </Button>
+              </div>
             </div>
 
             <DataTable

@@ -16,6 +16,41 @@ router.get('/',
   ctrl.getAll
 );
 
+router.get('/programme/niveau',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  ctrl.listProgrammeNiveau
+);
+
+router.post('/programme/niveau',
+  authenticate,
+  requireRole(...writeRoles),
+  requireTenantMatch,
+  ctrl.upsertProgrammeNiveau
+);
+
+router.delete('/programme/niveau/:id',
+  authenticate,
+  requireRole(...writeRoles),
+  requireTenantMatch,
+  ctrl.deleteProgrammeNiveau
+);
+
+router.get('/programme/classe',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  ctrl.listProgrammeClasse
+);
+
+router.post('/programme/classe',
+  authenticate,
+  requireRole(...writeRoles),
+  requireTenantMatch,
+  ctrl.upsertProgrammeClasse
+);
+
 router.delete('/affectations/:affId',
   authenticate,
   requireRole(...writeRoles),

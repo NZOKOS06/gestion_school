@@ -408,3 +408,120 @@ export const remove = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+/** KPIs + top moyennes (établissement ou classe) */
+export const getStats = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { anneeScolaireId, periodeIndex, classeId } = req.query;
+    if (!anneeScolaireId || periodeIndex == null || periodeIndex === '') {
+      return res.status(400).json({ error: 'anneeScolaireId et periodeIndex requis' });
+    }
+
+    const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
+    const seuil = Number(config?.seuilReussite ?? 10);
+    const where = {
+      tenantId,
+      anneeScolaireId,
+      periodeIndex: parseInt(periodeIndex, 10),
+    };
+    if (classeId) where.classeId = classeId;
+
+    const rows = await prisma.bulletin.findMany({
+      where,
+      include: {
+        eleve: { select: { id: true, prenom: true, nom: true, matricule: true } },
+        classe: { select: { id: true, nom: true } },
+      },
+      orderBy: { moyenneGenerale: 'desc' },
+    });
+
+    const withMg = rows.filter((r) => r.moyenneGenerale != null);
+    const admis = withMg.filter((r) => Number(r.moyenneGenerale) >= seuil).length;
+    const echec = withMg.filter((r) => Number(r.moyenneGenerale) < seuil).length;
+    const total = withMg.length;
+    const moyenneClasse = total
+      ? Math.round((withMg.reduce((s, r) => s + Number(r.moyenneGenerale), 0) / total) * 100) / 100
+      : 0;
+    const tauxAdmission = total ? Math.round((admis / total) * 1000) / 10 : 0;
+
+    const top5 = withMg.slice(0, 5).map((r, i) => ({
+      rang: i + 1,
+      eleveId: r.eleveId,
+      elevePrenom: r.eleve?.prenom,
+      eleveNom: r.eleve?.nom,
+      matricule: r.eleve?.matricule,
+      classeNom: r.classe?.nom,
+      moyenneGenerale: Number(r.moyenneGenerale),
+      bulletinId: r.id,
+    }));
+
+    res.json({
+      data: {
+        seuil,
+        total,
+        admis,
+        echec,
+        tauxAdmission,
+        moyenneClasse,
+        top5,
+        scope: classeId ? 'classe' : 'etablissement',
+      },
+    });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'getStats bulletins error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/** Stream PDF (Cloudinary URL or regenerate) */
+export const downloadPdf = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { id } = req.params;
+
+    const bulletin = await prisma.bulletin.findFirst({
+      where: { id, tenantId },
+      include: {
+        eleve: { select: { id: true, prenom: true, nom: true, matricule: true, dateNaissance: true, sexe: true } },
+        classe: { select: { id: true, nom: true, niveau: true } },
+        anneeScolaire: { select: { id: true, libelle: true } },
+      },
+    });
+    if (!bulletin) return res.status(404).json({ error: 'Bulletin non trouvé' });
+
+    if (bulletin.pdfUrl && req.query.redirect === '1') {
+      return res.redirect(bulletin.pdfUrl);
+    }
+
+    const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
+    const periodeLibelle = `Période ${bulletin.periodeIndex}`;
+    const buffer = await buildBulletinPdf({
+      nomEcole: config?.nomEcole || 'GestSchool',
+      adresseEcole: config?.adresse || '',
+      eleve: `${bulletin.eleve.prenom} ${bulletin.eleve.nom}`,
+      matricule: bulletin.eleve.matricule,
+      dateNaissance: bulletin.eleve.dateNaissance,
+      sexe: bulletin.eleve.sexe,
+      classe: bulletin.classe?.nom,
+      anneeScolaire: bulletin.anneeScolaire?.libelle,
+      periodeIndex: bulletin.periodeIndex,
+      periodeLibelle,
+      moyenneGenerale: Number(bulletin.moyenneGenerale),
+      rang: bulletin.rang,
+      effectifClasse: bulletin.effectifClasse,
+      mention: bulletin.mention,
+      notesDetaillees: bulletin.notesDetaillees || [],
+      absencesHeures: bulletin.absencesHeures,
+      qrCodeHash: bulletin.qrCodeHash,
+      decisionConseil: bulletin.decisionConseil,
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="bulletin-${bulletin.eleve.matricule || id}.pdf"`);
+    res.send(buffer);
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'downloadPdf error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

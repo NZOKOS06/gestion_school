@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { getMatieresForClasse } from '../services/matieresProgramme.service.js';
 
 const log = createLogger('MatieresController');
 
@@ -237,6 +238,122 @@ export const deleteAffectation = async (req, res) => {
     res.json({ message: 'Affectation supprimée' });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'deleteAffectation error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/** Programme par niveau + année */
+export const listProgrammeNiveau = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { anneeScolaireId, niveauOfficielId } = req.query;
+    if (!anneeScolaireId || !niveauOfficielId) {
+      return res.status(400).json({ error: 'anneeScolaireId et niveauOfficielId requis' });
+    }
+    const rows = await prisma.matiereNiveauAnnee.findMany({
+      where: { tenantId, anneeScolaireId, niveauOfficielId },
+      include: { matiere: { select: { id: true, nom: true, code: true, coefficient: true } } },
+      orderBy: { matiere: { nom: 'asc' } },
+    });
+    res.json({ data: rows });
+  } catch (error) {
+    log.error({ err: error }, 'listProgrammeNiveau');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const upsertProgrammeNiveau = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { anneeScolaireId, niveauOfficielId, matiereId, coefficient, actif = true } = req.body;
+    if (!anneeScolaireId || !niveauOfficielId || !matiereId) {
+      return res.status(400).json({ error: 'anneeScolaireId, niveauOfficielId et matiereId requis' });
+    }
+    const row = await prisma.matiereNiveauAnnee.upsert({
+      where: {
+        anneeScolaireId_niveauOfficielId_matiereId: {
+          anneeScolaireId,
+          niveauOfficielId,
+          matiereId,
+        },
+      },
+      update: {
+        coefficient: parseInt(coefficient, 10) || 1,
+        actif: !!actif,
+      },
+      create: {
+        tenantId,
+        anneeScolaireId,
+        niveauOfficielId,
+        matiereId,
+        coefficient: parseInt(coefficient, 10) || 1,
+        actif: !!actif,
+      },
+      include: { matiere: { select: { id: true, nom: true, code: true } } },
+    });
+    res.json(row);
+  } catch (error) {
+    log.error({ err: error }, 'upsertProgrammeNiveau');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const deleteProgrammeNiveau = async (req, res) => {
+  try {
+    const existing = await prisma.matiereNiveauAnnee.findFirst({
+      where: { id: req.params.id, tenantId: req.tenantId },
+    });
+    if (!existing) return res.status(404).json({ error: 'Entrée programme introuvable' });
+    await prisma.matiereNiveauAnnee.delete({ where: { id: existing.id } });
+    res.json({ success: true });
+  } catch (error) {
+    log.error({ err: error }, 'deleteProgrammeNiveau');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/** Surcharges par classe */
+export const listProgrammeClasse = async (req, res) => {
+  try {
+    const { classeId } = req.query;
+    if (!classeId) return res.status(400).json({ error: 'classeId requis' });
+    const data = await getMatieresForClasse(req.tenantId, classeId);
+    const overrides = await prisma.matiereClasseAnnee.findMany({
+      where: { tenantId: req.tenantId, classeId },
+      include: { matiere: { select: { id: true, nom: true, code: true } } },
+    });
+    res.json({ data, overrides });
+  } catch (error) {
+    log.error({ err: error }, 'listProgrammeClasse');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const upsertProgrammeClasse = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { classeId, matiereId, coefficient, actif = true } = req.body;
+    if (!classeId || !matiereId) {
+      return res.status(400).json({ error: 'classeId et matiereId requis' });
+    }
+    const row = await prisma.matiereClasseAnnee.upsert({
+      where: { classeId_matiereId: { classeId, matiereId } },
+      update: {
+        coefficient: coefficient != null && coefficient !== '' ? parseInt(coefficient, 10) : null,
+        actif: !!actif,
+      },
+      create: {
+        tenantId,
+        classeId,
+        matiereId,
+        coefficient: coefficient != null && coefficient !== '' ? parseInt(coefficient, 10) : null,
+        actif: !!actif,
+      },
+      include: { matiere: { select: { id: true, nom: true, code: true } } },
+    });
+    res.json(row);
+  } catch (error) {
+    log.error({ err: error }, 'upsertProgrammeClasse');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

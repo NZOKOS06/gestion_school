@@ -9,7 +9,7 @@ const router = Router();
 // GET /api/staff
 router.get('/',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole('directeur', 'directeur_etudes', 'secretaire'),
   requireTenantMatch,
   requireModule('personnel'),
   paginationValidator,
@@ -19,7 +19,7 @@ router.get('/',
 // GET /api/staff/enseignants
 router.get('/enseignants',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole('directeur', 'directeur_etudes', 'secretaire', 'enseignant'),
   requireTenantMatch,
   requireModule('personnel'),
   ctrl.getEnseignants
@@ -44,7 +44,7 @@ router.get('/:id',
 // POST /api/staff
 router.post('/',
   authenticate,
-  requireRole('directeur', 'secretaire'),
+  requireRole('directeur', 'directeur_etudes', 'secretaire'),
   requireTenantMatch,
   requireModule('personnel'),
   staffValidator,

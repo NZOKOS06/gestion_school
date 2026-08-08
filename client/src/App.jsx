@@ -34,6 +34,7 @@ const Eleves = lazy(() => import('./pages/admin/Eleves'));
 const Classes = lazy(() => import('./pages/admin/Classes'));
 const Inscriptions = lazy(() => import('./pages/admin/Inscriptions'));
 const Matieres = lazy(() => import('./pages/admin/Matieres'));
+const Enseignants = lazy(() => import('./pages/admin/Enseignants'));
 const EmploiDuTemps = lazy(() => import('./pages/admin/EmploiDuTemps'));
 const Absences = lazy(() => import('./pages/admin/Absences'));
 const Sanctions = lazy(() => import('./pages/admin/Sanctions'));
@@ -172,6 +173,7 @@ const AppRoutes = () => {
             <Route path="/admin/classes" element={<Classes />} />
             <Route path="/admin/inscriptions" element={<Inscriptions />} />
             <Route path="/admin/matieres" element={<Matieres />} />
+            <Route path="/admin/enseignants" element={<Enseignants />} />
             <Route path="/admin/salles" element={<Salles />} />
             <Route path="/admin/calendrier" element={<CalendrierScolaire />} />
             <Route path="/admin/annees-scolaires" element={<AnneesScolaires />} />

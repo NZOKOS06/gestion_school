@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { generateForInscription } from '../services/echeances.service.js';
+import { messageErreurDateNaissance } from '../utils/formatters.js';
 
 const log = createLogger('InscriptionsController');
 
@@ -127,7 +128,11 @@ export const create = async (req, res) => {
       });
       return tx.inscription.findUnique({
         where: { id: insc.id },
-        include: { echeances: true },
+        include: {
+          echeances: true,
+          eleve: { select: { id: true, matricule: true, nom: true, prenom: true } },
+          classe: { select: { id: true, nom: true } },
+        },
       });
     });
 
@@ -136,6 +141,116 @@ export const create = async (req, res) => {
     res.status(201).json(inscription);
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'Create inscription error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Inscription d'abord : crée éventuellement la fiche élève puis l'inscription + échéances.
+ */
+export const createAvecEleve = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { eleveId: existingEleveId, classeId, anneeScolaireId, eleve: eleveData, parentId } = req.body;
+
+    const annee = await prisma.anneeScolaire.findFirst({ where: { id: anneeScolaireId, tenantId } });
+    if (!annee) return res.status(400).json({ error: 'Année scolaire invalide' });
+
+    const classe = await prisma.classe.findFirst({ where: { id: classeId, tenantId, anneeScolaireId } });
+    if (!classe) return res.status(400).json({ error: 'Classe invalide pour cette année' });
+
+    const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, classeId);
+
+    const result = await prisma.$transaction(async (tx) => {
+      let eleveId = existingEleveId || null;
+
+      if (!eleveId) {
+        if (!eleveData?.matricule || !eleveData?.nom || !eleveData?.prenom || !eleveData?.dateNaissance || !eleveData?.sexe) {
+          throw Object.assign(new Error('Données élève incomplètes'), { status: 400 });
+        }
+        const errNaissance = messageErreurDateNaissance(eleveData.dateNaissance);
+        if (errNaissance) {
+          throw Object.assign(new Error(errNaissance), { status: 400 });
+        }
+        const dup = await tx.eleve.findFirst({
+          where: { tenantId, matricule: eleveData.matricule.trim() },
+        });
+        if (dup) {
+          throw Object.assign(new Error('Ce matricule existe déjà'), { status: 409 });
+        }
+        const created = await tx.eleve.create({
+          data: {
+            tenantId,
+            matricule: eleveData.matricule.trim(),
+            nom: eleveData.nom.trim(),
+            prenom: eleveData.prenom.trim(),
+            dateNaissance: new Date(eleveData.dateNaissance),
+            sexe: eleveData.sexe,
+            lieuNaissance: eleveData.lieuNaissance?.trim() || null,
+            adresse: eleveData.adresse?.trim() || null,
+            parentId: eleveData.parentId || parentId || null,
+          },
+        });
+        eleveId = created.id;
+      } else {
+        const eleve = await tx.eleve.findFirst({ where: { id: eleveId, tenantId } });
+        if (!eleve) {
+          throw Object.assign(new Error('Élève introuvable'), { status: 404 });
+        }
+        if (parentId || eleveData?.parentId) {
+          await tx.eleve.update({
+            where: { id: eleveId },
+            data: { parentId: eleveData?.parentId || parentId },
+          });
+        }
+      }
+
+      const existing = await tx.inscription.findFirst({
+        where: { tenantId, eleveId, anneeScolaireId },
+      });
+      if (existing) {
+        throw Object.assign(new Error('Cet élève est déjà inscrit pour cette année scolaire'), { status: 409 });
+      }
+
+      const insc = await tx.inscription.create({
+        data: {
+          tenantId,
+          eleveId,
+          classeId,
+          anneeScolaireId,
+          statut: 'en_attente',
+          soldeScolarite: fraisInscription + fraisScolarite,
+        },
+      });
+      await generateForInscription(tx, insc, {
+        fraisInscription,
+        fraisScolarite,
+        nbTranches: 3,
+      });
+
+      return tx.inscription.findUnique({
+        where: { id: insc.id },
+        include: {
+          echeances: true,
+          eleve: { select: { id: true, matricule: true, nom: true, prenom: true, parentId: true } },
+          classe: { select: { id: true, nom: true } },
+          anneeScolaire: { select: { id: true, libelle: true } },
+        },
+      });
+    });
+
+    await logAudit(req, 'inscription_created_avec_eleve', 'Inscription', result.id, {
+      eleveId: result.eleveId,
+      classeId,
+      createdEleve: !existingEleveId,
+    });
+
+    res.status(201).json(result);
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    log.error({ err: error, tenantId: req.tenantId }, 'Create inscription avec eleve error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -275,15 +390,27 @@ export const decideFinAnnee = async (req, res) => {
           },
         });
         if (!already) {
-          nouvelleInscription = await prisma.inscription.create({
-            data: {
-              tenantId,
-              eleveId: existing.eleveId,
-              classeId: classeCible.id,
-              anneeScolaireId: anneeCibleId,
-              statut: 'en_attente',
-              soldeScolarite: parseFloat(classeCible.fraisScolarite),
-            },
+          const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, classeCible.id);
+          nouvelleInscription = await prisma.$transaction(async (tx) => {
+            const insc = await tx.inscription.create({
+              data: {
+                tenantId,
+                eleveId: existing.eleveId,
+                classeId: classeCible.id,
+                anneeScolaireId: anneeCibleId,
+                statut: 'en_attente',
+                soldeScolarite: fraisInscription + fraisScolarite,
+              },
+            });
+            await generateForInscription(tx, insc, {
+              fraisInscription,
+              fraisScolarite,
+              nbTranches: 3,
+            });
+            return tx.inscription.findUnique({
+              where: { id: insc.id },
+              include: { echeances: true },
+            });
           });
         } else {
           nouvelleInscription = already;

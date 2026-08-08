@@ -20,6 +20,7 @@ import {
   Mail,
   ClipboardEdit,
   CalendarCheck,
+  UserRound,
 } from 'lucide-react';
 
 export const ADMIN_ROUTE_LABELS = {
@@ -28,11 +29,12 @@ export const ADMIN_ROUTE_LABELS = {
   '/admin/classes': 'Classes & Niveaux',
   '/admin/inscriptions': 'Inscriptions',
   '/admin/matieres': 'Matières',
+  '/admin/enseignants': 'Enseignants',
   '/admin/emploi-du-temps': 'Emploi du temps',
   '/admin/absences': 'Absences',
   '/admin/sanctions': 'Sanctions',
   '/admin/paiements': 'Paiements & Échéances',
-  '/admin/bulletins': 'Bulletins',
+  '/admin/bulletins': 'Résultats et Bulletin',
   '/admin/certificats': 'Certificats',
   '/admin/cahier-de-textes': 'Cahier de textes',
   '/admin/conseil-de-classe': 'Conseil de classe',
@@ -63,6 +65,7 @@ export const ADMIN_NAV = [
       { path: '/admin/classes', icon: School, labelKey: 'classes', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/inscriptions', icon: ClipboardList, labelKey: 'inscriptions', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/matieres', icon: BookOpen, labelKey: 'matieres', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
+      { path: '/admin/enseignants', icon: UserRound, labelKey: 'enseignants', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/emploi-du-temps', icon: CalendarDays, labelKey: 'emploi_du_temps', roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
       { path: '/admin/salles', icon: DoorOpen, labelKey: 'salles', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/absences', icon: CalendarX, labelKey: 'absences', module: 'presences', roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
@@ -74,7 +77,7 @@ export const ADMIN_NAV = [
     items: [
       { path: '/admin/cahier-de-textes', icon: NotebookPen, labelKey: 'cahier_de_textes', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/conseil-de-classe', icon: Users2, labelKey: 'conseil_de_classe', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
-      { path: '/admin/bulletins', icon: FileText, labelKey: 'bulletins', module: 'bulletins', roles: ['directeur', 'directeur_etudes'] },
+      { path: '/admin/bulletins', icon: FileText, labelKey: 'resultats_bulletins', module: 'bulletins', roles: ['directeur', 'directeur_etudes'] },
       { path: '/admin/examens', icon: Award, labelKey: 'examens', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/certificats', icon: Award, labelKey: 'certificats', module: 'certificats', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
     ],

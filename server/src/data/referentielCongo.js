@@ -25,7 +25,7 @@ export const FILIERES_CG_ACTUEL = [
   { code: 'litteraire', libelle: 'Littéraire', cycle: 'lycee' },
 ];
 
-/** Périodes indicatives année 2025-2026 (13 / 13 / 15 semaines) */
+/** Périodes indicatives année 2025-2026 */
 export const PERIODES_2025_2026 = [
   {
     index: 1,
@@ -35,6 +35,7 @@ export const PERIODES_2025_2026 = [
     dateEvaluationDebut: '2025-12-08',
     dateEvaluationFin: '2025-12-19',
     poids: 1,
+    concerneCycles: ['college', 'lycee'],
   },
   {
     index: 2,
@@ -44,6 +45,7 @@ export const PERIODES_2025_2026 = [
     dateEvaluationDebut: '2026-03-16',
     dateEvaluationFin: '2026-03-27',
     poids: 1,
+    concerneCycles: ['college', 'lycee'],
   },
   {
     index: 3,
@@ -53,7 +55,17 @@ export const PERIODES_2025_2026 = [
     dateEvaluationDebut: '2026-06-22',
     dateEvaluationFin: '2026-07-03',
     poids: 1,
+    concerneCycles: ['college', 'lycee'],
   },
+  // Compositions mensuelles préscolaire / primaire
+  { index: 10, libelle: 'Composition Octobre', dateDebut: '2025-10-01', dateFin: '2025-10-31', poids: 1, concerneCycles: ['prescolaire', 'primaire'] },
+  { index: 11, libelle: 'Composition Novembre', dateDebut: '2025-11-01', dateFin: '2025-11-30', poids: 1, concerneCycles: ['prescolaire', 'primaire'] },
+  { index: 12, libelle: 'Composition Décembre', dateDebut: '2025-12-01', dateFin: '2025-12-20', poids: 1, concerneCycles: ['prescolaire', 'primaire'] },
+  { index: 13, libelle: 'Composition Janvier', dateDebut: '2026-01-05', dateFin: '2026-01-31', poids: 1, concerneCycles: ['prescolaire', 'primaire'] },
+  { index: 14, libelle: 'Composition Février', dateDebut: '2026-02-01', dateFin: '2026-02-28', poids: 1, concerneCycles: ['prescolaire', 'primaire'] },
+  { index: 15, libelle: 'Composition Mars', dateDebut: '2026-03-01', dateFin: '2026-03-28', poids: 1, concerneCycles: ['prescolaire', 'primaire'] },
+  { index: 16, libelle: 'Composition Avril', dateDebut: '2026-04-13', dateFin: '2026-04-30', poids: 1, concerneCycles: ['prescolaire', 'primaire'] },
+  { index: 17, libelle: 'Composition Mai', dateDebut: '2026-05-01', dateFin: '2026-05-31', poids: 1, concerneCycles: ['prescolaire', 'primaire'] },
 ];
 
 /** Map niveau code → next level code for passage */

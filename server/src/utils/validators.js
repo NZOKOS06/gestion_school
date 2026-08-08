@@ -1,4 +1,5 @@
 import { body, param, query, validationResult } from 'express-validator';
+import { messageErreurDateNaissance } from './formatters.js';
 
 export const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
@@ -41,6 +42,11 @@ export const eleveValidator = [
   body('nom').trim().notEmpty().withMessage('Nom requis'),
   body('prenom').trim().notEmpty().withMessage('Prénom requis'),
   body('dateNaissance').isISO8601().toDate().withMessage('Date de naissance invalide'),
+  body('dateNaissance').custom((value) => {
+    const err = messageErreurDateNaissance(value);
+    if (err) throw new Error(err);
+    return true;
+  }),
   body('sexe').isIn(['M', 'F']).withMessage('Sexe invalide (M ou F)'),
   body('lieuNaissance').optional().trim(),
   body('adresse').optional().trim(),
@@ -89,6 +95,28 @@ export const inscriptionValidator = [
   body('eleveId').isUUID().withMessage('ID élève invalide'),
   body('classeId').isUUID().withMessage('ID classe invalide'),
   body('anneeScolaireId').isUUID().withMessage('ID année scolaire invalide'),
+  handleValidationErrors
+];
+
+export const inscriptionAvecEleveValidator = [
+  body('classeId').isUUID().withMessage('ID classe invalide'),
+  body('anneeScolaireId').isUUID().withMessage('ID année scolaire invalide'),
+  body('eleveId').optional({ nullable: true }).isUUID().withMessage('ID élève invalide'),
+  body('parentId').optional({ nullable: true }).isUUID().withMessage('ID parent invalide'),
+  body().custom((_, { req }) => {
+    if (!req.body.eleveId && !req.body.eleve) {
+      throw new Error('Élève existant (eleveId) ou nouveau (eleve) requis');
+    }
+    if (!req.body.eleveId && req.body.eleve) {
+      const e = req.body.eleve;
+      if (!e.matricule?.trim() || !e.nom?.trim() || !e.prenom?.trim() || !e.dateNaissance || !['M', 'F'].includes(e.sexe)) {
+        throw new Error('Matricule, nom, prénom, date de naissance et sexe requis pour un nouvel élève');
+      }
+      const errAge = messageErreurDateNaissance(e.dateNaissance);
+      if (errAge) throw new Error(errAge);
+    }
+    return true;
+  }),
   handleValidationErrors
 ];
 
@@ -149,7 +177,7 @@ export const paiementValidator = [
 export const emploiDuTempsValidator = [
   body('classeId').isUUID().withMessage('ID classe invalide'),
   body('matiereId').isUUID().withMessage('ID matière invalide'),
-  body('enseignantId').isUUID().withMessage('ID enseignant invalide'),
+  body('enseignantId').optional({ values: 'falsy' }).isUUID().withMessage('ID enseignant invalide'),
   body('jourSemaine').isInt({ min: 1, max: 7 }).withMessage('Jour de semaine invalide (1-7)'),
   body('heureDebut').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Format heure début invalide (HH:MM)'),
   body('heureFin').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Format heure fin invalide (HH:MM)'),

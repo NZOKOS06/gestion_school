@@ -50,6 +50,23 @@ router.post('/generate',
   ctrl.generate
 );
 
+router.get('/stats',
+  authenticate,
+  requireRole(...staffRoles),
+  requireTenantMatch,
+  requireModule('bulletins'),
+  ctrl.getStats
+);
+
+router.get('/:id/pdf',
+  authenticate,
+  requireRole(...staffRoles),
+  requireTenantMatch,
+  requireModule('bulletins'),
+  idParamValidator,
+  ctrl.downloadPdf
+);
+
 router.get('/:id',
   authenticate,
   requireRole(...staffRoles),

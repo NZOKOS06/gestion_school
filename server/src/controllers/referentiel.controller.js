@@ -94,15 +94,22 @@ export const listFilieres = async (req, res) => {
 
 export const listPeriodes = async (req, res) => {
   try {
-    const { anneeScolaireId } = req.query;
+    const { anneeScolaireId, cycle } = req.query;
     if (!anneeScolaireId) {
       return res.status(400).json({ error: 'anneeScolaireId requis' });
     }
 
-    const periodes = await prisma.periodeScolaire.findMany({
+    let periodes = await prisma.periodeScolaire.findMany({
       where: { tenantId: req.tenantId, anneeScolaireId },
       orderBy: { index: 'asc' },
     });
+    if (cycle) {
+      periodes = periodes.filter((p) => {
+        const cycles = p.concerneCycles;
+        if (!cycles || (Array.isArray(cycles) && cycles.length === 0)) return true;
+        return Array.isArray(cycles) && cycles.includes(cycle);
+      });
+    }
     res.json({ data: periodes });
   } catch (error) {
     log.error({ err: error }, 'listPeriodes');
@@ -115,7 +122,7 @@ export const upsertPeriode = async (req, res) => {
     const tenantId = req.tenantId;
     const {
       anneeScolaireId, index, libelle, dateDebut, dateFin,
-      dateEvaluationDebut, dateEvaluationFin, poids,
+      dateEvaluationDebut, dateEvaluationFin, poids, concerneCycles,
     } = req.body;
     const id = req.params.id || req.body.id;
 
@@ -133,7 +140,11 @@ export const upsertPeriode = async (req, res) => {
       dateEvaluationDebut: dateEvaluationDebut ? new Date(dateEvaluationDebut) : null,
       dateEvaluationFin: dateEvaluationFin ? new Date(dateEvaluationFin) : null,
       poids: poids != null ? parseFloat(poids) : null,
+      concerneCycles: concerneCycles === undefined
+        ? undefined
+        : (Array.isArray(concerneCycles) && concerneCycles.length ? concerneCycles : null),
     };
+    if (data.concerneCycles === undefined) delete data.concerneCycles;
 
     let periode;
     if (id) {

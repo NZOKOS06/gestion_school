@@ -121,58 +121,60 @@ const Dashboard = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {cycleData.length > 0 && (
-          <Card title="Répartition par cycle">
-            <div style={{ height: 240 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={cycleData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label={({ name, value }) => `${name}: ${value}`}
-                  >
-                    {cycleData.map((entry, i) => (
-                      <Cell key={i} fill={CYCLE_COLORS[i % CYCLE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        )}
+      {(cycleData.length > 0 || evolution.length > 0) && (
+        <div className={`grid grid-cols-1 gap-6 ${cycleData.length > 0 && evolution.length > 0 ? 'lg:grid-cols-2' : ''}`}>
+          {cycleData.length > 0 && (
+            <Card title="Répartition par cycle" className={evolution.length === 0 ? 'lg:col-span-1' : ''}>
+              <div style={{ height: 240 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={cycleData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label={({ name, value }) => `${name}: ${value}`}
+                    >
+                      {cycleData.map((entry, i) => (
+                        <Cell key={i} fill={CYCLE_COLORS[i % CYCLE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          )}
 
-        {evolution.length > 0 && (
-          <Card title="Évolution des paiements — 30 derniers jours">
-            <div style={{ height: 240 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={evolution}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
-                  <XAxis dataKey="mois" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={60} />
-                  <Tooltip
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload?.length) return null;
-                      return (
-                        <div className="rounded-lg px-3 py-2 text-xs shadow-lg" style={{ background: 'var(--surface-raised)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
-                          <p className="font-medium mb-1">{label}</p>
-                          <p style={{ color: 'var(--color-primary)' }}>{formatPrice(payload[0].value)}</p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="montant" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        )}
-      </div>
+          {evolution.length > 0 && (
+            <Card title="Évolution des paiements — 30 derniers jours">
+              <div style={{ height: cycleData.length === 0 ? 280 : 240 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={evolution}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                    <XAxis dataKey="mois" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={60} />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        return (
+                          <div className="rounded-lg px-3 py-2 text-xs shadow-lg" style={{ background: 'var(--surface-raised)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
+                            <p className="font-medium mb-1">{label}</p>
+                            <p style={{ color: 'var(--color-primary)' }}>{formatPrice(payload[0].value)}</p>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="montant" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card title="5 dernières absences non justifiées">

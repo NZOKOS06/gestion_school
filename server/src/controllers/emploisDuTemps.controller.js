@@ -37,6 +37,28 @@ export const create = async (req, res) => {
     const tenantId = req.tenantId;
     const { classeId, matiereId, enseignantId, jourSemaine, heureDebut, heureFin, salle, salleId } = req.body;
 
+    if (!classeId || !matiereId) {
+      return res.status(400).json({ error: 'classeId et matiereId requis' });
+    }
+
+    // Primaire / préscolaire : enseignant optionnel → affectation matière, sinon titulaire de classe
+    let resolvedEnseignantId = enseignantId || null;
+    if (!resolvedEnseignantId) {
+      const exact = await prisma.enseignantClasse.findFirst({
+        where: { tenantId, classeId, matiereId },
+      });
+      const anyForClasse = exact || await prisma.enseignantClasse.findFirst({
+        where: { tenantId, classeId },
+      });
+      resolvedEnseignantId = anyForClasse?.enseignantId || null;
+    }
+
+    if (!resolvedEnseignantId) {
+      return res.status(400).json({
+        error: 'Aucun enseignant fourni ni assigné à cette classe — assignez un titulaire ou sélectionnez un enseignant',
+      });
+    }
+
     const conflit = await prisma.emploiDuTemps.findFirst({
       where: {
         tenantId,
@@ -58,7 +80,7 @@ export const create = async (req, res) => {
         tenantId,
         classeId,
         matiereId,
-        enseignantId,
+        enseignantId: resolvedEnseignantId,
         jourSemaine: parseInt(jourSemaine),
         heureDebut,
         heureFin,

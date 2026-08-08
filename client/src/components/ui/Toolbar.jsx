@@ -6,7 +6,7 @@ const Toolbar = ({ children, className = '' }) => (
 
 const FilterBar = ({ children, className = '' }) => (
   <div
-    className={`flex flex-wrap items-center gap-2 mb-4 p-3 rounded-lg ${className}`}
+    className={`flex flex-nowrap items-center gap-2 mb-4 p-3 rounded-lg overflow-x-auto ${className}`}
     style={{
       background: 'var(--surface-overlay)',
       border: '1px solid var(--border-subtle)',

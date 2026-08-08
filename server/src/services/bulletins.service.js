@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { prisma } from '../utils/prisma.js';
+import { resolveCoefficient } from './matieresProgramme.service.js';
 
 const MENTION_THRESHOLDS = [
   { min: 16, mention: 'felicitations' },
@@ -67,7 +68,11 @@ export async function computeEleveBulletin(tenantId, { eleveId, classeId, anneeS
 
   for (const entry of matieresMap.values()) {
     const moyenne = entry.coefSum > 0 ? entry.weightedSum / entry.coefSum : 0;
-    const coef = Number(entry.matiere.coefficient) || 1;
+    const coef = await resolveCoefficient(tenantId, {
+      classeId,
+      matiereId: entry.matiere.id,
+      anneeScolaireId,
+    });
     totalPoints += moyenne * coef;
     totalCoef += coef;
     detailsMatieres.push({

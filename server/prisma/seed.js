@@ -343,6 +343,7 @@ async function main() {
         dateEvaluationDebut: p.dateEvaluationDebut ? new Date(p.dateEvaluationDebut) : null,
         dateEvaluationFin: p.dateEvaluationFin ? new Date(p.dateEvaluationFin) : null,
         poids: p.poids,
+        concerneCycles: p.concerneCycles || null,
       },
       create: {
         tenantId: demoTenant.id,
@@ -354,6 +355,7 @@ async function main() {
         dateEvaluationDebut: p.dateEvaluationDebut ? new Date(p.dateEvaluationDebut) : null,
         dateEvaluationFin: p.dateEvaluationFin ? new Date(p.dateEvaluationFin) : null,
         poids: p.poids,
+        concerneCycles: p.concerneCycles || null,
       },
     });
   }
@@ -517,10 +519,18 @@ async function main() {
   // ==================== ENSEIGNANT-CLASSE-MATIERE ====================
   const enseignant = staffMap.enseignantTitulaire || staffMap['enseignant@demo.cg'];
   const ecLinks = [
+    { classe: 'GS A', matiere: 'MATH' },
+    { classe: 'GS A', matiere: 'FR' },
+    { classe: 'CM2 A', matiere: 'MATH' },
+    { classe: 'CM2 A', matiere: 'FR' },
     { classe: '6ème A', matiere: 'MATH' },
     { classe: '6ème A', matiere: 'FR' },
     { classe: '5ème B', matiere: 'MATH' },
     { classe: '5ème B', matiere: 'HIST-GEO' },
+    { classe: '3ème A', matiere: 'MATH' },
+    { classe: '3ème A', matiere: 'FR' },
+    { classe: '2nde A', matiere: 'MATH' },
+    { classe: '2nde A', matiere: 'FR' },
     { classe: 'Terminale S1', matiere: 'PHY' },
     { classe: 'Terminale S1', matiere: 'SVT' },
   ];
@@ -539,6 +549,45 @@ async function main() {
     }
   }
   console.log(`✓ ${ecLinks.length} associations enseignant-classe-matière créées`);
+
+  // ==================== PROGRAMME MATIÈRES PAR NIVEAU ====================
+  const programmesNiveau = [
+    { niveau: 'GS', items: [{ code: 'FR', coef: 3 }, { code: 'MATH', coef: 2 }] },
+    { niveau: 'CM2', items: [{ code: 'FR', coef: 4 }, { code: 'MATH', coef: 4 }, { code: 'HIST-GEO', coef: 2 }] },
+    { niveau: '6e', items: [{ code: 'FR', coef: 3 }, { code: 'MATH', coef: 3 }, { code: 'ANG', coef: 2 }, { code: 'HIST-GEO', coef: 2 }] },
+    { niveau: '3e', items: [{ code: 'FR', coef: 3 }, { code: 'MATH', coef: 3 }, { code: 'PHY', coef: 2 }, { code: 'SVT', coef: 2 }] },
+    { niveau: '2nde', items: [{ code: 'FR', coef: 3 }, { code: 'MATH', coef: 4 }, { code: 'PHY', coef: 3 }, { code: 'ANG', coef: 2 }] },
+    { niveau: 'Tle', items: [{ code: 'MATH', coef: 5 }, { code: 'PHY', coef: 4 }, { code: 'SVT', coef: 3 }, { code: 'FR', coef: 2 }] },
+  ];
+  let progCount = 0;
+  for (const prog of programmesNiveau) {
+    const niveau = niveauxMap[prog.niveau];
+    if (!niveau) continue;
+    for (const item of prog.items) {
+      const matiere = matieresMap[item.code];
+      if (!matiere) continue;
+      await prisma.matiereNiveauAnnee.upsert({
+        where: {
+          anneeScolaireId_niveauOfficielId_matiereId: {
+            anneeScolaireId: anneeScolaire.id,
+            niveauOfficielId: niveau.id,
+            matiereId: matiere.id,
+          },
+        },
+        update: { coefficient: item.coef, actif: true },
+        create: {
+          tenantId: demoTenant.id,
+          anneeScolaireId: anneeScolaire.id,
+          niveauOfficielId: niveau.id,
+          matiereId: matiere.id,
+          coefficient: item.coef,
+          actif: true,
+        },
+      });
+      progCount++;
+    }
+  }
+  console.log(`✓ ${progCount} entrées programme matière/niveau/année`);
 
   // ==================== ÉCHÉANCES ====================
   const echeancesData = [

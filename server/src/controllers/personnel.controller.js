@@ -76,8 +76,23 @@ export const getEnseignants = async (req, res) => {
     const tenantId = req.tenantId;
 
     const enseignants = await prisma.staff.findMany({
-      where: { tenantId, role: 'enseignant', actif: true },
-      select: { id: true, nom: true, prenom: true, telephone: true }
+      where: { tenantId, role: 'enseignant' },
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        telephone: true,
+        actif: true,
+        typeContrat: true,
+        enseignantClasses: {
+          include: {
+            classe: { select: { id: true, nom: true, cycle: true, niveau: true } },
+            matiere: { select: { id: true, nom: true, code: true } },
+          },
+        },
+      },
+      orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
     });
 
     res.json(enseignants);

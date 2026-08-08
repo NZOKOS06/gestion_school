@@ -21,15 +21,16 @@ export const getAll = async (req, res) => {
     if (anneeScolaireId) where.anneeScolaireId = anneeScolaireId;
     if (cycle) where.cycle = cycle;
 
-    const orderBy = {};
-    orderBy[sortBy] = order;
+    const orderBy = sortBy === 'nom'
+      ? [{ niveauOfficiel: { ordre: 'asc' } }, { nom: 'asc' }]
+      : { [sortBy]: order };
 
     const [rows, total] = await Promise.all([
       prisma.classe.findMany({
         where: { tenantId, ...where },
         include: {
           anneeScolaire: { select: { id: true, libelle: true, actif: true } },
-          niveauOfficiel: { select: { id: true, code: true, libelle: true, cycle: true } },
+          niveauOfficiel: { select: { id: true, code: true, libelle: true, cycle: true, ordre: true } },
           filiereOfficielle: { select: { id: true, code: true, libelle: true } },
           _count: {
             select: {
@@ -51,6 +52,7 @@ export const getAll = async (req, res) => {
         ...r,
         effectif: r._count.inscriptions,
         nbEnseignants: r._count.enseignants,
+        nbAffectations: r._count.enseignants,
         nbMatieres: r._count.enseignants,
       })),
       pagination: {

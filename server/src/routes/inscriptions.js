@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireRole, requireTenantMatch } from '../middleware/authMiddleware.js';
 import { requireModule } from '../middleware/tenantMiddleware.js';
-import { inscriptionValidator, paginationValidator, idParamValidator } from '../utils/validators.js';
+import { inscriptionValidator, inscriptionAvecEleveValidator, paginationValidator, idParamValidator } from '../utils/validators.js';
 import * as ctrl from '../controllers/inscriptions.controller.js';
 
 const router = Router();
@@ -13,6 +13,15 @@ router.get('/',
   requireModule('inscriptions'),
   paginationValidator,
   ctrl.getAll
+);
+
+router.post('/avec-eleve',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes', 'secretaire'),
+  requireTenantMatch,
+  requireModule('inscriptions'),
+  inscriptionAvecEleveValidator,
+  ctrl.createAvecEleve
 );
 
 router.get('/:id',

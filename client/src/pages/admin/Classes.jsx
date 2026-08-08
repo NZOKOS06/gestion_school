@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { PageHeader, Badge, Button, Modal, Input, Select, FormField, SegmentedControl, EmptyState, Skeleton, DataTable } from '../../components/ui';
-import { School, Plus, Users, BookOpen } from 'lucide-react';
+import { School, Plus, Users, BookOpen, Printer, BarChart3 } from 'lucide-react';
 
 const CYCLES = ['prescolaire', 'primaire', 'college', 'lycee'];
 const CYCLE_LABELS = { prescolaire: 'Préscolaire', primaire: 'Primaire', college: 'Collège', lycee: 'Lycée' };
@@ -10,6 +11,7 @@ const CYCLE_LABELS = { prescolaire: 'Préscolaire', primaire: 'Primaire', colleg
 const Classes = () => {
   const { get, post } = useAxios();
   const { formatPrice } = useTenant();
+  const navigate = useNavigate();
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterCycle, setFilterCycle] = useState('');
@@ -21,6 +23,31 @@ const Classes = () => {
   const [form, setForm] = useState({
     nom: '', niveauOfficielId: '', filiereOfficielleId: '', capacite: 40, fraisScolarite: 0,
   });
+
+  const printClasseListe = () => {
+    if (!detail) return;
+    const rows = detail.inscriptions || detail.eleves || [];
+    const body = rows.map((r, i) => {
+      const mat = r.eleve?.matricule || r.matricule || '';
+      const nom = r.eleve ? `${r.eleve.prenom} ${r.eleve.nom}` : `${r.prenom || ''} ${r.nom || ''}`;
+      return `<tr><td>${i + 1}</td><td>${mat}</td><td>${nom}</td></tr>`;
+    }).join('');
+    const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>Liste ${detail.nom}</title>
+      <style>
+        body{font-family:system-ui,sans-serif;padding:24px;color:#111}
+        h1{font-size:18px;margin:0 0 4px}.meta{font-size:12px;color:#555;margin-bottom:16px}
+        table{width:100%;border-collapse:collapse;font-size:12px}
+        th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f5f5f5}
+      </style></head><body>
+      <h1>Liste de classe — ${detail.nom}</h1>
+      <p class="meta">${detail.anneeScolaire?.libelle || ''} · ${rows.length} élève(s) · ${new Date().toLocaleDateString('fr-FR')}</p>
+      <table><thead><tr><th>#</th><th>Matricule</th><th>Nom</th></tr></thead><tbody>${body || '<tr><td colspan="3">Aucun élève</td></tr>'}</tbody></table>
+      <script>window.onload=function(){window.print();}</script>
+      </body></html>`);
+    w.document.close();
+  };
 
   const fetchClasses = useCallback(async () => {
     setLoading(true);
@@ -131,7 +158,7 @@ const Classes = () => {
               </div>
               <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
                 <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {classe.effectif || 0}/{classe.capacite}</span>
-                <span className="flex items-center gap-1"><BookOpen className="h-3.5 w-3.5" /> {classe.nbMatieres || 0} matières</span>
+                <span className="flex items-center gap-1"><BookOpen className="h-3.5 w-3.5" /> {classe.nbAffectations ?? classe.nbMatieres ?? 0} affectations</span>
                 <span>{formatPrice(classe.fraisScolarite || 0)}</span>
               </div>
             </div>
@@ -193,9 +220,48 @@ const Classes = () => {
         title={detail?.nom || 'Détail classe'}
         subtitle={detail?.anneeScolaire?.libelle}
         size="xl"
+        footer={detail ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" icon={Printer} onClick={printClasseListe}>Imprimer la liste</Button>
+            <Button
+              variant="secondary"
+              icon={BarChart3}
+              onClick={() => {
+                const qs = new URLSearchParams();
+                if (detail.id) qs.set('classeId', detail.id);
+                if (detail.anneeScolaireId || detail.anneeScolaire?.id) {
+                  qs.set('anneeScolaireId', detail.anneeScolaireId || detail.anneeScolaire.id);
+                }
+                navigate(`/admin/bulletins?${qs.toString()}`);
+              }}
+            >
+              Moyennes / Bulletins
+            </Button>
+            <Button variant="ghost" onClick={() => setDetail(null)}>Fermer</Button>
+          </div>
+        ) : null}
       >
         {detail && (
           <div className="space-y-6">
+            {(detail.enseignants?.length > 0) && (
+              <div>
+                <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                  Affectations ({detail.enseignants.length})
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {detail.enseignants.map((a) => (
+                    <span
+                      key={a.id}
+                      className="text-xs px-2 py-1 rounded-md"
+                      style={{ background: 'var(--surface-overlay)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
+                    >
+                      {a.matiere?.nom || a.matiere?.code || 'Matière'}
+                      {a.enseignant ? ` · ${a.enseignant.prenom} ${a.enseignant.nom}` : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
                 Élèves inscrits ({detail.inscriptions?.length || detail.eleves?.length || 0})

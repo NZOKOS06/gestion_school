@@ -61,6 +61,8 @@ model Tenant {
   examenSessions    ExamenSession[]
   examenCandidatures ExamenCandidature[]
   resultatsExamens  ResultatExamen[]
+  matieresNiveauAnnee MatiereNiveauAnnee[]
+  matieresClasseAnnee MatiereClasseAnnee[]
 
   @@index([slug])
 }
@@ -305,6 +307,7 @@ model AnneeScolaire {
   conseils     ConseilDeClasse[]
   periodes     PeriodeScolaire[]
   examenSessions ExamenSession[]
+  matieresNiveauAnnee MatiereNiveauAnnee[]
 
   @@unique([tenantId, libelle])
   @@index([tenantId])
@@ -347,6 +350,7 @@ model NiveauOfficiel {
   referentielVersion   ReferentielVersion @relation(fields: [referentielVersionId], references: [id], onDelete: Cascade)
   classes              Classe[]
   inscriptionsCible    Inscription[]      @relation("InscriptionNiveauCible")
+  matieresNiveauAnnee  MatiereNiveauAnnee[]
 
   @@unique([referentielVersionId, code])
   @@index([tenantId])
@@ -375,13 +379,15 @@ model PeriodeScolaire {
   id                   String   @id @default(uuid())
   tenantId             String
   anneeScolaireId      String
-  index                Int // 1, 2, 3
-  libelle              String // 1er trimestre
+  index                Int // 1, 2, 3 (trimestres) ou 10+ (mois)
+  libelle              String // 1er trimestre / Octobre
   dateDebut            DateTime
   dateFin              DateTime
   dateEvaluationDebut  DateTime?
   dateEvaluationFin    DateTime?
   poids                Decimal? @db.Decimal(5, 2)
+  /// null = tous les cycles ; sinon ex. ["prescolaire","primaire"]
+  concerneCycles       Json?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -417,6 +423,7 @@ model Classe {
   enseignants    EnseignantClasse[]
   evaluations    Evaluation[]
   emploisDuTemps EmploiDuTemps[]
+  matieresClasseAnnee MatiereClasseAnnee[]
   bulletins      Bulletin[]
   cahierDeTextes CahierDeTextes[]
   conseils       ConseilDeClasse[]
@@ -448,9 +455,54 @@ model Matiere {
   enseignantClasses EnseignantClasse[]
   cahierDeTextes  CahierDeTextes[]
   heuresEnseignees HeureEnseignee[]
+  matieresNiveauAnnee MatiereNiveauAnnee[]
+  matieresClasseAnnee MatiereClasseAnnee[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
+}
+
+/// Programme matière par niveau officiel + année (coef de référence)
+model MatiereNiveauAnnee {
+  id                String  @id @default(uuid())
+  tenantId          String
+  anneeScolaireId   String
+  niveauOfficielId  String
+  matiereId         String
+  coefficient       Int     @default(1)
+  actif             Boolean @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant           Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  anneeScolaire    AnneeScolaire   @relation(fields: [anneeScolaireId], references: [id], onDelete: Cascade)
+  niveauOfficiel   NiveauOfficiel  @relation(fields: [niveauOfficielId], references: [id], onDelete: Cascade)
+  matiere          Matiere         @relation(fields: [matiereId], references: [id], onDelete: Cascade)
+
+  @@unique([anneeScolaireId, niveauOfficielId, matiereId])
+  @@index([tenantId])
+  @@index([anneeScolaireId])
+  @@index([niveauOfficielId])
+}
+
+/// Surcharge / ajout matière pour une classe concrète (année portée par la classe)
+model MatiereClasseAnnee {
+  id           String  @id @default(uuid())
+  tenantId     String
+  classeId     String
+  matiereId    String
+  coefficient  Int?
+  actif        Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  classe  Classe  @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  matiere Matiere @relation(fields: [matiereId], references: [id], onDelete: Cascade)
+
+  @@unique([classeId, matiereId])
+  @@index([tenantId])
+  @@index([classeId])
 }
 
 model Eleve {

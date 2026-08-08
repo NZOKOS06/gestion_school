@@ -1,59 +1,91 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
-import { PageHeader, Button, Modal, Badge } from '../../components/ui';
-import { CalendarDays, Plus, AlertCircle } from 'lucide-react';
+import { PageHeader, Button, Modal } from '../../components/ui';
+import { Plus, AlertCircle } from 'lucide-react';
 
-const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const HEURES = Array.from({ length: 12 }, (_, i) => i + 7); // 7h → 18h
+
+const normalizeCreneau = (c) => {
+  const matiereNom = c.matiereNom || c.matiere?.nom || c.matiere?.code || '';
+  const enseignantNom = c.enseignantNom
+    || (c.enseignant ? `${c.enseignant.prenom || ''} ${c.enseignant.nom || ''}`.trim() : '');
+  const salleNom = c.salleRef?.nom || c.salle || '';
+  return { ...c, matiereNom, enseignantNom, salleNom };
+};
 
 const EmploiDuTemps = () => {
   const { get, post, delete: del } = useAxios();
   const [classes, setClasses] = useState([]);
   const [selectedClasse, setSelectedClasse] = useState('');
   const [creneaux, setCreneaux] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [matieres, setMatieres] = useState([]);
   const [staff, setStaff] = useState([]);
-  const [form, setForm] = useState({ jourSemaine: 1, heureDebut: '08:00', heureFin: '10:00', matiereId: '', enseignantId: '', salle: '' });
+  const [salles, setSalles] = useState([]);
+  const [form, setForm] = useState({
+    jourSemaine: 1,
+    heureDebut: '08:00',
+    heureFin: '10:00',
+    matiereId: '',
+    enseignantId: '',
+    salleId: '',
+  });
   const [conflict, setConflict] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await get('/api/classes', { silent: true });
+        const res = await get('/api/classes?limit=200', { silent: true });
         const data = res?.data || res || [];
         setClasses(data);
         if (data.length > 0) setSelectedClasse(data[0].id);
       } catch { /* silent */ }
     })();
-  }, []);
+  }, [get]);
+
+  const selectedClasseObj = useMemo(
+    () => classes.find((c) => c.id === selectedClasse),
+    [classes, selectedClasse]
+  );
+  const showEnseignant = !['prescolaire', 'primaire'].includes(selectedClasseObj?.cycle);
 
   const fetchCreneaux = useCallback(async () => {
     if (!selectedClasse) return;
-    setLoading(true);
     try {
       const res = await get(`/api/emplois-du-temps?classeId=${selectedClasse}`);
-      setCreneaux(res?.data || res || []);
+      const rows = (res?.data || res || []).map(normalizeCreneau);
+      setCreneaux(rows);
     } catch { /* silent */ }
-    setLoading(false);
-  }, [selectedClasse]);
+  }, [selectedClasse, get]);
 
   useEffect(() => { fetchCreneaux(); }, [fetchCreneaux]);
 
   const openCreate = async () => {
     try {
-      const [m, s] = await Promise.all([
+      const [m, s, sa] = await Promise.all([
         get('/api/matieres', { silent: true }),
-        get('/api/staff?role=enseignant', { silent: true }),
+        get('/api/staff/enseignants', { silent: true }),
+        get('/api/salles', { silent: true }),
       ]);
       setMatieres(m?.data || m || []);
-      setStaff(s?.data || s || []);
+      const staffList = Array.isArray(s) ? s : (s?.staff || s?.data || []);
+      setStaff(staffList.filter((x) => x.actif !== false));
+      setSalles(sa?.data || sa || []);
     } catch { /* silent */ }
+    setForm({
+      jourSemaine: 1,
+      heureDebut: '08:00',
+      heureFin: '10:00',
+      matiereId: '',
+      enseignantId: '',
+      salleId: '',
+    });
     setCreateOpen(true);
   };
 
   const checkConflict = (jour, hd, hf, enseignantId) => {
+    if (!enseignantId) return false;
     return creneaux.some((c) =>
       c.jourSemaine === jour &&
       c.enseignantId === enseignantId &&
@@ -61,15 +93,29 @@ const EmploiDuTemps = () => {
     );
   };
 
+  const isPrimaryCycle = ['prescolaire', 'primaire'].includes(selectedClasseObj?.cycle);
+
   const handleCreate = async () => {
-    const jour = parseInt(form.jourSemaine);
+    const jour = parseInt(form.jourSemaine, 10);
+    if (!form.matiereId) return;
+    if (!isPrimaryCycle && !form.enseignantId) return;
     const hasConflict = checkConflict(jour, form.heureDebut, form.heureFin, form.enseignantId);
     setConflict(hasConflict);
     if (hasConflict) return;
     try {
-      await post('/api/emplois-du-temps', { ...form, classeId: selectedClasse, jourSemaine: jour });
+      const salle = salles.find((x) => x.id === form.salleId);
+      await post('/api/emplois-du-temps', {
+        classeId: selectedClasse,
+        jourSemaine: jour,
+        heureDebut: form.heureDebut,
+        heureFin: form.heureFin,
+        matiereId: form.matiereId,
+        enseignantId: form.enseignantId || null,
+        salleId: form.salleId || null,
+        salle: salle?.nom || null,
+      });
       setCreateOpen(false);
-      setForm({ jourSemaine: 1, heureDebut: '08:00', heureFin: '10:00', matiereId: '', enseignantId: '', salle: '' });
+      setConflict(false);
       fetchCreneaux();
     } catch { /* silent */ }
   };
@@ -84,8 +130,8 @@ const EmploiDuTemps = () => {
   const getCreneau = (jour, heure) => {
     return creneaux.find((c) => {
       if (c.jourSemaine !== jour) return false;
-      const cDebut = parseInt(c.heureDebut.split(':')[0]);
-      const cFin = parseInt(c.heureFin.split(':')[0]);
+      const cDebut = parseInt(c.heureDebut.split(':')[0], 10);
+      const cFin = parseInt(c.heureFin.split(':')[0], 10);
       return heure >= cDebut && heure < cFin;
     });
   };
@@ -124,12 +170,12 @@ const EmploiDuTemps = () => {
       />
 
       <div className="overflow-x-auto rounded-lg" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
-        <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+        <table className="w-full" style={{ borderCollapse: 'collapse', minWidth: 720 }}>
           <thead>
             <tr style={{ borderBottom: '2px solid var(--border-subtle)' }}>
               <th className="text-left py-3 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', width: 60 }}>Heure</th>
               {JOURS.map((jour, i) => (
-                <th key={jour} className="text-center py-3 px-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', ...i < JOURS.length - 1 && { borderRight: '1px solid var(--border-subtle)' } }}>
+                <th key={jour} className="text-center py-3 px-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', ...(i < JOURS.length - 1 ? { borderRight: '1px solid var(--border-subtle)' } : {}) }}>
                   {jour}
                 </th>
               ))}
@@ -144,7 +190,7 @@ const EmploiDuTemps = () => {
                 {JOURS.map((_, jourIndex) => {
                   const jourNum = jourIndex + 1;
                   const creneau = getCreneau(jourNum, heure);
-                  const isStart = creneau && parseInt(creneau.heureDebut.split(':')[0]) === heure;
+                  const isStart = creneau && parseInt(creneau.heureDebut.split(':')[0], 10) === heure;
                   return (
                     <td key={jourIndex} style={cellStyle}>
                       {creneau && isStart ? (
@@ -152,10 +198,13 @@ const EmploiDuTemps = () => {
                           className="rounded-lg p-2 text-xs cursor-pointer group"
                           style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)' }}
                           onClick={() => handleDelete(creneau.id)}
+                          title="Cliquer pour supprimer"
                         >
-                          <p className="font-semibold" style={{ color: 'var(--color-primary)' }}>{creneau.matiereNom}</p>
-                          <p style={{ color: 'var(--text-secondary)' }}>{creneau.enseignantNom}</p>
-                          {creneau.salle && <p style={{ color: 'var(--text-muted)' }}>Salle {creneau.salle}</p>}
+                          <p className="font-semibold" style={{ color: 'var(--color-primary)' }}>{creneau.matiereNom || '—'}</p>
+                          {showEnseignant && creneau.enseignantNom && (
+                            <p style={{ color: 'var(--text-secondary)' }}>{creneau.enseignantNom}</p>
+                          )}
+                          {creneau.salleNom && <p style={{ color: 'var(--text-muted)' }}>Salle {creneau.salleNom}</p>}
                           <p className="text-[10px] mt-1 opacity-0 group-hover:opacity-100" style={{ color: 'var(--color-danger)' }}>Cliquer pour supprimer</p>
                         </div>
                       ) : creneau ? (
@@ -178,7 +227,12 @@ const EmploiDuTemps = () => {
         footer={
           <>
             <Button variant="secondary" onClick={() => { setCreateOpen(false); setConflict(false); }}>Annuler</Button>
-            <Button onClick={handleCreate}>Ajouter</Button>
+            <Button
+              onClick={handleCreate}
+              disabled={!form.matiereId || (!isPrimaryCycle && !form.enseignantId)}
+            >
+              Ajouter
+            </Button>
           </>
         }
       >
@@ -189,16 +243,26 @@ const EmploiDuTemps = () => {
               <span className="text-sm" style={{ color: 'var(--color-danger)' }}>Conflit détecté : cet enseignant a déjà un cours à ce créneau</span>
             </div>
           )}
+          {isPrimaryCycle && (
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Cycle primaire / préscolaire : la matière suffit. Salle et enseignant sont optionnels — sans sélection, le titulaire assigné à la classe est utilisé.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Jour</label>
               <select style={inputStyle} value={form.jourSemaine} onChange={(e) => setForm({ ...form, jourSemaine: e.target.value })}>
-                {JOURS.map((j, i) => <option key={i} value={i + 1}>{j}</option>)}
+                {JOURS.map((j, i) => <option key={j} value={i + 1}>{j}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Salle</label>
-              <input style={inputStyle} value={form.salle} onChange={(e) => setForm({ ...form, salle: e.target.value })} placeholder="ex: A12" />
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                Salle{isPrimaryCycle ? ' (optionnel)' : ''}
+              </label>
+              <select style={inputStyle} value={form.salleId} onChange={(e) => setForm({ ...form, salleId: e.target.value })}>
+                <option value="">— Aucune —</option>
+                {salles.map((s) => <option key={s.id} value={s.id}>{s.nom}{s.batiment ? ` (${s.batiment})` : ''}</option>)}
+              </select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -219,9 +283,11 @@ const EmploiDuTemps = () => {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Enseignant</label>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Enseignant{isPrimaryCycle ? ' (optionnel — titulaire de classe sinon)' : ''}
+            </label>
             <select style={inputStyle} value={form.enseignantId} onChange={(e) => setForm({ ...form, enseignantId: e.target.value })}>
-              <option value="">Sélectionner</option>
+              <option value="">{isPrimaryCycle ? '— Auto (titulaire classe) —' : 'Sélectionner'}</option>
               {staff.map((s) => <option key={s.id} value={s.id}>{s.prenom} {s.nom}</option>)}
             </select>
           </div>

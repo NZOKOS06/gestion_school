@@ -31,6 +31,55 @@
 
 ---
 
+## Règles métier (inscription d’abord)
+
+> **L’inscription est l’acte fondateur.** Elle lie un élève à une classe et une année scolaire, crée le dossier financier (solde + échéances) et, une fois **validée**, ouvre la vie scolaire (effectif, absences, notes, bulletins).
+
+### Cycle de vie
+
+| Étape | Statut | Effets |
+|-------|--------|--------|
+| Nouvelle inscription | `en_attente` | Fiche élève (créée ou réutilisée) + inscription + échéances (frais d’inscription + 3 tranches) |
+| Validation | `validee` | Élève **scolarisé** : compte dans l’effectif, notes, bulletins, certificats |
+| Suspension / annulation | `suspendue` / `annulee` | Hors vie scolaire active |
+| Fin d’année | décision sur l’inscription | Passage / redoublement / orientation / exclusion ; peut générer l’inscription N+1 **avec les mêmes règles de frais** |
+
+Endpoint unifié : `POST /api/inscriptions/avec-eleve` (nouvel élève **ou** élève existant + classe + année).  
+Validation : `PUT /api/inscriptions/:id/validate`.
+
+### Modules (dépendances)
+
+- **Élèves** : annuaire d’identité ; badge « Non inscrit » / « Scolarisé » ; CTA Inscrire.
+- **Inscriptions** : hub scolarisation + solde + décision fin d’année (directeur / DE).
+- **Paiements** : toujours rattachés à une `inscriptionId`.
+- **Bulletins / appel / effectif** : inscriptions `validee` uniquement.
+- **Conseil de classe** : ne pousse pas automatiquement la décision fin d’année.
+
+### Rôles (résumé)
+
+| Rôle | Pédagogie | Finance |
+|------|-----------|---------|
+| Directeur | Tout + publication bulletins | Oui |
+| Directeur des études | Classes, notes, calcul bulletins, fin d’année | Non |
+| Secrétaire | Inscriptions, vie scolaire | API partielle |
+| Gestionnaire (`comptable`) | Non | Caisse |
+| Surveillant | Absences / sanctions | Non |
+| Enseignant / Parent | Portails dédiés | Parent : voir / payer |
+
+Référentiel Congo : niveaux PS→Tle, périodes par année, examens nationaux (CEPE / BEPC / BAC) — versionnés (`cg_actuel`, stub `cg_reforme_2026`).
+
+### Règles de saisie
+
+- **Date de naissance** : pas de date future ; âge entre **2 et 25 ans** (API + formulaires Élèves / Inscriptions).
+- **Parent** : recommandé à l’inscription (`GET /api/parents`) ; sans lien, portail famille et relances indisponibles.
+- **Filtres élèves** : `cycle`, `sexe`, `inscription` (sans / en_attente / validée) appliqués côté API via l’inscription de l’année active.
+- **Solde** : lu sur l’inscription (année active), pas sur la fiche élève.
+- **Classe « en attente »** : affichée tant que l’inscription n’est pas validée ; l’effectif ne compte que les `validee`.
+- **EDT** : liste enseignants via `GET /api/staff/enseignants` (accessible aussi au directeur des études).
+- **Année scolaire** : bascule manuelle (pas de changement automatique en août).
+
+---
+
 ## Documentation API
 
 La documentation interactive de l'API est disponible sur **http://localhost:3000/api/docs** (Swagger UI).

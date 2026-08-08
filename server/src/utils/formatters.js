@@ -67,6 +67,19 @@ export const calculerAge = (dateNaissance) => {
   return age;
 };
 
+/** Rejette date future et âge hors plage scolaire (2–25 ans). Retourne message ou null. */
+export const messageErreurDateNaissance = (dateNaissance) => {
+  if (!dateNaissance) return 'Date de naissance requise';
+  const birth = new Date(dateNaissance);
+  if (Number.isNaN(birth.getTime())) return 'Date de naissance invalide';
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  if (birth > today) return 'La date de naissance ne peut pas être dans le futur';
+  const age = calculerAge(birth);
+  if (age < 2 || age > 25) return "L'âge de l'élève doit être compris entre 2 et 25 ans";
+  return null;
+};
+
 // Tronquer texte
 export const tronquer = (texte, longueur = 50) => {
   if (!texte || texte.length <= longueur) return texte;

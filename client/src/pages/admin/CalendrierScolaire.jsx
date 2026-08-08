@@ -133,43 +133,43 @@ const CalendrierScolaire = () => {
         </select>
       </div>
 
-      <div className="space-y-3">
+      <div
+        className="rounded-lg overflow-hidden"
+        style={{ background: 'var(--surface-card)', border: '1px solid var(--border-subtle)' }}
+      >
         {loading ? (
           <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Chargement...</div>
         ) : events.length === 0 ? (
           <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Aucun événement</div>
         ) : (
-          events.map((event) => {
+          events.map((event, idx) => {
             const cfg = TYPE_CONFIG[event.type] || { label: event.type, variant: 'neutral' };
             return (
               <div
                 key={event.id}
-                className="flex items-center gap-4 p-4 rounded-xl"
-                style={{ background: 'var(--surface-card)', border: '1px solid var(--border-subtle)' }}
+                className="flex items-center gap-3 px-3 py-2"
+                style={{
+                  borderTop: idx === 0 ? 'none' : '1px solid var(--border-subtle)',
+                  minHeight: 48,
+                }}
               >
-                <div className="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-hover)' }}>
-                  <Calendar className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{event.titre}</span>
-                    <Badge variant={cfg.variant}>{cfg.label}</Badge>
-                  </div>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {new Date(event.dateDebut).toLocaleDateString('fr-FR')}
-                    {event.dateFin && ` → ${new Date(event.dateFin).toLocaleDateString('fr-FR')}`}
-                    {event.anneeScolaire?.libelle && ` · ${event.anneeScolaire.libelle}`}
-                  </p>
-                  {event.description && (
-                    <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{event.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button onClick={() => openEdit(event)} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Modifier">
-                    <Pencil className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                <Calendar className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-primary)' }} />
+                <span className="shrink-0"><Badge variant={cfg.variant}>{cfg.label}</Badge></span>
+                <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>
+                  {event.titre}
+                </span>
+                <span className="text-xs shrink-0 hidden sm:inline" style={{ color: 'var(--text-muted)' }}>
+                  {new Date(event.dateDebut).toLocaleDateString('fr-FR')}
+                  {event.dateFin && event.dateFin !== event.dateDebut
+                    ? ` → ${new Date(event.dateFin).toLocaleDateString('fr-FR')}`
+                    : ''}
+                </span>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button onClick={() => openEdit(event)} className="p-1 rounded-md hover:bg-[var(--surface-hover)]" title="Modifier">
+                    <Pencil className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
                   </button>
-                  <button onClick={() => handleDelete(event)} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Supprimer">
-                    <Trash2 className="h-4 w-4" style={{ color: 'var(--color-danger)' }} />
+                  <button onClick={() => handleDelete(event)} className="p-1 rounded-md hover:bg-[var(--surface-hover)]" title="Supprimer">
+                    <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--color-danger)' }} />
                   </button>
                 </div>
               </div>

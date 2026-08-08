@@ -3,6 +3,13 @@ import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, Card, Badge, Button, Modal } from '../../components/ui';
 import { CalendarRange, Plus, Save } from 'lucide-react';
 
+const CYCLES_OPTS = [
+  { value: 'prescolaire', label: 'Préscolaire' },
+  { value: 'primaire', label: 'Primaire' },
+  { value: 'college', label: 'Collège' },
+  { value: 'lycee', label: 'Lycée' },
+];
+
 const emptyPeriode = (index) => ({
   index,
   libelle: index === 1 ? '1er trimestre' : `${index}e trimestre`,
@@ -11,6 +18,7 @@ const emptyPeriode = (index) => ({
   dateEvaluationDebut: '',
   dateEvaluationFin: '',
   poids: 1,
+  concerneCycles: [],
 });
 
 const AnneesScolaires = () => {
@@ -53,6 +61,7 @@ const AnneesScolaires = () => {
           dateFin: p.dateFin?.slice?.(0, 10) || p.dateFin,
           dateEvaluationDebut: p.dateEvaluationDebut?.slice?.(0, 10) || '',
           dateEvaluationFin: p.dateEvaluationFin?.slice?.(0, 10) || '',
+          concerneCycles: Array.isArray(p.concerneCycles) ? p.concerneCycles : [],
         })) : [emptyPeriode(1), emptyPeriode(2), emptyPeriode(3)]);
       }
     } catch { /* silent */ }
@@ -73,6 +82,7 @@ const AnneesScolaires = () => {
       dateEvaluationFin: p.dateEvaluationFin
         ? (typeof p.dateEvaluationFin === 'string' ? p.dateEvaluationFin.slice(0, 10) : new Date(p.dateEvaluationFin).toISOString().slice(0, 10))
         : '',
+      concerneCycles: Array.isArray(p.concerneCycles) ? p.concerneCycles : [],
     })) : [emptyPeriode(1), emptyPeriode(2), emptyPeriode(3)]);
   };
 
@@ -91,10 +101,21 @@ const AnneesScolaires = () => {
           dateEvaluationDebut: p.dateEvaluationDebut || null,
           dateEvaluationFin: p.dateEvaluationFin || null,
           poids: p.poids,
+          concerneCycles: Array.isArray(p.concerneCycles) && p.concerneCycles.length ? p.concerneCycles : null,
         });
       }
       fetchAnnees();
     } catch { /* silent */ }
+  };
+
+  const toggleCycle = (idx, cycle) => {
+    const next = [...periodes];
+    const p = next[idx];
+    const set = new Set(p.concerneCycles || []);
+    if (set.has(cycle)) set.delete(cycle);
+    else set.add(cycle);
+    next[idx] = { ...p, concerneCycles: [...set] };
+    setPeriodes(next);
   };
 
   const handleCreate = async () => {
@@ -159,7 +180,7 @@ const AnneesScolaires = () => {
                     Périodes — {selected.libelle}
                   </h3>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Convention : trimestres (éditables)
+                    Trimestres (collège/lycée) et/ou compositions mensuelles (préscolaire/primaire)
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -171,7 +192,7 @@ const AnneesScolaires = () => {
               </div>
 
               {periodes.map((p, idx) => (
-                <div key={p.index || idx} className="rounded-lg p-3 space-y-2" style={{ border: '1px solid var(--border-subtle)' }}>
+                <div key={p.id || p.index || idx} className="rounded-lg p-3 space-y-2" style={{ border: '1px solid var(--border-subtle)' }}>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Libellé</label>
@@ -211,6 +232,23 @@ const AnneesScolaires = () => {
                         />
                       </div>
                     ))}
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                      Cycles concernés <span style={{ color: 'var(--text-muted)' }}>(vide = tous)</span>
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                      {CYCLES_OPTS.map((c) => (
+                        <label key={c.value} className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: 'var(--text-primary)' }}>
+                          <input
+                            type="checkbox"
+                            checked={(p.concerneCycles || []).includes(c.value)}
+                            onChange={() => toggleCycle(idx, c.value)}
+                          />
+                          {c.label}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ))}
