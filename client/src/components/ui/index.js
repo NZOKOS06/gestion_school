@@ -22,3 +22,4 @@ export { default as SegmentedControl } from './SegmentedControl';
 export { default as DropdownMenu, DropdownItem, DropdownSeparator, DropdownLabel } from './DropdownMenu';
 export { default as Drawer } from './Drawer';
 export { default as Toolbar, FilterBar } from './Toolbar';
+export { QuickSearchSelect, QuickSearchChecklist } from './QuickSearch';

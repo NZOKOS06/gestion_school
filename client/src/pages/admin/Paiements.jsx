@@ -1,44 +1,81 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
-import { PageHeader, DataTable, Badge, Button, Modal, Card, Input, Select, FormField, FilterBar } from '../../components/ui';
-import { Wallet, Plus, Printer, Mail, AlertCircle } from 'lucide-react';
+import { useDebounce } from '../../hooks/useDebounce';
+import {
+  PageHeader, DataTable, Badge, Button, Modal, Card, Input, Select,
+  FormField, FilterBar, SearchInput, KpiCard,
+} from '../../components/ui';
+import { Wallet, Plus, Printer, Mail, AlertCircle, FileDown, Users } from 'lucide-react';
+import { openPdf } from '../../utils/pdf';
 
-const MODE_PAIEMENT = ['espèces', 'mobile_money', 'carte', 'chèque', 'virement'];
+const MODE_PAIEMENT = ['especes', 'mobile_money', 'carte', 'cheque', 'virement'];
+const MODE_LABELS = {
+  especes: 'Espèces',
+  'espèces': 'Espèces',
+  mobile_money: 'Mobile Money',
+  carte: 'Carte',
+  cheque: 'Chèque',
+  'chèque': 'Chèque',
+  virement: 'Virement',
+};
 
 const Paiements = () => {
   const { get, post } = useAxios();
   const { formatPrice } = useTenant();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const isCaissier = pathname.startsWith('/caissier');
+
   const [paiements, setPaiements] = useState([]);
   const [retards, setRetards] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ type: '', classe: '' });
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+  const [filters, setFilters] = useState({ type: '', mode: '', dateDebut: '', dateFin: '' });
   const [encaisserOpen, setEncaisserOpen] = useState(false);
   const [inscriptions, setInscriptions] = useState([]);
   const [echeances, setEcheances] = useState([]);
-  const [form, setForm] = useState({ inscriptionId: '', echeanceId: '', montant: '', modePaiement: 'espèces', reference: '', motif: '' });
+  const [form, setForm] = useState({
+    inscriptionId: '', echeanceId: '', montant: '', modePaiement: 'especes', reference: '', motif: '',
+  });
+
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams();
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    if (filters.type) params.set('type', filters.type);
+    if (filters.mode) params.set('modePaiement', filters.mode);
+    if (filters.dateDebut) params.set('dateDebut', filters.dateDebut);
+    if (filters.dateFin) params.set('dateFin', filters.dateFin);
+    params.set('limit', '200');
+    return params.toString();
+  }, [debouncedSearch, filters]);
 
   const fetchPaiements = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filters.type) params.set('type', filters.type);
-      const res = await get(`/api/paiements?${params.toString()}`);
+      const res = await get(`/api/paiements?${queryString}`);
       setPaiements(res?.data || res || []);
     } catch { /* silent */ }
     setLoading(false);
-  }, [filters]);
+  }, [get, queryString]);
 
   const fetchRetards = useCallback(async () => {
+    if (isCaissier) return;
     try {
       const res = await get('/api/paiements/echeances-retard', { silent: true });
       setRetards(res?.data || res || []);
     } catch { /* silent */ }
-  }, []);
+  }, [get, isCaissier]);
 
   useEffect(() => { fetchPaiements(); fetchRetards(); }, [fetchPaiements, fetchRetards]);
 
   const openEncaisser = async () => {
+    if (isCaissier) {
+      navigate('/caissier/eleves');
+      return;
+    }
     try {
       const res = await get('/api/inscriptions', { silent: true });
       setInscriptions(res?.data || res || []);
@@ -67,7 +104,7 @@ const Paiements = () => {
       };
       await post('/api/paiements', payload);
       setEncaisserOpen(false);
-      setForm({ inscriptionId: '', echeanceId: '', montant: '', modePaiement: 'espèces', reference: '', motif: '' });
+      setForm({ inscriptionId: '', echeanceId: '', montant: '', modePaiement: 'especes', reference: '', motif: '' });
       fetchPaiements();
       fetchRetards();
     } catch { /* silent */ }
@@ -79,15 +116,40 @@ const Paiements = () => {
     } catch { /* silent */ }
   };
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const totalPeriode = paiements.reduce((s, p) => s + Number(p.montant || 0), 0);
+  const totalJour = paiements
+    .filter((p) => String(p.datePaiement).slice(0, 10) === todayStr)
+    .reduce((s, p) => s + Number(p.montant || 0), 0);
+
+  const selectStyle = { height: 36, width: 160, minWidth: 130, maxWidth: 200, flexShrink: 0 };
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Paiements & Échéances"
-        subtitle="Encaissements et suivi des impayés"
-        actions={<Button icon={Plus} onClick={openEncaisser}>Encaisser</Button>}
+        title={isCaissier ? 'Journal de caisse' : 'Paiements & Échéances'}
+        subtitle={isCaissier
+          ? 'Historique des encaissements — imprimez un reçu ou le journal du jour'
+          : 'Encaissements et suivi des impayés'}
+        actions={
+          <>
+            <Button variant="secondary" icon={FileDown} onClick={() => openPdf(`/api/paiements/journal-pdf?${queryString}`, 'journal-caisse.pdf')}>
+              Journal PDF
+            </Button>
+            <Button icon={isCaissier ? Users : Plus} onClick={openEncaisser}>
+              {isCaissier ? 'Encaisser un élève' : 'Encaisser'}
+            </Button>
+          </>
+        }
       />
 
-      {retards.length > 0 && (
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <KpiCard label="Encaissements (filtre)" value={formatPrice(totalPeriode)} icon={Wallet} color="green" />
+        <KpiCard label="Nombre" value={String(paiements.length)} icon={Printer} color="primary" />
+        <KpiCard label="Caisse du jour" value={formatPrice(totalJour)} icon={Wallet} color="blue" subtitle={new Date().toLocaleDateString('fr-FR')} />
+      </div>
+
+      {!isCaissier && retards.length > 0 && (
         <Card title="Échéances en retard" icon={AlertCircle}>
           <div className="space-y-2">
             {retards.slice(0, 5).map((ret) => (
@@ -113,7 +175,16 @@ const Paiements = () => {
       )}
 
       <FilterBar>
-        <Select value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })} style={{ minWidth: 180 }}>
+        <div className="min-w-[200px] w-[240px] shrink-0">
+          <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Élève, matricule..." />
+        </div>
+        <Input type="date" value={filters.dateDebut} onChange={(e) => setFilters({ ...filters, dateDebut: e.target.value })} style={selectStyle} />
+        <Input type="date" value={filters.dateFin} onChange={(e) => setFilters({ ...filters, dateFin: e.target.value })} style={selectStyle} />
+        <Select fullWidth={false} style={selectStyle} value={filters.mode} onChange={(e) => setFilters({ ...filters, mode: e.target.value })}>
+          <option value="">Tous les modes</option>
+          {MODE_PAIEMENT.map((m) => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}
+        </Select>
+        <Select fullWidth={false} style={selectStyle} value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}>
           <option value="">Tous les types</option>
           <option value="inscription">Inscription</option>
           <option value="scolarite">Scolarité</option>
@@ -127,7 +198,7 @@ const Paiements = () => {
       <DataTable
         sortable
         pagination
-        pageSize={12}
+        pageSize={15}
         columns={[
           {
             key: 'numeroRecu',
@@ -156,7 +227,7 @@ const Paiements = () => {
           {
             key: 'modePaiement',
             label: 'Mode',
-            render: (val) => <Badge variant="info">{val}</Badge>,
+            render: (val) => <Badge variant="info">{MODE_LABELS[val] || val}</Badge>,
           },
           {
             key: 'datePaiement',
@@ -168,7 +239,12 @@ const Paiements = () => {
             key: 'actions',
             label: 'Reçu',
             render: (_, row) => (
-              <button type="button" onClick={() => window.open(`/api/paiements/${row.id}/recu-pdf`, '_blank')} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Imprimer reçu">
+              <button
+                type="button"
+                onClick={() => openPdf(`/api/paiements/${row.id}/recu-pdf`, `recu-${row.numeroRecu}.pdf`)}
+                className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]"
+                title="Imprimer reçu"
+              >
                 <Printer className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
               </button>
             ),
@@ -177,8 +253,10 @@ const Paiements = () => {
         data={paiements}
         loading={loading}
         emptyMessage="Aucun paiement"
-        emptyDescription="Les encaissements apparaîtront ici. Cliquez sur Encaisser pour démarrer."
-        emptyAction={<Button icon={Plus} size="sm" onClick={openEncaisser}>Encaisser</Button>}
+        emptyDescription={isCaissier
+          ? 'Les encaissements de la période s’afficheront ici.'
+          : 'Les encaissements apparaîtront ici. Cliquez sur Encaisser pour démarrer.'}
+        emptyAction={!isCaissier && <Button icon={Plus} size="sm" onClick={openEncaisser}>Encaisser</Button>}
       />
 
       <Modal
@@ -208,7 +286,7 @@ const Paiements = () => {
             <FormField label="Échéance (optionnel)">
               <Select value={form.echeanceId} onChange={(e) => {
                 const ech = echeances.find((ec) => ec.id === e.target.value);
-                setForm({ ...form, echeanceId: e.target.value, montant: ech ? (ech.montantAttendu - ech.montantPaye).toString() : form.montant });
+                setForm({ ...form, echeanceId: e.target.value, montant: ech ? String(ech.montantAttendu - ech.montantPaye) : form.montant });
               }}>
                 <option value="">Pas d'échéance spécifique</option>
                 {echeances.map((ech) => (
@@ -225,7 +303,7 @@ const Paiements = () => {
             </FormField>
             <FormField label="Mode de paiement">
               <Select value={form.modePaiement} onChange={(e) => setForm({ ...form, modePaiement: e.target.value })}>
-                {MODE_PAIEMENT.map((m) => <option key={m} value={m}>{m}</option>)}
+                {MODE_PAIEMENT.map((m) => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}
               </Select>
             </FormField>
           </div>
@@ -233,7 +311,7 @@ const Paiements = () => {
             <Input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="Transaction MoMo, n° chèque..." />
           </FormField>
           <FormField label="Motif (optionnel)">
-            <Input value={form.motif} onChange={(e) => setForm({ ...form, motif: e.target.value })} placeholder="ex: Scolarité Tranche 1" />
+            <Input value={form.motif} onChange={(e) => setForm({ ...form, motif: e.target.value })} placeholder="ex: Scolarité Octobre 2025" />
           </FormField>
         </div>
       </Modal>

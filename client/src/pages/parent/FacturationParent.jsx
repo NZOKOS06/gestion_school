@@ -4,6 +4,7 @@ import { useTenant } from '../../contexts/TenantContext';
 import { PageHeader, Card, DataTable, Badge, Button } from '../../components/ui';
 import { Wallet, FileDown, AlertCircle, CheckCircle, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { openPdf } from '../../utils/pdf';
 
 const FacturationParent = () => {
   const { get, post } = useAxios();
@@ -180,11 +181,16 @@ const FacturationParent = () => {
             {
               key: 'actions',
               label: 'Reçu',
-              render: (_, row) => row.pdfUrl ? (
-                <a href={row.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-md hover:bg-[var(--surface-hover)] inline-flex">
+              render: (_, row) => (
+                <button
+                  type="button"
+                  onClick={() => openPdf(`/api/paiements/${row.id}/recu-pdf`, `recu-${row.numeroRecu}.pdf`)}
+                  className="p-1.5 rounded-md hover:bg-[var(--surface-hover)] inline-flex"
+                  title="Télécharger le reçu"
+                >
                   <FileDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-                </a>
-              ) : <span style={{ color: 'var(--text-muted)' }}>—</span>,
+                </button>
+              ),
             },
           ]}
           data={paiements}

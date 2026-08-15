@@ -21,6 +21,7 @@ import {
   Smartphone,
   CreditCard,
   BarChart3,
+  TrendingDown,
 } from 'lucide-react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
@@ -220,6 +221,20 @@ const Rapports = () => {
           delay: 180,
           color: 'orange',
         },
+        {
+          label: 'Dépenses',
+          value: formatPrice(data.total_depenses || 0),
+          icon: TrendingDown,
+          delay: 240,
+          color: 'red',
+        },
+        {
+          label: 'Bénéfice net',
+          value: formatPrice(data.benefice_net ?? ((data.ca_total || 0) - (data.total_depenses || 0))),
+          icon: Wallet,
+          delay: 300,
+          color: (data.benefice_net ?? 0) >= 0 ? 'green' : 'red',
+        },
       ]
     : [];
 
@@ -279,7 +294,7 @@ const Rapports = () => {
     <div data-testid={data ? 'rapports-loaded' : undefined} className="space-y-8">
       <PageHeader
         title="Rapports & Analyses"
-        subtitle="Scolarités, paiements et taux de recouvrement"
+        subtitle="Scolarités, dépenses et bénéfice réel de l'établissement"
         actions={
           <>
             <Button
@@ -394,7 +409,7 @@ const Rapports = () => {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
         {loading && !data
           ? Array.from({ length: 4 }).map((_, i) => (
               <div

@@ -52,6 +52,9 @@ const CalendrierScolaire = lazy(() => import('./pages/admin/CalendrierScolaire')
 const Messagerie = lazy(() => import('./pages/admin/Messagerie'));
 const AnneesScolaires = lazy(() => import('./pages/admin/AnneesScolaires'));
 const Examens = lazy(() => import('./pages/admin/Examens'));
+const CaissierDashboard = lazy(() => import('./pages/admin/CaissierDashboard'));
+const ElevesFinances = lazy(() => import('./pages/admin/ElevesFinances'));
+const Depenses = lazy(() => import('./pages/admin/Depenses'));
 
 // Enseignant pages (lazy)
 const EnseignantDashboard = lazy(() => import('./pages/enseignant/EnseignantDashboard'));
@@ -203,10 +206,13 @@ const AppRoutes = () => {
         {/* Routes comptable/caissier */}
         <Route element={<ProtectedRoute allowedRoles={['comptable', 'directeur']} />}>
           <Route element={<CaissierLayout />}>
-            <Route path="/caissier" element={<Paiements />} />
+            <Route path="/caissier" element={<CaissierDashboard />} />
+            <Route path="/caissier/eleves" element={<ElevesFinances />} />
             <Route path="/caissier/encaisser" element={<Paiements />} />
             <Route path="/caissier/retards" element={<Paiements />} />
             <Route path="/caissier/historique" element={<Paiements />} />
+            <Route path="/caissier/depenses" element={<Depenses />} />
+            <Route path="/caissier/rapports" element={<Rapports />} />
           </Route>
         </Route>
 

@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, Card, DataTable, Badge, Button } from '../../components/ui';
-import { School, Users, BookOpen } from 'lucide-react';
+import { School, Users, BookOpen, ClipboardEdit, Plus } from 'lucide-react';
 
 const MesClasses = () => {
   const { get } = useAxios();
+  const navigate = useNavigate();
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedClasse, setSelectedClasse] = useState(null);
@@ -17,7 +19,7 @@ const MesClasses = () => {
       setClasses(res?.data || res || []);
     } catch { /* silent */ }
     setLoading(false);
-  }, []);
+  }, [get]);
 
   useEffect(() => { fetchClasses(); }, [fetchClasses]);
 
@@ -60,7 +62,15 @@ const MesClasses = () => {
                 <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {classe.effectif || 0} élèves</span>
                 <span className="flex items-center gap-1"><BookOpen className="h-3.5 w-3.5" /> {classe.nbMatieres || 0} matières</span>
               </div>
-              <Button size="sm" variant="secondary" onClick={() => viewEleves(classe)}>Voir les élèves</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={() => viewEleves(classe)}>Voir les élèves</Button>
+                <Button size="sm" icon={ClipboardEdit} onClick={() => navigate(`/enseignant/saisie-notes?classeId=${classe.id}`)}>
+                  Saisir les notes
+                </Button>
+                <Button size="sm" icon={Plus} onClick={() => navigate(`/enseignant/saisie-notes?classeId=${classe.id}&nouveau=1`)}>
+                  Programmer un devoir
+                </Button>
+              </div>
             </Card>
           ))
         )}

@@ -36,6 +36,7 @@ import inscriptionsRoutes from './routes/inscriptions.js';
 import evaluationsRoutes from './routes/evaluations.js';
 import bulletinsRoutes from './routes/bulletins.js';
 import paiementsRoutes from './routes/paiements.js';
+import depensesRoutes from './routes/depenses.js';
 import emploisDuTempsRoutes from './routes/emploisDuTemps.js';
 import absencesRoutes from './routes/absences.js';
 import sanctionsRoutes from './routes/sanctions.js';
@@ -272,6 +273,7 @@ app.use('/api/inscriptions', tenantMiddleware, inscriptionsRoutes);
 app.use('/api/evaluations', tenantMiddleware, evaluationsRoutes);
 app.use('/api/bulletins', tenantMiddleware, bulletinsRoutes);
 app.use('/api/paiements', tenantMiddleware, paiementsRoutes);
+app.use('/api/depenses', tenantMiddleware, depensesRoutes);
 app.use('/api/emplois-du-temps', tenantMiddleware, emploisDuTempsRoutes);
 app.use('/api/absences', tenantMiddleware, absencesRoutes);
 app.use('/api/sanctions', tenantMiddleware, sanctionsRoutes);
@@ -380,7 +382,7 @@ if (process.env.NODE_ENV !== 'test') httpServer.listen(PORT, '0.0.0.0', async ()
   const clientUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
   logger.info({ port: PORT, env, lanIP, clientUrl }, 'GestSchool API server started');
-  logger.info('API endpoints: /api/config, /api/auth, /api/eleves, /api/classes, /api/annees-scolaires, /api/matieres, /api/inscriptions, /api/evaluations, /api/bulletins, /api/paiements, /api/emplois-du-temps, /api/absences, /api/sanctions, /api/actualites, /api/dashboard, /api/staff, /api/public, /api/superadmin, /api/certificats, /api/cahier-de-textes, /api/conseil-de-classe, /api/salles, /api/calendrier, /api/messages, /api/rapports, /api/parent, /api/enseignant');
+  logger.info('API endpoints: /api/config, /api/auth, /api/eleves, /api/classes, /api/annees-scolaires, /api/matieres, /api/inscriptions, /api/evaluations, /api/bulletins, /api/paiements, /api/depenses, /api/emplois-du-temps, /api/absences, /api/sanctions, /api/actualites, /api/dashboard, /api/staff, /api/public, /api/superadmin, /api/certificats, /api/cahier-de-textes, /api/conseil-de-classe, /api/salles, /api/calendrier, /api/messages, /api/rapports, /api/parent, /api/enseignant');
 
   const cleanExpiredTokens = async () => {
     if (!dbConnected) {

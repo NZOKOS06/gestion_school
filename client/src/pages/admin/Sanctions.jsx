@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
-import { PageHeader, DataTable, Badge, Button, Modal } from '../../components/ui';
+import { PageHeader, DataTable, Badge, Button, Modal, QuickSearchSelect } from '../../components/ui';
 import { Gavel, Plus } from 'lucide-react';
 
 const TYPE_VARIANT = {
@@ -34,24 +34,27 @@ const Sanctions = () => {
       setSanctions(res?.data || res || []);
     } catch { /* silent */ }
     setLoading(false);
-  }, []);
+  }, [get]);
 
   useEffect(() => { fetchSanctions(); }, [fetchSanctions]);
 
   const openCreate = async () => {
     try {
-      const res = await get('/api/eleves', { silent: true });
+      const res = await get('/api/eleves?limit=500', { silent: true });
       setEleves(res?.data || res || []);
     } catch { /* silent */ }
+    setForm({ eleveId: '', type: 'avertissement', motif: '', dureeJours: '' });
     setCreateOpen(true);
   };
 
   const handleCreate = async () => {
     try {
-      const payload = { ...form };
-      if (form.dureeJours) payload.dureeJours = parseInt(form.dureeJours);
-      delete payload.dureeJours;
-      if (form.dureeJours) payload.dureeJours = parseInt(form.dureeJours);
+      const payload = {
+        eleveId: form.eleveId,
+        type: form.type,
+        motif: form.motif,
+      };
+      if (form.dureeJours) payload.dureeJours = parseInt(form.dureeJours, 10);
       await post('/api/sanctions', payload);
       setCreateOpen(false);
       setForm({ eleveId: '', type: 'avertissement', motif: '', dureeJours: '' });
@@ -133,10 +136,12 @@ const Sanctions = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Élève</label>
-            <select style={inputStyle} value={form.eleveId} onChange={(e) => setForm({ ...form, eleveId: e.target.value })}>
-              <option value="">Sélectionner</option>
-              {eleves.map((el) => <option key={el.id} value={el.id}>{el.prenom} {el.nom} ({el.matricule})</option>)}
-            </select>
+            <QuickSearchSelect
+              items={eleves}
+              value={form.eleveId}
+              onChange={(id) => setForm({ ...form, eleveId: id })}
+              placeholder="Nom, prénom ou matricule…"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Type de sanction</label>

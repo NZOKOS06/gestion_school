@@ -85,8 +85,14 @@ export const create = async (req, res) => {
     const tenantId = req.tenantId;
     const { classeId, matiereId, emploiDuTempsId, dateCours, lecon, devoirsDonnes, observations } = req.body;
 
-    // Enseignant ne peut créer que pour lui-même
+    // Enseignant ne peut créer que pour lui-même, sur une classe/matière assignée
     const enseignantId = req.user.role === 'enseignant' ? req.user.id : req.body.enseignantId;
+
+    if (req.user.role === 'enseignant') {
+      const { assertEnseignantAssignedToClasseMatiere } = await import('../utils/ownership.js');
+      const ok = await assertEnseignantAssignedToClasseMatiere(req, res, classeId, matiereId);
+      if (!ok) return;
+    }
 
     const entry = await prisma.cahierDeTextes.create({
       data: {

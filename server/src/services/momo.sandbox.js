@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import { prisma } from '../utils/prisma.js';
-import { applyPaymentToEcheance } from './echeances.service.js';
+import { applyPaymentToEcheance, listByInscription } from './echeances.service.js';
 import { buildRecuPdf } from './pdf/recu.pdf.js';
+import { loadSchoolPdfMeta } from './pdf/schoolMeta.js';
 import { uploadPdfBuffer, isCloudinaryConfigured } from '../utils/cloudinary.js';
 import { broadcastPaiement } from '../utils/notifications.js';
 import { createLogger } from '../utils/logger.js';
@@ -155,7 +156,7 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
                 nom: true,
                 matricule: true,
                 parentId: true,
-                parent: { select: { id: true } },
+                parent: { select: { id: true, prenom: true, nom: true } },
               },
             },
             classe: { select: { nom: true } },
@@ -165,13 +166,15 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
         recuPar: { select: { prenom: true, nom: true } },
       },
     });
-    const config = await prisma.tenantConfig.findUnique({ where: { tenantId: intent.tenantId } });
+    const meta = await loadSchoolPdfMeta(intent.tenantId);
+    const echeances = full.inscriptionId || full.inscription?.id
+      ? await listByInscription(intent.tenantId, full.inscriptionId || full.inscription.id)
+      : [];
     const buffer = await buildRecuPdf({
-      nomEcole: config?.nomEcole || 'GestSchool',
+      ...meta,
       numeroRecu: full.numeroRecu,
       datePaiement: full.datePaiement,
       montant: full.montant,
-      devise: config?.devise || 'FCFA',
       typePaiement: full.typePaiement,
       modePaiement: full.modePaiement,
       reference: full.reference,
@@ -181,6 +184,10 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
       classe: full.inscription.classe?.nom,
       anneeScolaire: full.inscription.anneeScolaire?.libelle,
       recuPar: full.recuPar ? `${full.recuPar.prenom} ${full.recuPar.nom}` : 'Mobile Money',
+      parent: full.inscription.eleve.parent
+        ? `${full.inscription.eleve.parent.prenom} ${full.inscription.eleve.parent.nom}`
+        : null,
+      echeances,
     });
     if (isCloudinaryConfigured()) {
       try {

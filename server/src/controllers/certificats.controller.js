@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { buildCertificatPdf, buildPreviewPayload } from '../services/pdf/certificat.pdf.js';
+import { loadSchoolPdfMeta } from '../services/pdf/schoolMeta.js';
 import { uploadPdfBuffer, isCloudinaryConfigured } from '../utils/cloudinary.js';
 
 const log = createLogger('CertificatsController');
@@ -10,7 +11,16 @@ async function loadCertificatContext(tenantId, { eleveId, anneeScolaireId }) {
   const [eleve, annee, config, inscription] = await Promise.all([
     prisma.eleve.findFirst({
       where: { id: eleveId, tenantId },
-      select: { id: true, prenom: true, nom: true, matricule: true },
+      select: {
+        id: true,
+        prenom: true,
+        nom: true,
+        matricule: true,
+        dateNaissance: true,
+        lieuNaissance: true,
+        sexe: true,
+        parent: { select: { prenom: true, nom: true } },
+      },
     }),
     anneeScolaireId
       ? prisma.anneeScolaire.findFirst({ where: { id: anneeScolaireId, tenantId } })
@@ -28,6 +38,29 @@ async function loadCertificatContext(tenantId, { eleveId, anneeScolaireId }) {
     }),
   ]);
   return { eleve, annee, config, inscription };
+}
+
+function parentName(eleve) {
+  return eleve?.parent ? `${eleve.parent.prenom} ${eleve.parent.nom}` : null;
+}
+
+async function certificatPdfPayload({ certificat, eleve, annee, inscription, req, delivrePar }) {
+  const meta = await loadSchoolPdfMeta(certificat?.tenantId || req.tenantId, req);
+  return {
+    ...meta,
+    type: certificat?.type || 'scolarite',
+    eleve: eleve ? `${eleve.prenom} ${eleve.nom}` : '—',
+    matricule: eleve?.matricule,
+    classe: inscription?.classe?.nom,
+    anneeScolaire: annee?.libelle || certificat?.anneeScolaire?.libelle,
+    numeroSerie: certificat?.numeroSerie,
+    dateDelivrance: certificat?.dateDelivrance || new Date(),
+    delivrePar,
+    dateNaissance: eleve?.dateNaissance,
+    lieuNaissance: eleve?.lieuNaissance,
+    sexe: eleve?.sexe,
+    parent: parentName(eleve),
+  };
 }
 
 export const getAll = async (req, res) => {
@@ -98,6 +131,10 @@ export const preview = async (req, res) => {
         anneeScolaire: annee?.libelle,
         numeroSerie,
         nomEcole: config?.nomEcole || req.tenant?.nom || 'GestSchool',
+        dateNaissance: eleve.dateNaissance,
+        lieuNaissance: eleve.lieuNaissance,
+        sexe: eleve.sexe,
+        parent: parentName(eleve),
       })
     );
   } catch (error) {
@@ -133,7 +170,7 @@ export const getOne = async (req, res) => {
 
 async function generateAndAttachPdf(certificat, req) {
   const tenantId = certificat.tenantId;
-  const { eleve, annee, config, inscription } = await loadCertificatContext(tenantId, {
+  const { eleve, annee, inscription } = await loadCertificatContext(tenantId, {
     eleveId: certificat.eleveId,
     anneeScolaireId: certificat.anneeScolaireId,
   });
@@ -142,18 +179,9 @@ async function generateAndAttachPdf(certificat, req) {
     ? `${certificat.delivrePar.prenom} ${certificat.delivrePar.nom}`
     : null;
 
-  const buffer = await buildCertificatPdf({
-    nomEcole: config?.nomEcole || req.tenant?.nom || 'GestSchool',
-    adresse: config?.adresse,
-    type: certificat.type,
-    eleve: eleve ? `${eleve.prenom} ${eleve.nom}` : '—',
-    matricule: eleve?.matricule,
-    classe: inscription?.classe?.nom || annee?.libelle,
-    anneeScolaire: annee?.libelle || certificat.anneeScolaire?.libelle,
-    numeroSerie: certificat.numeroSerie,
-    dateDelivrance: certificat.dateDelivrance,
-    delivrePar,
-  });
+  const buffer = await buildCertificatPdf(await certificatPdfPayload({
+    certificat, eleve, annee, inscription, req, delivrePar,
+  }));
 
   let pdfUrl = null;
   if (isCloudinaryConfigured()) {
@@ -241,32 +269,38 @@ export const getPdf = async (req, res) => {
     const certificat = await prisma.certificat.findFirst({
       where: { id, tenantId },
       include: {
-        eleve: { select: { prenom: true, nom: true, matricule: true } },
+        eleve: {
+          select: {
+            prenom: true,
+            nom: true,
+            matricule: true,
+            dateNaissance: true,
+            lieuNaissance: true,
+            sexe: true,
+            parent: { select: { prenom: true, nom: true } },
+          },
+        },
         delivrePar: { select: { prenom: true, nom: true } },
         anneeScolaire: { select: { libelle: true } },
       },
     });
     if (!certificat) return res.status(404).json({ error: 'Certificat non trouvé' });
 
-    const { config, inscription } = await loadCertificatContext(tenantId, {
+    const { inscription } = await loadCertificatContext(tenantId, {
       eleveId: certificat.eleveId,
       anneeScolaireId: certificat.anneeScolaireId,
     });
 
-    const buffer = await buildCertificatPdf({
-      nomEcole: config?.nomEcole || req.tenant?.nom || 'GestSchool',
-      adresse: config?.adresse,
-      type: certificat.type,
-      eleve: `${certificat.eleve.prenom} ${certificat.eleve.nom}`,
-      matricule: certificat.eleve.matricule,
-      classe: inscription?.classe?.nom,
-      anneeScolaire: certificat.anneeScolaire?.libelle,
-      numeroSerie: certificat.numeroSerie,
-      dateDelivrance: certificat.dateDelivrance,
+    const buffer = await buildCertificatPdf(await certificatPdfPayload({
+      certificat,
+      eleve: certificat.eleve,
+      annee: certificat.anneeScolaire,
+      inscription,
+      req,
       delivrePar: certificat.delivrePar
         ? `${certificat.delivrePar.prenom} ${certificat.delivrePar.nom}`
         : null,
-    });
+    }));
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="certificat-${certificat.numeroSerie}.pdf"`);

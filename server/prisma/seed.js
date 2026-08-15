@@ -589,13 +589,28 @@ async function main() {
   }
   console.log(`✓ ${progCount} entrées programme matière/niveau/année`);
 
-  // ==================== ÉCHÉANCES ====================
-  const echeancesData = [
-    { libelle: 'Frais d\'inscription', montant: 25000, dateEcheance: '2025-10-15' },
-    { libelle: 'Tranche 1', montant: 50000, dateEcheance: '2025-11-15' },
-    { libelle: 'Tranche 2', montant: 50000, dateEcheance: '2026-02-15' },
-    { libelle: 'Tranche 3', montant: 50000, dateEcheance: '2026-05-15' },
+  // ==================== ÉCHÉANCES (mois de l'année scolaire) ====================
+  const MOIS_FR = [
+    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
   ];
+  const moisScolarite = [];
+  {
+    const start = new Date(anneeScolaire.dateDebut);
+    const end = new Date(anneeScolaire.dateFin);
+    let y = start.getUTCFullYear();
+    let m = start.getUTCMonth();
+    while (y < end.getUTCFullYear() || (y === end.getUTCFullYear() && m <= end.getUTCMonth())) {
+      moisScolarite.push(new Date(Date.UTC(y, m, 1, 12, 0, 0)));
+      m += 1;
+      if (m > 11) { m = 0; y += 1; }
+      if (moisScolarite.length > 18) break;
+    }
+  }
+  const totalScolarite = 150000;
+  const monthly = moisScolarite.length
+    ? Math.round((totalScolarite / moisScolarite.length) * 100) / 100
+    : 0;
   let echeanceCount = 0;
   for (const e of elevesData) {
     const eleve = elevesMap[e.matricule];
@@ -603,24 +618,32 @@ async function main() {
       where: { tenantId: demoTenant.id, eleveId: eleve.id, anneeScolaireId: anneeScolaire.id },
     });
     if (!inscription) continue;
-    for (const ech of echeancesData) {
-      const existing = await prisma.echeance.findFirst({
-        where: { tenantId: demoTenant.id, inscriptionId: inscription.id, libelle: ech.libelle },
-      });
-      if (!existing) {
-        await prisma.echeance.create({
-          data: {
-            tenantId: demoTenant.id,
-            inscriptionId: inscription.id,
-            libelle: ech.libelle,
-            montantAttendu: ech.montant,
-            dateEcheance: new Date(ech.dateEcheance),
-            statut: 'en_attente',
-          },
-        });
-        echeanceCount++;
-      }
-    }
+    const already = await prisma.echeance.count({
+      where: { tenantId: demoTenant.id, inscriptionId: inscription.id },
+    });
+    if (already > 0) continue;
+    const rows = [
+      {
+        tenantId: demoTenant.id,
+        inscriptionId: inscription.id,
+        libelle: "Frais d'inscription",
+        montantAttendu: 25000,
+        dateEcheance: new Date('2025-10-15'),
+        statut: 'en_attente',
+      },
+      ...moisScolarite.map((d, i) => ({
+        tenantId: demoTenant.id,
+        inscriptionId: inscription.id,
+        libelle: `${MOIS_FR[d.getUTCMonth()]} ${d.getUTCFullYear()}`,
+        montantAttendu: i === moisScolarite.length - 1
+          ? Math.round((totalScolarite - monthly * (moisScolarite.length - 1)) * 100) / 100
+          : monthly,
+        dateEcheance: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 5, 12, 0, 0)),
+        statut: 'en_attente',
+      })),
+    ];
+    await prisma.echeance.createMany({ data: rows });
+    echeanceCount += rows.length;
   }
   console.log(`✓ ${echeanceCount} échéances créées`);
 

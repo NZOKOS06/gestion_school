@@ -41,7 +41,7 @@ export const getRapports = async (req, res) => {
     const { debut, fin } = resolvePeriod(req.query);
     const prev = previousPeriod(debut, fin);
 
-    const [paiements, paiementsPrev, inscriptions] = await Promise.all([
+    const [paiements, paiementsPrev, inscriptions, depensesAgg] = await Promise.all([
       prisma.paiement.findMany({
         where: { tenantId, datePaiement: { gte: debut, lte: fin } },
         include: {
@@ -71,10 +71,16 @@ export const getRapports = async (req, res) => {
           },
         },
       }),
+      prisma.depense.aggregate({
+        where: { tenantId, dateDepense: { gte: debut, lte: fin } },
+        _sum: { montant: true },
+      }),
     ]);
 
     const caTotal = paiements.reduce((s, p) => s + Number(p.montant), 0);
     const caPrev = paiementsPrev.reduce((s, p) => s + Number(p.montant), 0);
+    const totalDepenses = Number(depensesAgg._sum.montant || 0);
+    const beneficeNet = caTotal - totalDepenses;
 
     const totalAttendu = inscriptions.reduce((s, i) => {
       if (i.echeances?.length) {
@@ -175,6 +181,8 @@ export const getRapports = async (req, res) => {
       ventes_par_jour: paiements_par_jour,
       repartition_paiement,
       top_classes,
+      total_depenses: Math.round(totalDepenses),
+      benefice_net: Math.round(beneficeNet),
     });
   } catch (error) {
     log.error({ err: error, tenantId }, 'getRapports error');

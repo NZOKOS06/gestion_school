@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, Card, Button, Badge, DataTable } from '../../components/ui';
 import { CalendarCheck, Check, X, Clock, Save } from 'lucide-react';
@@ -12,6 +13,7 @@ const STATUTS = {
 
 const Appel = () => {
   const { get, post } = useAxios();
+  const [searchParams] = useSearchParams();
   const [cours, setCours] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCours, setSelectedCours] = useState(null);
@@ -30,7 +32,7 @@ const Appel = () => {
 
   useEffect(() => { fetchCours(); }, [fetchCours]);
 
-  const openAppel = async (c) => {
+  const openAppel = useCallback(async (c) => {
     setSelectedCours(c);
     try {
       const res = await get(`/api/emplois-du-temps/${c.id}/eleves`, { silent: true });
@@ -40,7 +42,14 @@ const Appel = () => {
       data.forEach((el) => { initial[el.id] = 'present'; });
       setPresences(initial);
     } catch { setEleves([]); }
-  };
+  }, [get]);
+
+  useEffect(() => {
+    const coursId = searchParams.get('coursId');
+    if (!coursId || !cours.length) return;
+    const found = cours.find((c) => c.id === coursId);
+    if (found && found.id !== selectedCours?.id) openAppel(found);
+  }, [searchParams, cours, selectedCours?.id, openAppel]);
 
   const setStatut = (eleveId, statut) => {
     setPresences({ ...presences, [eleveId]: statut });
@@ -52,6 +61,7 @@ const Appel = () => {
       const payload = Object.entries(presences).map(([eleveId, statut]) => ({ eleveId, statut }));
       await post(`/api/absences/appel`, { coursId: selectedCours.id, presences: payload });
       setSelectedCours(null);
+      fetchCours();
     } catch { /* silent */ }
     setSaving(false);
   };

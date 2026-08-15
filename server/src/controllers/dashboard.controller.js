@@ -50,7 +50,10 @@ export const getKpis = async (req, res) => {
       });
     }
 
-    const [totalEleves, totalClasses, paiementsToday, paiementsMonth, inscriptionsEnAttente, absencesToday] = await Promise.all([
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+
+    const [totalEleves, totalClasses, paiementsToday, paiementsMonth, inscriptionsEnAttente, absencesToday, objectifMoisAgg, echeancesStats] = await Promise.all([
       prisma.eleve.count({ where: { tenantId, actif: true } }),
       prisma.classe.count({ where: { tenantId, anneeScolaire: { actif: true } } }),
       prisma.paiement.aggregate({
@@ -59,13 +62,29 @@ export const getKpis = async (req, res) => {
         _count: { id: true }
       }),
       prisma.paiement.aggregate({
-        where: { tenantId, datePaiement: { gte: new Date(today.getFullYear(), today.getMonth(), 1) } },
+        where: { tenantId, datePaiement: { gte: startOfMonth } },
         _sum: { montant: true },
         _count: { id: true }
       }),
       prisma.inscription.count({ where: { tenantId, statut: 'en_attente' } }),
-      prisma.absence.count({ where: { tenantId, dateAbsence: { gte: today, lt: tomorrow } } })
+      prisma.absence.count({ where: { tenantId, dateAbsence: { gte: today, lt: tomorrow } } }),
+      prisma.echeance.aggregate({
+        where: { tenantId, dateEcheance: { gte: startOfMonth, lt: startOfNextMonth } },
+        _sum: { montantAttendu: true },
+      }),
+      prisma.echeance.findMany({
+        where: { tenantId, statut: { in: ['en_attente', 'en_retard'] } },
+        select: { statut: true, montantAttendu: true, montantPaye: true, dateEcheance: true },
+      }),
     ]);
+
+    const recettesMois = Number(paiementsMonth._sum.montant || 0);
+    const objectifMois = Number(objectifMoisAgg._sum.montantAttendu || 0);
+    const totalReste = echeancesStats.reduce((s, e) => s + Math.max(0, Number(e.montantAttendu) - Number(e.montantPaye)), 0);
+    const resteRetard = echeancesStats
+      .filter((e) => e.statut === 'en_retard' || e.dateEcheance < today)
+      .reduce((s, e) => s + Math.max(0, Number(e.montantAttendu) - Number(e.montantPaye)), 0);
+    const tauxImpayes = totalReste > 0 ? Math.round((resteRetard / totalReste) * 1000) / 10 : 0;
 
     res.json({
       eleves: { total: totalEleves },
@@ -77,7 +96,10 @@ export const getKpis = async (req, res) => {
       alertes: {
         inscriptions_en_attente: inscriptionsEnAttente,
         absences_aujourdhui: absencesToday
-      }
+      },
+      recettesMois,
+      objectifMois,
+      tauxImpayes,
     });
   } catch (error) {
     log.error({ err: error, tenantId }, 'Get KPIs error');

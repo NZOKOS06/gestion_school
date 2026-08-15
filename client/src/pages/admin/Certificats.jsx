@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
-import { PageHeader, DataTable, Badge, Button, Modal, Card } from '../../components/ui';
-import { Award, Plus, Eye, FileDown } from 'lucide-react';
+import { PageHeader, DataTable, Badge, Button, Modal, Card, QuickSearchSelect } from '../../components/ui';
+import { Award, Plus, FileDown } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { openPdf } from '../../utils/pdf';
 
 const TYPE_LABEL = {
   scolarite: 'Certificat de scolarité',
@@ -118,15 +119,14 @@ const Certificats = () => {
             key: 'actions',
             label: 'PDF',
             render: (_, row) => (
-              <a
-                href={row.pdfUrl || `/api/certificats/${row.id}/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => openPdf(`/api/certificats/${row.id}/pdf`, `certificat-${row.numeroSerie}.pdf`)}
                 className="p-1.5 rounded-md hover:bg-[var(--surface-hover)] inline-flex"
                 title="Télécharger PDF"
               >
                 <FileDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-              </a>
+              </button>
             ),
           },
         ]}
@@ -151,10 +151,12 @@ const Certificats = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Élève</label>
-            <select style={inputStyle} value={form.eleveId} onChange={(e) => setForm({ ...form, eleveId: e.target.value })}>
-              <option value="">Sélectionner</option>
-              {eleves.map((el) => <option key={el.id} value={el.id}>{el.prenom} {el.nom} ({el.matricule})</option>)}
-            </select>
+            <QuickSearchSelect
+              items={eleves}
+              value={form.eleveId}
+              onChange={(id) => setForm({ ...form, eleveId: id })}
+              placeholder="Nom, prénom ou matricule…"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Type de certificat</label>

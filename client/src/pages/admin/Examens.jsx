@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
-import { PageHeader, DataTable, Badge, Button, Modal } from '../../components/ui';
+import { PageHeader, DataTable, Badge, Button, Modal, QuickSearchSelect } from '../../components/ui';
 import { Award, Plus } from 'lucide-react';
 
 const TYPE_LABELS = {
@@ -287,10 +287,16 @@ const Examens = () => {
                   {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
                 </select>
               </div>
-              <select style={{ ...inputStyle, appearance: 'auto' }} value={candForm.eleveId} onChange={(e) => setCandForm({ ...candForm, eleveId: e.target.value })} disabled={!filterClasseId}>
-                <option value="">{filterClasseId ? 'Ajouter un candidat…' : 'Choisir d’abord une classe'}</option>
-                {elevesDisponibles.map((e) => <option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
-              </select>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Candidat</label>
+                <QuickSearchSelect
+                  items={elevesDisponibles}
+                  value={candForm.eleveId}
+                  onChange={(id) => setCandForm({ ...candForm, eleveId: id })}
+                  disabled={!filterClasseId}
+                  placeholder={filterClasseId ? 'Rechercher un élève…' : 'Choisir d’abord une classe'}
+                />
+              </div>
               <input style={inputStyle} placeholder="Série / filière" value={candForm.serieFiliere} onChange={(e) => setCandForm({ ...candForm, serieFiliere: e.target.value })} />
               <div className="flex gap-2">
                 <Button onClick={addCandidat} disabled={!candForm.eleveId}>Inscrire</Button>

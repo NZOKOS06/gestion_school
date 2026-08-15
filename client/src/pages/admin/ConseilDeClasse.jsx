@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
-import { PageHeader, DataTable, Badge, Button, Modal } from '../../components/ui';
+import {
+  PageHeader, DataTable, Badge, Button, Modal,
+  QuickSearchSelect, QuickSearchChecklist,
+} from '../../components/ui';
 import { Users, Plus, Lock, Check, Trash2 } from 'lucide-react';
 
 const ConseilDeClasse = () => {
@@ -12,7 +15,10 @@ const ConseilDeClasse = () => {
   const [staff, setStaff] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailModal, setDetailModal] = useState(null);
-  const [form, setForm] = useState({ classeId: '', anneeScolaireId: '', periodeIndex: 1, dateConseil: '', presidentId: '', participantIds: [], compteRendu: '' });
+  const [form, setForm] = useState({
+    classeId: '', anneeScolaireId: '', periodeIndex: 1, dateConseil: '',
+    presidentId: '', participantIds: [], compteRendu: '',
+  });
 
   const fetchConseils = useCallback(async () => {
     setLoading(true);
@@ -21,27 +27,31 @@ const ConseilDeClasse = () => {
       setConseils(res?.data || res || []);
     } catch { /* silent */ }
     setLoading(false);
-  }, []);
+  }, [get]);
 
   useEffect(() => { fetchConseils(); }, [fetchConseils]);
 
   const fetchOptions = async () => {
     try {
       const [cl, an, st] = await Promise.all([
-        get('/api/classes', { silent: true }),
+        get('/api/classes?limit=200', { silent: true }),
         get('/api/annees-scolaires', { silent: true }),
-        get('/api/personnel', { silent: true }),
+        get('/api/personnel?limit=200', { silent: true }),
       ]);
       setClasses(cl?.data || cl || []);
       setAnnees(an?.data || an || []);
-      setStaff(st?.staff || st || []);
+      setStaff(st?.staff || st?.data || st || []);
       const activeAnnee = (an?.data || an || []).find((a) => a.actif);
       if (activeAnnee) setForm((f) => ({ ...f, anneeScolaireId: activeAnnee.id }));
     } catch { /* silent */ }
   };
 
   const openCreate = () => {
-    setForm({ classeId: '', anneeScolaireId: '', periodeIndex: 1, dateConseil: new Date().toISOString().split('T')[0], presidentId: '', participantIds: [], compteRendu: '' });
+    setForm({
+      classeId: '', anneeScolaireId: '', periodeIndex: 1,
+      dateConseil: new Date().toISOString().split('T')[0],
+      presidentId: '', participantIds: [], compteRendu: '',
+    });
     fetchOptions();
     setModalOpen(true);
   };
@@ -67,6 +77,8 @@ const ConseilDeClasse = () => {
       fetchConseils();
     } catch { /* silent */ }
   };
+
+  const staffLabel = (s) => `${s.prenom || ''} ${s.nom || ''} (${s.role || ''})`.trim();
 
   const inputStyle = {
     width: '100%',
@@ -174,7 +186,7 @@ const ConseilDeClasse = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Période</label>
-              <select style={inputStyle} value={form.periodeIndex} onChange={(e) => setForm({ ...form, periodeIndex: parseInt(e.target.value) })}>
+              <select style={inputStyle} value={form.periodeIndex} onChange={(e) => setForm({ ...form, periodeIndex: parseInt(e.target.value, 10) })}>
                 <option value={1}>Période 1</option>
                 <option value={2}>Période 2</option>
                 <option value={3}>Période 3</option>
@@ -187,22 +199,23 @@ const ConseilDeClasse = () => {
           </div>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Président du conseil</label>
-            <select style={inputStyle} value={form.presidentId} onChange={(e) => setForm({ ...form, presidentId: e.target.value })}>
-              <option value="">Sélectionner</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.prenom} {s.nom} ({s.role})</option>)}
-            </select>
+            <QuickSearchSelect
+              items={staff}
+              value={form.presidentId}
+              onChange={(id) => setForm({ ...form, presidentId: id })}
+              getLabel={staffLabel}
+              placeholder="Rechercher le président…"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Participants</label>
-            <select
-              multiple
-              style={{ ...inputStyle, height: 120 }}
-              value={form.participantIds}
-              onChange={(e) => setForm({ ...form, participantIds: Array.from(e.target.selectedOptions, (o) => o.value) })}
-            >
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.prenom} {s.nom} ({s.role})</option>)}
-            </select>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Ctrl+clic pour sélectionner plusieurs</p>
+            <QuickSearchChecklist
+              items={staff}
+              values={form.participantIds}
+              onChange={(ids) => setForm({ ...form, participantIds: ids })}
+              getLabel={staffLabel}
+              placeholder="Rechercher puis cocher…"
+            />
           </div>
         </div>
       </Modal>

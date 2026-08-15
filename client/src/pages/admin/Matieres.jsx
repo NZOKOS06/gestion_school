@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
-import { PageHeader, DataTable, Badge, Button, Modal, SegmentedControl } from '../../components/ui';
+import { PageHeader, DataTable, Badge, Button, Modal, SegmentedControl, QuickSearchSelect } from '../../components/ui';
 import { Plus, Pencil, Trash2, Link2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -25,8 +25,12 @@ const Matieres = () => {
   const [progAnneeId, setProgAnneeId] = useState('');
   const [progNiveauId, setProgNiveauId] = useState('');
   const [programme, setProgramme] = useState([]);
+  const [progForm, setProgForm] = useState({ matiereId: '', coefficient: 1 });
   const [editingProgId, setEditingProgId] = useState(null);
   const [editCoef, setEditCoef] = useState(1);
+  const [progClasseId, setProgClasseId] = useState('');
+  const [classeProgramme, setClasseProgramme] = useState([]);
+  const [classeForm, setClasseForm] = useState({ matiereId: '', coefficient: 1 });
 
   const fetchMatieres = useCallback(async () => {
     setLoading(true);
@@ -40,13 +44,15 @@ const Matieres = () => {
   useEffect(() => { fetchMatieres(); }, [fetchMatieres]);
 
   useEffect(() => {
-    if (tab !== 'programme') return;
+    if (tab !== 'programme' && tab !== 'classe') return;
     (async () => {
       try {
-        const [an, niv] = await Promise.all([
+        const [an, niv, cl] = await Promise.all([
           get('/api/annees-scolaires', { silent: true }),
           get('/api/referentiel/niveaux', { silent: true }),
+          get('/api/classes?limit=200', { silent: true }),
         ]);
+        setClasses(cl?.data || cl || []);
         const anneesList = an?.data || an || [];
         setAnnees(anneesList);
         setNiveaux(niv?.data || niv || []);
@@ -68,6 +74,19 @@ const Matieres = () => {
   }, [progAnneeId, progNiveauId, get]);
 
   useEffect(() => { fetchProgramme(); }, [fetchProgramme]);
+
+  const fetchClasseProgramme = useCallback(async () => {
+    if (!progClasseId) {
+      setClasseProgramme([]);
+      return;
+    }
+    try {
+      const res = await get(`/api/matieres/programme/classe?classeId=${progClasseId}`, { silent: true });
+      setClasseProgramme(res?.data || []);
+    } catch { setClasseProgramme([]); }
+  }, [progClasseId, get]);
+
+  useEffect(() => { fetchClasseProgramme(); }, [fetchClasseProgramme]);
 
   const handleSave = async () => {
     try {
@@ -208,6 +227,50 @@ const Matieres = () => {
     } catch { /* silent */ }
   };
 
+  const addToClasseProgramme = async () => {
+    if (!progClasseId || !classeForm.matiereId) {
+      toast.error('Sélectionnez une classe et une matière');
+      return;
+    }
+    try {
+      await post('/api/matieres/programme/classe', {
+        classeId: progClasseId,
+        matiereId: classeForm.matiereId,
+        coefficient: classeForm.coefficient,
+        actif: true,
+      });
+      setClasseForm({ matiereId: '', coefficient: 1 });
+      fetchClasseProgramme();
+      toast.success('Matière personnalisée pour cette classe');
+    } catch { /* silent */ }
+  };
+
+  const saveClasseCoef = async (row) => {
+    try {
+      await post('/api/matieres/programme/classe', {
+        classeId: progClasseId,
+        matiereId: row.matiereId || row.matiere?.id,
+        coefficient: editCoef,
+        actif: true,
+      });
+      setEditingProgId(null);
+      fetchClasseProgramme();
+      toast.success('Coefficient mis à jour');
+    } catch { /* silent */ }
+  };
+
+  const removeFromClasse = async (row) => {
+    try {
+      await post('/api/matieres/programme/classe', {
+        classeId: progClasseId,
+        matiereId: row.matiereId || row.matiere?.id,
+        coefficient: row.coefficient,
+        actif: false,
+      });
+      fetchClasseProgramme();
+    } catch { /* silent */ }
+  };
+
   const inputStyle = {
     width: '100%',
     height: 38,
@@ -235,6 +298,7 @@ const Matieres = () => {
         options={[
           { value: 'catalogue', label: 'Catalogue' },
           { value: 'programme', label: 'Programme par niveau' },
+          { value: 'classe', label: 'Matière personnalisée' },
         ]}
       />
 
@@ -380,6 +444,101 @@ const Matieres = () => {
         </div>
       )}
 
+      {tab === 'classe' && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Classe</label>
+            <select
+              style={{ ...inputStyle, width: 220 }}
+              value={progClasseId}
+              onChange={(e) => setProgClasseId(e.target.value)}
+            >
+              <option value="">Sélectionner</option>
+              {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+            </select>
+            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+              Surcharge le programme du niveau pour cette classe uniquement (coef. ou matière en plus).
+            </p>
+          </div>
+
+          {progClasseId && (
+            <div className="rounded-lg p-4 space-y-3" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="flex-1 min-w-[160px]">
+                  <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Matière catalogue</label>
+                  <select style={inputStyle} value={classeForm.matiereId} onChange={(e) => setClasseForm({ ...classeForm, matiereId: e.target.value })}>
+                    <option value="">Sélectionner</option>
+                    {matieres.filter((m) => m.actif !== false).map((m) => (
+                      <option key={m.id} value={m.id}>{m.nom} ({m.code})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-28">
+                  <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Coef.</label>
+                  <input
+                    type="number"
+                    min="1"
+                    style={inputStyle}
+                    value={classeForm.coefficient}
+                    onChange={(e) => setClasseForm({ ...classeForm, coefficient: parseInt(e.target.value, 10) || 1 })}
+                  />
+                </div>
+                <Button icon={Plus} onClick={addToClasseProgramme}>Ajouter</Button>
+              </div>
+
+              <div className="space-y-2">
+                {classeProgramme.map((p) => (
+                  <div key={p.matiereId || p.id} className="flex items-center justify-between p-3 rounded-lg gap-3" style={{ background: 'var(--surface-overlay)' }}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                        {p.matiere?.nom} <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>({p.matiere?.code})</span>
+                      </p>
+                      {editingProgId === (p.matiereId || p.id) ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Coef.</span>
+                          <input
+                            type="number"
+                            min="1"
+                            style={{ ...inputStyle, width: 72, height: 32 }}
+                            value={editCoef}
+                            onChange={(e) => setEditCoef(parseInt(e.target.value, 10) || 1)}
+                          />
+                          <Button onClick={() => saveClasseCoef(p)}>OK</Button>
+                          <Button variant="secondary" onClick={() => setEditingProgId(null)}>Annuler</Button>
+                        </div>
+                      ) : (
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                          Coef. {p.coefficient} · {p.source === 'classe' ? 'personnalisé' : 'programme niveau'}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => { setEditingProgId(p.matiereId || p.id); setEditCoef(p.coefficient || 1); }}
+                        className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]"
+                        title="Modifier le coefficient"
+                      >
+                        <Pencil className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                      </button>
+                      {p.source === 'classe' && (
+                        <button onClick={() => removeFromClasse(p)} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Retirer la surcharge">
+                          <Trash2 className="h-4 w-4" style={{ color: 'var(--color-danger)' }} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {classeProgramme.length === 0 && (
+                  <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>
+                    Aucune matière pour cette classe — le programme du niveau s’applique, ou ajoutez une matière ici.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <Modal
         open={createOpen}
         onClose={() => { setCreateOpen(false); setEditItem(null); }}
@@ -441,14 +600,20 @@ const Matieres = () => {
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <select style={inputStyle} value={affectForm.enseignantId} onChange={(e) => setAffectForm({ ...affectForm, enseignantId: e.target.value })}>
-              <option value="">Sélectionner un enseignant</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.prenom} {s.nom}</option>)}
-            </select>
-            <select style={inputStyle} value={affectForm.classeId} onChange={(e) => setAffectForm({ ...affectForm, classeId: e.target.value })}>
-              <option value="">Sélectionner une classe</option>
-              {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
-            </select>
+            <QuickSearchSelect
+              items={staff}
+              value={affectForm.enseignantId}
+              onChange={(id) => setAffectForm({ ...affectForm, enseignantId: id })}
+              getLabel={(s) => `${s.prenom} ${s.nom}`}
+              placeholder="Rechercher un enseignant…"
+            />
+            <QuickSearchSelect
+              items={classes}
+              value={affectForm.classeId}
+              onChange={(id) => setAffectForm({ ...affectForm, classeId: id })}
+              getLabel={(c) => c.nom}
+              placeholder="Rechercher une classe…"
+            />
           </div>
           <Button icon={Plus} onClick={handleAffect} disabled={!affectForm.enseignantId || !affectForm.classeId}>Affecter</Button>
 

@@ -21,20 +21,38 @@ export const getRecipients = async (req, res) => {
       return res.json({ staff, parents: [] });
     }
 
-    const [staff, parents] = await Promise.all([
-      prisma.staff.findMany({
-        where: { tenantId, actif: true, role: { not: 'super_admin' } },
-        select: { id: true, nom: true, prenom: true, role: true },
-        orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
-        take: 200,
-      }),
-      prisma.user.findMany({
-        where: { tenantId, actif: true },
-        select: { id: true, nom: true, prenom: true, email: true },
-        orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
-        take: 200,
-      }),
-    ]);
+    const staff = await prisma.staff.findMany({
+      where: { tenantId, actif: true, role: { not: 'super_admin' } },
+      select: { id: true, nom: true, prenom: true, role: true },
+      orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
+      take: 200,
+    });
+
+    let parentWhere = { tenantId, actif: true };
+    if (role === 'enseignant') {
+      const { getEnseignantAssignments } = await import('../utils/ownership.js');
+      const assignments = await getEnseignantAssignments(tenantId, req.user.id);
+      const classeIds = [...new Set(assignments.map((a) => a.classeId))];
+      if (!classeIds.length) {
+        return res.json({ staff, parents: [] });
+      }
+      const inscriptions = await prisma.inscription.findMany({
+        where: { tenantId, classeId: { in: classeIds }, statut: 'validee' },
+        select: { eleve: { select: { parentId: true } } },
+      });
+      const parentIds = [...new Set(inscriptions.map((i) => i.eleve?.parentId).filter(Boolean))];
+      if (!parentIds.length) {
+        return res.json({ staff, parents: [] });
+      }
+      parentWhere = { tenantId, actif: true, id: { in: parentIds } };
+    }
+
+    const parents = await prisma.user.findMany({
+      where: parentWhere,
+      select: { id: true, nom: true, prenom: true, email: true },
+      orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
+      take: 200,
+    });
 
     res.json({ staff, parents });
   } catch (error) {
@@ -142,6 +160,26 @@ export const send = async (req, res) => {
 
     if (isParent && !destinataireStaffId) {
       return res.status(400).json({ error: 'Un parent doit écrire à un membre du personnel' });
+    }
+
+    if (req.user.role === 'enseignant' && destinataireUserId) {
+      const { getEnseignantAssignments } = await import('../utils/ownership.js');
+      const assignments = await getEnseignantAssignments(tenantId, req.user.id);
+      const classeIds = [...new Set(assignments.map((a) => a.classeId))];
+      const allowed = classeIds.length
+        ? await prisma.inscription.findFirst({
+            where: {
+              tenantId,
+              classeId: { in: classeIds },
+              statut: 'validee',
+              eleve: { parentId: destinataireUserId },
+            },
+            select: { id: true },
+          })
+        : null;
+      if (!allowed) {
+        return res.status(403).json({ error: 'Vous ne pouvez écrire qu\'aux parents de vos classes' });
+      }
     }
 
     const message = await prisma.message.create({

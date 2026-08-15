@@ -49,6 +49,31 @@ router.post('/relances/batch',
   ctrl.batchRelances
 );
 
+router.post('/batch',
+  authenticate,
+  requireRole(...financeRoles),
+  requireTenantMatch,
+  requireModule('paiements'),
+  paiementValidator,
+  ctrl.createBatch
+);
+
+router.get('/journal-pdf',
+  authenticate,
+  requireRole(...financeRoles),
+  requireTenantMatch,
+  requireModule('paiements'),
+  ctrl.getJournalPdf
+);
+
+router.get('/situation-pdf',
+  authenticate,
+  requireRole(...financeRoles, 'parent'),
+  requireTenantMatch,
+  requireModule('paiements'),
+  ctrl.getSituationPdf
+);
+
 router.get('/:id/recu-pdf',
   authenticate,
   requireRole(...financeRoles, 'parent'),

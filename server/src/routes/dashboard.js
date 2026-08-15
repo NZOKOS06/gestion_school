@@ -22,7 +22,7 @@ router.get('/caisse',
 
 router.get('/evolution',
   authenticate,
-  requireRole('directeur'),
+  requireRole('directeur', 'comptable'),
   requireTenantMatch,
   requireModule('paiements'),
   ctrl.getEvolution

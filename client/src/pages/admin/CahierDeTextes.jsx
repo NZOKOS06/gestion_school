@@ -1,10 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
+import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader, DataTable, Badge, Button, Modal } from '../../components/ui';
 import { BookOpen, Plus, Trash2, Pencil } from 'lucide-react';
 
 const CahierDeTextes = () => {
   const { get, post, put, delete: del } = useAxios();
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isTeacher = user?.role === 'enseignant';
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState([]);
@@ -20,27 +25,61 @@ const CahierDeTextes = () => {
       setEntries(res?.data || res || []);
     } catch { /* silent */ }
     setLoading(false);
-  }, []);
+  }, [get]);
 
-  const fetchOptions = async () => {
+  const fetchOptions = useCallback(async () => {
     try {
-      const [cl, ma] = await Promise.all([
-        get('/api/classes', { silent: true }),
-        get('/api/matieres', { silent: true }),
-      ]);
-      setClasses(cl?.data || cl || []);
-      setMatieres(ma?.data || ma || []);
+      if (isTeacher) {
+        const cl = await get('/api/enseignant/mes-classes', { silent: true });
+        setClasses(cl?.data || cl || []);
+        setMatieres([]);
+      } else {
+        const [cl, ma] = await Promise.all([
+          get('/api/classes?limit=200', { silent: true }),
+          get('/api/matieres', { silent: true }),
+        ]);
+        setClasses(cl?.data || cl || []);
+        setMatieres(ma?.data || ma || []);
+      }
     } catch { /* silent */ }
-  };
+  }, [get, isTeacher]);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
+  useEffect(() => { fetchOptions(); }, [fetchOptions]);
 
-  const openCreate = () => {
+  const matieresForClasse = useMemo(() => {
+    if (!isTeacher) return matieres;
+    const cl = classes.find((c) => c.id === form.classeId);
+    return cl?.matieres || [];
+  }, [isTeacher, matieres, classes, form.classeId]);
+
+  const openCreate = useCallback((prefill = {}) => {
     setEditing(null);
-    setForm({ classeId: '', matiereId: '', dateCours: new Date().toISOString().split('T')[0], lecon: '', devoirsDonnes: '', observations: '' });
+    const classeId = prefill.classeId || searchParams.get('classeId') || '';
+    const matiereId = prefill.matiereId || searchParams.get('matiereId') || '';
+    setForm({
+      classeId,
+      matiereId,
+      dateCours: new Date().toISOString().split('T')[0],
+      lecon: '',
+      devoirsDonnes: '',
+      observations: '',
+    });
     fetchOptions();
     setModalOpen(true);
-  };
+  }, [fetchOptions, searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get('nouveau') === '1') {
+      openCreate({
+        classeId: searchParams.get('classeId') || '',
+        matiereId: searchParams.get('matiereId') || '',
+      });
+      const next = new URLSearchParams(searchParams);
+      next.delete('nouveau');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, openCreate, setSearchParams]);
 
   const openEdit = (entry) => {
     setEditing(entry);
@@ -86,61 +125,63 @@ const CahierDeTextes = () => {
     padding: '0 12px',
   };
 
+  const columns = [
+    {
+      key: 'dateCours',
+      label: 'Date',
+      render: (val) => <span style={{ color: 'var(--text-secondary)' }}>{new Date(val).toLocaleDateString('fr-FR')}</span>,
+    },
+    {
+      key: 'classe',
+      label: 'Classe',
+      render: (_, row) => <span style={{ color: 'var(--text-primary)' }}>{row.classe?.nom || '—'}</span>,
+    },
+    {
+      key: 'matiere',
+      label: 'Matière',
+      render: (_, row) => <span style={{ color: 'var(--text-secondary)' }}>{row.matiere?.nom || '—'}</span>,
+    },
+    ...(!isTeacher ? [{
+      key: 'enseignant',
+      label: 'Enseignant',
+      render: (_, row) => <span style={{ color: 'var(--text-secondary)' }}>{row.enseignant?.prenom} {row.enseignant?.nom}</span>,
+    }] : []),
+    {
+      key: 'lecon',
+      label: 'Leçon',
+      render: (val) => <span className="text-sm" style={{ color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{val}</span>,
+    },
+    {
+      key: 'devoirsDonnes',
+      label: 'Devoirs',
+      render: (val) => val ? <Badge variant="warning">Donnés</Badge> : <span style={{ color: 'var(--text-muted)' }}>—</span>,
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (_, row) => (
+        <div className="flex items-center gap-1">
+          <button onClick={() => openEdit(row)} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Modifier">
+            <Pencil className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+          </button>
+          <button onClick={() => handleDelete(row)} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Supprimer">
+            <Trash2 className="h-4 w-4" style={{ color: 'var(--color-danger)' }} />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Cahier de textes"
         subtitle="Suivi quotidien des leçons — obligatoire pour l'inspection"
-        actions={<Button icon={Plus} onClick={openCreate}>Nouvelle entrée</Button>}
+        actions={<Button icon={Plus} onClick={() => openCreate()}>Nouvelle entrée</Button>}
       />
 
       <DataTable
-        columns={[
-          {
-            key: 'dateCours',
-            label: 'Date',
-            render: (val) => <span style={{ color: 'var(--text-secondary)' }}>{new Date(val).toLocaleDateString('fr-FR')}</span>,
-          },
-          {
-            key: 'classe',
-            label: 'Classe',
-            render: (_, row) => <span style={{ color: 'var(--text-primary)' }}>{row.classe?.nom || '—'}</span>,
-          },
-          {
-            key: 'matiere',
-            label: 'Matière',
-            render: (_, row) => <span style={{ color: 'var(--text-secondary)' }}>{row.matiere?.nom || '—'}</span>,
-          },
-          {
-            key: 'enseignant',
-            label: 'Enseignant',
-            render: (_, row) => <span style={{ color: 'var(--text-secondary)' }}>{row.enseignant?.prenom} {row.enseignant?.nom}</span>,
-          },
-          {
-            key: 'lecon',
-            label: 'Leçon',
-            render: (val) => <span className="text-sm" style={{ color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{val}</span>,
-          },
-          {
-            key: 'devoirsDonnes',
-            label: 'Devoirs',
-            render: (val) => val ? <Badge variant="warning">Donnés</Badge> : <span style={{ color: 'var(--text-muted)' }}>—</span>,
-          },
-          {
-            key: 'actions',
-            label: 'Actions',
-            render: (_, row) => (
-              <div className="flex items-center gap-1">
-                <button onClick={() => openEdit(row)} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Modifier">
-                  <Pencil className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-                </button>
-                <button onClick={() => handleDelete(row)} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Supprimer">
-                  <Trash2 className="h-4 w-4" style={{ color: 'var(--color-danger)' }} />
-                </button>
-              </div>
-            ),
-          },
-        ]}
+        columns={columns}
         data={entries}
         loading={loading}
         emptyMessage="Aucune entrée dans le cahier de textes"
@@ -166,7 +207,16 @@ const CahierDeTextes = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Classe</label>
-                  <select style={inputStyle} value={form.classeId} onChange={(e) => setForm({ ...form, classeId: e.target.value })}>
+                  <select
+                    style={inputStyle}
+                    value={form.classeId}
+                    onChange={(e) => {
+                      const classeId = e.target.value;
+                      const cl = classes.find((c) => c.id === classeId);
+                      const firstMat = cl?.matieres?.[0]?.id || '';
+                      setForm({ ...form, classeId, matiereId: isTeacher ? firstMat : form.matiereId });
+                    }}
+                  >
                     <option value="">Sélectionner</option>
                     {classes.map((cl) => <option key={cl.id} value={cl.id}>{cl.nom}</option>)}
                   </select>
@@ -175,7 +225,7 @@ const CahierDeTextes = () => {
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Matière</label>
                   <select style={inputStyle} value={form.matiereId} onChange={(e) => setForm({ ...form, matiereId: e.target.value })}>
                     <option value="">Sélectionner</option>
-                    {matieres.map((ma) => <option key={ma.id} value={ma.id}>{ma.nom} ({ma.code})</option>)}
+                    {matieresForClasse.map((ma) => <option key={ma.id} value={ma.id}>{ma.nom}{ma.code ? ` (${ma.code})` : ''}</option>)}
                   </select>
                 </div>
               </div>

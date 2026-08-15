@@ -41,6 +41,7 @@ model Tenant {
   evaluations     Evaluation[]
   bulletins       Bulletin[]
   paiements       Paiement[]
+  depenses        Depense[]
   emploisDuTemps  EmploiDuTemps[]
   absences        Absence[]
   sanctions       Sanction[]
@@ -172,6 +173,7 @@ model Staff {
   enseignantClasses EnseignantClasse[]
   emploisDuTemps    EmploiDuTemps[]
   paiementsRecus    Paiement[]         @relation("RecuPar")
+  depensesSaisies   Depense[]          @relation("DepenseSaisiePar")
   certificatsDelivres Certificat[]     @relation("DelivrePar")
   notesSaisies      Note[]             @relation("SaisiPar")
   absencesSaisies   Absence[]          @relation("SaisiPar")
@@ -799,6 +801,26 @@ model Paiement {
   @@index([inscriptionId])
   @@index([echeanceId])
   @@index([datePaiement])
+}
+
+model Depense {
+  id          String   @id @default(uuid())
+  tenantId    String
+  categorie   String
+  montant     Decimal  @db.Decimal(12, 2)
+  motif       String
+  reference   String?
+  dateDepense DateTime @default(now())
+  saisieParId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  saisiePar Staff  @relation("DepenseSaisiePar", fields: [saisieParId], references: [id])
+
+  @@index([tenantId])
+  @@index([dateDepense])
+  @@index([categorie])
 }
 
 model Certificat {

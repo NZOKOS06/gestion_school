@@ -1,16 +1,44 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
-import { PageHeader, Card, Button, Badge, DataTable, Modal } from '../../components/ui';
-import { ClipboardEdit, Save } from 'lucide-react';
+import { PageHeader, Button, Badge, DataTable, Modal } from '../../components/ui';
+import { ClipboardEdit, Save, Plus } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+const TYPE_EVAL = {
+  devoir: 'Devoir',
+  interrogation: 'Interrogation',
+  examen: 'Examen',
+  rattrapage: 'Rattrapage',
+  pratique: 'Pratique',
+};
 
 const SaisieNotes = () => {
   const { get, post } = useAxios();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [evaluations, setEvaluations] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [periodes, setPeriodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEval, setSelectedEval] = useState(null);
   const [eleves, setEleves] = useState([]);
   const [notes, setNotes] = useState({});
   const [saving, setSaving] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({
+    classeId: '',
+    matiereId: '',
+    anneeScolaireId: '',
+    periodeIndex: 1,
+    nom: '',
+    type: 'devoir',
+    dateEvaluation: new Date().toISOString().split('T')[0],
+    coefficient: 1,
+    noteMaximale: 20,
+  });
+
+  const filterClasseId = searchParams.get('classeId') || '';
 
   const fetchEvaluations = useCallback(async () => {
     setLoading(true);
@@ -19,9 +47,80 @@ const SaisieNotes = () => {
       setEvaluations(res?.data || res || []);
     } catch { /* silent */ }
     setLoading(false);
-  }, []);
+  }, [get]);
 
-  useEffect(() => { fetchEvaluations(); }, [fetchEvaluations]);
+  const fetchClasses = useCallback(async () => {
+    try {
+      const res = await get('/api/enseignant/mes-classes', { silent: true });
+      setClasses(res?.data || res || []);
+    } catch { /* silent */ }
+  }, [get]);
+
+  useEffect(() => {
+    fetchEvaluations();
+    fetchClasses();
+  }, [fetchEvaluations, fetchClasses]);
+
+  const selectedClasse = useMemo(
+    () => classes.find((c) => c.id === (form.classeId || filterClasseId)),
+    [classes, form.classeId, filterClasseId]
+  );
+
+  useEffect(() => {
+    (async () => {
+      const anneeId = selectedClasse?.anneeScolaireId;
+      if (!anneeId) {
+        setPeriodes([]);
+        return;
+      }
+      try {
+        const qs = new URLSearchParams({ anneeScolaireId: anneeId });
+        if (selectedClasse?.cycle) qs.set('cycle', selectedClasse.cycle);
+        const res = await get(`/api/referentiel/periodes?${qs}`, { silent: true });
+        const list = res?.data || res || [];
+        setPeriodes(list);
+        if (list.length) {
+          setForm((f) => {
+            if (list.some((p) => String(p.index) === String(f.periodeIndex))) return f;
+            return { ...f, periodeIndex: list[0].index };
+          });
+        }
+      } catch {
+        setPeriodes([]);
+      }
+    })();
+  }, [selectedClasse?.anneeScolaireId, selectedClasse?.cycle, get]);
+
+  const openCreate = useCallback((prefillClasseId = '') => {
+    const classe = classes.find((c) => c.id === (prefillClasseId || filterClasseId)) || classes[0];
+    const matieres = classe?.matieres || [];
+    setForm({
+      classeId: classe?.id || '',
+      matiereId: matieres[0]?.id || '',
+      anneeScolaireId: classe?.anneeScolaireId || '',
+      periodeIndex: periodes[0]?.index || 1,
+      nom: '',
+      type: 'devoir',
+      dateEvaluation: new Date().toISOString().split('T')[0],
+      coefficient: 1,
+      noteMaximale: 20,
+    });
+    setCreateOpen(true);
+  }, [classes, filterClasseId, periodes]);
+
+  useEffect(() => {
+    if (searchParams.get('nouveau') === '1' && classes.length) {
+      openCreate(filterClasseId);
+      const next = new URLSearchParams(searchParams);
+      next.delete('nouveau');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, classes.length, filterClasseId, openCreate, setSearchParams]);
+
+  const displayed = useMemo(() => {
+    if (!filterClasseId) return evaluations;
+    return evaluations.filter((e) => e.classeId === filterClasseId || e.classeNom === classes.find((c) => c.id === filterClasseId)?.nom);
+  }, [evaluations, filterClasseId, classes]);
 
   const openSaisie = async (evaluation) => {
     setSelectedEval(evaluation);
@@ -29,7 +128,7 @@ const SaisieNotes = () => {
       const res = await get(`/api/evaluations/${evaluation.id}/notes`, { silent: true });
       const notesData = res?.data || res || [];
       const notesMap = {};
-      notesData.forEach((n) => { notesMap[n.eleveId] = n.valeur?.toString() || ''; });
+      notesData.forEach((n) => { notesMap[n.eleveId] = n.valeur != null ? String(n.valeur) : ''; });
       setNotes(notesMap);
       setEleves(notesData);
     } catch { setEleves([]); }
@@ -42,9 +141,13 @@ const SaisieNotes = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const max = Number(selectedEval?.noteMaximale || 20);
       const payload = Object.entries(notes)
-        .filter(([_, v]) => v !== '')
-        .map(([eleveId, valeur]) => ({ eleveId, valeur: parseFloat(valeur) }));
+        .filter(([, v]) => v !== '')
+        .map(([eleveId, valeur]) => {
+          const n = parseFloat(valeur);
+          return { eleveId, valeur: Math.min(max, Math.max(0, n)) };
+        });
       await post(`/api/evaluations/${selectedEval.id}/notes`, { notes: payload });
       setSelectedEval(null);
       fetchEvaluations();
@@ -52,7 +155,48 @@ const SaisieNotes = () => {
     setSaving(false);
   };
 
+  const handleCreate = async (saisirApres = false) => {
+    if (!form.classeId || !form.matiereId || !form.nom || !form.anneeScolaireId) {
+      toast.error('Classe, matière, nom et année sont requis');
+      return;
+    }
+    setCreating(true);
+    try {
+      const created = await post('/api/evaluations', {
+        ...form,
+        periodeIndex: parseInt(form.periodeIndex, 10),
+        coefficient: parseInt(form.coefficient, 10) || 1,
+        noteMaximale: parseFloat(form.noteMaximale) || 20,
+        dateEvaluation: form.dateEvaluation,
+      });
+      setCreateOpen(false);
+      toast.success('Évaluation programmée');
+      await fetchEvaluations();
+      if (saisirApres && created?.id) {
+        const classe = classes.find((c) => c.id === form.classeId);
+        const matiere = (classe?.matieres || []).find((m) => m.id === form.matiereId);
+        await openSaisie({
+          ...created,
+          classeNom: classe?.nom,
+          matiereNom: matiere?.nom,
+        });
+      }
+    } catch { /* silent */ }
+    setCreating(false);
+  };
+
   const inputStyle = {
+    width: '100%',
+    height: 38,
+    background: 'var(--surface-overlay)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--text-primary)',
+    fontSize: 14,
+    padding: '0 12px',
+  };
+
+  const noteInputStyle = {
     width: 80,
     height: 36,
     background: 'var(--surface-overlay)',
@@ -64,9 +208,22 @@ const SaisieNotes = () => {
     textAlign: 'center',
   };
 
+  const matieresOfForm = classes.find((c) => c.id === form.classeId)?.matieres || [];
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Saisie des notes" subtitle="Évaluations et saisie des notes par classe" />
+      <PageHeader
+        title="Saisie des notes"
+        subtitle="Programmer un devoir et saisir les notes par classe"
+        actions={<Button icon={Plus} onClick={() => openCreate(filterClasseId)}>Programmer un devoir</Button>}
+      />
+
+      {filterClasseId && (
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          Filtré sur {classes.find((c) => c.id === filterClasseId)?.nom || 'la classe'} —{' '}
+          <button type="button" className="underline" onClick={() => setSearchParams({})}>voir toutes</button>
+        </p>
+      )}
 
       <DataTable
         columns={[
@@ -84,16 +241,97 @@ const SaisieNotes = () => {
             ) : <Button size="sm" variant="secondary" onClick={() => openSaisie(row)}>Voir</Button>,
           },
         ]}
-        data={evaluations}
+        data={displayed}
         loading={loading}
-        emptyMessage="Aucune évaluation"
+        emptyMessage="Aucune évaluation — programmez un devoir pour commencer"
       />
+
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Programmer un devoir / une évaluation"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setCreateOpen(false)}>Annuler</Button>
+            <Button variant="secondary" onClick={() => handleCreate(true)} loading={creating} disabled={!form.nom || !form.classeId || !form.matiereId}>
+              Créer et saisir
+            </Button>
+            <Button onClick={() => handleCreate(false)} loading={creating} disabled={!form.nom || !form.classeId || !form.matiereId}>
+              Programmer
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Classe</label>
+              <select
+                style={inputStyle}
+                value={form.classeId}
+                onChange={(e) => {
+                  const cl = classes.find((c) => c.id === e.target.value);
+                  setForm({
+                    ...form,
+                    classeId: e.target.value,
+                    anneeScolaireId: cl?.anneeScolaireId || '',
+                    matiereId: cl?.matieres?.[0]?.id || '',
+                  });
+                }}
+              >
+                <option value="">Sélectionner</option>
+                {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Matière</label>
+              <select style={inputStyle} value={form.matiereId} onChange={(e) => setForm({ ...form, matiereId: e.target.value })}>
+                <option value="">Sélectionner</option>
+                {matieresOfForm.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Nom</label>
+            <input style={inputStyle} value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} placeholder="ex: Devoir de table n°1" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Type</label>
+              <select style={inputStyle} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                {Object.entries(TYPE_EVAL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Date</label>
+              <input type="date" style={inputStyle} value={form.dateEvaluation} onChange={(e) => setForm({ ...form, dateEvaluation: e.target.value })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Période</label>
+              <select style={inputStyle} value={form.periodeIndex} onChange={(e) => setForm({ ...form, periodeIndex: parseInt(e.target.value, 10) })}>
+                {periodes.length === 0 && <option value={1}>Période 1</option>}
+                {periodes.map((p) => <option key={p.id || p.index} value={p.index}>{p.libelle}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Coef.</label>
+              <input type="number" min="1" style={inputStyle} value={form.coefficient} onChange={(e) => setForm({ ...form, coefficient: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Barème</label>
+              <input type="number" min="1" style={inputStyle} value={form.noteMaximale} onChange={(e) => setForm({ ...form, noteMaximale: e.target.value })} />
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={!!selectedEval}
         onClose={() => setSelectedEval(null)}
         title={selectedEval?.nom || 'Saisie des notes'}
-        subtitle={`${selectedEval?.classeNom} · ${selectedEval?.matiereNom} · /${selectedEval?.noteMaximale}`}
+        subtitle={`${selectedEval?.classeNom || ''} · ${selectedEval?.matiereNom || ''} · /${selectedEval?.noteMaximale}`}
         size="lg"
         footer={
           <>
@@ -120,7 +358,7 @@ const SaisieNotes = () => {
                   step="0.25"
                   min="0"
                   max={selectedEval?.noteMaximale || 20}
-                  style={inputStyle}
+                  style={noteInputStyle}
                   value={notes[eleve.eleveId] || ''}
                   onChange={(e) => handleNoteChange(eleve.eleveId, e.target.value)}
                   placeholder="—"

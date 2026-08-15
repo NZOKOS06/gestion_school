@@ -124,7 +124,6 @@ export const create = async (req, res) => {
       await generateForInscription(tx, insc, {
         fraisInscription,
         fraisScolarite,
-        nbTranches: 3,
       });
       return tx.inscription.findUnique({
         where: { id: insc.id },
@@ -225,7 +224,6 @@ export const createAvecEleve = async (req, res) => {
       await generateForInscription(tx, insc, {
         fraisInscription,
         fraisScolarite,
-        nbTranches: 3,
       });
 
       return tx.inscription.findUnique({
@@ -405,7 +403,6 @@ export const decideFinAnnee = async (req, res) => {
             await generateForInscription(tx, insc, {
               fraisInscription,
               fraisScolarite,
-              nbTranches: 3,
             });
             return tx.inscription.findUnique({
               where: { id: insc.id },
@@ -456,7 +453,6 @@ export const validate = async (req, res) => {
         await generateForInscription(tx, insc, {
           fraisInscription,
           fraisScolarite: Number(existing.classe?.fraisScolarite ?? fraisScolarite),
-          nbTranches: 3,
         });
       }
       return tx.inscription.findUnique({

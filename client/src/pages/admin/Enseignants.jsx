@@ -24,7 +24,7 @@ const Enseignants = () => {
   const [form, setForm] = useState({
     nom: '', prenom: '', email: '', telephone: '', typeContrat: 'titulaire',
   });
-  const [resultModal, setResultModal] = useState({ open: false, password: '' });
+  const [resultModal, setResultModal] = useState({ open: false, password: '', email: '' });
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -103,7 +103,11 @@ const Enseignants = () => {
         toast.success('Enseignant mis à jour');
       } else {
         const res = await post('/api/staff', { ...form, role: 'enseignant' });
-        setResultModal({ open: true, password: res?.motDePasseProvisoire || res?.tempPassword || '' });
+        setResultModal({
+          open: true,
+          password: res?.motDePasseProvisoire || res?.tempPassword || '',
+          email: form.email || res?.email || '',
+        });
         toast.success('Enseignant créé');
       }
       setModalOpen(false);
@@ -374,13 +378,25 @@ const Enseignants = () => {
 
       <Modal
         open={resultModal.open}
-        onClose={() => setResultModal({ open: false, password: '' })}
+        onClose={() => setResultModal({ open: false, password: '', email: '' })}
         title="Compte créé"
-        footer={<Button onClick={() => setResultModal({ open: false, password: '' })}>OK</Button>}
+        footer={<Button onClick={() => setResultModal({ open: false, password: '', email: '' })}>OK</Button>}
       >
-        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Mot de passe temporaire : <strong style={{ color: 'var(--text-primary)' }}>{resultModal.password || '(voir email / logs)'}</strong>
-        </p>
+        <div className="space-y-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <p>
+            Email :{' '}
+            <strong style={{ color: 'var(--text-primary)' }}>{resultModal.email || '—'}</strong>
+          </p>
+          <p>
+            Mot de passe temporaire :{' '}
+            <strong style={{ color: 'var(--color-primary)' }}>
+              {resultModal.password || '(voir email / logs)'}
+            </strong>
+          </p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Communiquez ces identifiants à l’enseignant — le mot de passe devra être changé à la première connexion.
+          </p>
+        </div>
       </Modal>
     </div>
   );

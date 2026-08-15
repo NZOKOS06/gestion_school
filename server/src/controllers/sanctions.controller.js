@@ -24,7 +24,6 @@ export const getAll = async (req, res) => {
         where,
         include: {
           eleve: { select: { id: true, matricule: true, nom: true, prenom: true, photoUrl: true } },
-          decidePar: { select: { id: true, nom: true, prenom: true } },
         },
         skip,
         take,
@@ -59,8 +58,7 @@ export const create = async (req, res) => {
         eleveId,
         type,
         motif,
-        dureeJours: dureeJours || null,
-        decideParId: req.user.id,
+        dureeJours: dureeJours ? parseInt(dureeJours, 10) : null,
       },
     });
 
@@ -72,7 +70,10 @@ export const create = async (req, res) => {
 
     res.status(201).json(sanction);
   } catch (error) {
-    log.error({ err: error, tenantId: req.tenantId }, 'Create sanction error');
+    log.error({ err: error, tenantId: req.tenantId, code: error.code, meta: error.meta }, 'Create sanction error');
+    if (error.code === 'P2003') {
+      return res.status(400).json({ error: 'Élève introuvable' });
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 };

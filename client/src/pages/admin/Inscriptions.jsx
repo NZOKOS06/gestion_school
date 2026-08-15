@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { PageHeader, DataTable, Badge, Button, Modal, SearchInput, FilterBar, Select } from '../../components/ui';
+import { PageHeader, DataTable, Badge, Button, Modal, SearchInput, FilterBar, Select, QuickSearchSelect } from '../../components/ui';
 import { Plus, Check, X, Pause, UserPlus } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import toast from 'react-hot-toast';
@@ -558,15 +558,15 @@ const Inscriptions = () => {
           {mode === 'existant' ? (
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Élève</label>
-              <select style={inputStyle} value={form.eleveId} onChange={(e) => setForm({ ...form, eleveId: e.target.value })}>
-                <option value="">Sélectionner un élève</option>
-                {eleves.map((el) => (
-                  <option key={el.id} value={el.id}>
-                    {el.prenom} {el.nom} ({el.matricule})
-                    {!el.inscriptions?.length ? ' — non inscrit' : ''}
-                  </option>
-                ))}
-              </select>
+              <QuickSearchSelect
+                items={eleves}
+                value={form.eleveId}
+                onChange={(id) => setForm({ ...form, eleveId: id })}
+                getLabel={(el) =>
+                  `${el.prenom} ${el.nom} (${el.matricule})${!el.inscriptions?.length ? ' — non inscrit' : ''}`
+                }
+                placeholder="Nom, prénom ou matricule…"
+              />
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -618,16 +618,13 @@ const Inscriptions = () => {
                 <UserPlus className="h-3.5 w-3.5" /> Créer un parent
               </button>
             </div>
-            <select
-              style={inputStyle}
+            <QuickSearchSelect
+              items={parents}
               value={form.parentId}
-              onChange={(e) => setForm({ ...form, parentId: e.target.value })}
-            >
-              <option value="">— Aucun parent lié —</option>
-              {parents.map((p) => (
-                <option key={p.id} value={p.id}>{p.prenom} {p.nom}{p.telephone ? ` · ${p.telephone}` : ''}</option>
-              ))}
-            </select>
+              onChange={(id) => setForm({ ...form, parentId: id })}
+              getLabel={(p) => `${p.prenom} ${p.nom}${p.telephone ? ` · ${p.telephone}` : ''}`}
+              placeholder="Rechercher un parent…"
+            />
             {!form.parentId && (
               <p className="text-xs mt-1" style={{ color: 'var(--color-warning, #b45309)' }}>
                 Sans parent, le portail famille et les relances ne pourront pas être utilisés.

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader, Card, KpiCard, Badge, DataTable, Skeleton, EmptyState, Button } from '../../components/ui';
-import { Users, BookOpen, CalendarCheck, Clock } from 'lucide-react';
+import { Users, BookOpen, CalendarCheck, Clock, Plus, ClipboardEdit, NotebookPen } from 'lucide-react';
 
 const EnseignantDashboard = () => {
   const { get } = useAxios();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -73,21 +75,43 @@ const EnseignantDashboard = () => {
         {stats.map((stat, i) => <KpiCard key={i} {...stat} />)}
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <Button icon={Plus} onClick={() => navigate('/enseignant/saisie-notes?nouveau=1')}>
+          Programmer une évaluation
+        </Button>
+        <Button variant="secondary" icon={ClipboardEdit} onClick={() => navigate('/enseignant/saisie-notes')}>
+          Saisir les notes
+        </Button>
+      </div>
+
       {data.coursAujourdhui?.length > 0 && (
         <Card title="Cours d'aujourd'hui" icon={CalendarCheck}>
           <div className="space-y-2">
             {data.coursAujourdhui.map((cours) => (
-              <div key={cours.id} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)' }}>
+              <div key={cours.id} className="flex items-center justify-between gap-3 p-3 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)' }}>
                     <BookOpen className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{cours.matiereNom}</p>
                     <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{cours.classeNom} · Salle {cours.salle || '—'}</p>
                   </div>
                 </div>
-                <Badge variant="info">{cours.heureDebut} — {cours.heureFin}</Badge>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant="info">{cours.heureDebut} — {cours.heureFin}</Badge>
+                  <Button size="sm" variant="secondary" icon={CalendarCheck} onClick={() => navigate(`/enseignant/appel?coursId=${cours.id}`)}>
+                    Appel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={NotebookPen}
+                    onClick={() => navigate(`/enseignant/cahier-de-textes?classeId=${cours.classeId || ''}&matiereId=${cours.matiereId || ''}&nouveau=1`)}
+                  >
+                    Cahier
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

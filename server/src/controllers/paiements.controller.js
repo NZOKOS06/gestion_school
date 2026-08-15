@@ -3,16 +3,66 @@ import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import {
   applyPaymentToEcheance,
+  applyPaymentCascade,
   listByInscription,
   listRetards,
   normalizeModePaiement,
 } from '../services/echeances.service.js';
+import { loadSchoolPdfMeta } from '../services/pdf/schoolMeta.js';
 import { buildRecuPdf } from '../services/pdf/recu.pdf.js';
+import { buildJournalCaissePdf } from '../services/pdf/journalCaisse.pdf.js';
+import { buildSituationFinancierePdf } from '../services/pdf/situationFinanciere.pdf.js';
 import { uploadPdfBuffer, isCloudinaryConfigured } from '../utils/cloudinary.js';
 import { sendRelanceEcheance } from '../services/email.service.js';
 import { broadcastPaiement, broadcastPaiementEchu } from '../utils/notifications.js';
 
 const log = createLogger('PaiementsController');
+
+function parseDayStart(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  if (String(value).length <= 10) d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function parseDayEnd(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  if (String(value).length <= 10) d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+async function schoolPdfMeta(tenantId, req) {
+  return loadSchoolPdfMeta(tenantId, req);
+}
+
+async function recuPdfPayload(full, tenantId, req) {
+  const meta = await schoolPdfMeta(tenantId, req);
+  const echeances = (full.inscriptionId || full.inscription?.id)
+    ? await listByInscription(tenantId, full.inscriptionId || full.inscription.id)
+    : [];
+  return {
+    ...meta,
+    numeroRecu: full.numeroRecu,
+    datePaiement: full.datePaiement,
+    montant: full.montant,
+    typePaiement: full.typePaiement,
+    modePaiement: full.modePaiement,
+    reference: full.reference,
+    motif: full.motif,
+    eleve: `${full.inscription.eleve.prenom} ${full.inscription.eleve.nom}`,
+    matricule: full.inscription.eleve.matricule,
+    classe: full.inscription.classe?.nom,
+    anneeScolaire: full.inscription.anneeScolaire?.libelle,
+    recuPar: full.recuPar ? `${full.recuPar.prenom} ${full.recuPar.nom}` : null,
+    parent: full.inscription.eleve.parent
+      ? `${full.inscription.eleve.parent.prenom} ${full.inscription.eleve.parent.nom}`
+      : null,
+    echeances,
+  };
+}
 
 async function loadPaiementFull(id, tenantId) {
   return prisma.paiement.findFirst({
@@ -40,6 +90,34 @@ async function loadPaiementFull(id, tenantId) {
   });
 }
 
+async function attachRecuPdf(paiement, tenantId, req) {
+  try {
+    const full = await loadPaiementFull(paiement.id, tenantId);
+    if (!full) return null;
+    const buffer = await buildRecuPdf(await recuPdfPayload(full, tenantId, req));
+
+    let pdfUrl = null;
+    if (isCloudinaryConfigured()) {
+      try {
+        pdfUrl = await uploadPdfBuffer(buffer, {
+          folder: 'gestschool/recus',
+          publicId: `recu-${tenantId.slice(0, 8)}-${paiement.numeroRecu}`,
+        });
+      } catch (upErr) {
+        log.warn({ err: upErr }, 'Cloudinary recu upload failed');
+      }
+    }
+
+    if (pdfUrl) {
+      await prisma.paiement.update({ where: { id: paiement.id }, data: { pdfUrl } });
+    }
+    return pdfUrl;
+  } catch (pdfErr) {
+    log.warn({ err: pdfErr }, 'PDF recu generation failed');
+    return null;
+  }
+}
+
 export const getAll = async (req, res) => {
   try {
     const tenantId = req.tenantId;
@@ -53,8 +131,10 @@ export const getAll = async (req, res) => {
     if (modePaiement) where.modePaiement = normalizeModePaiement(modePaiement);
     if (dateDebut || dateFin) {
       where.datePaiement = {};
-      if (dateDebut) where.datePaiement.gte = new Date(dateDebut);
-      if (dateFin) where.datePaiement.lte = new Date(dateFin);
+      const from = parseDayStart(dateDebut);
+      const to = parseDayEnd(dateFin);
+      if (from) where.datePaiement.gte = from;
+      if (to) where.datePaiement.lte = to;
     }
     if (search) {
       where.inscription = {
@@ -294,45 +374,7 @@ export const create = async (req, res) => {
       return created;
     });
 
-    // PDF after commit
-    let pdfUrl = null;
-    try {
-      const full = await loadPaiementFull(paiement.id, tenantId);
-      const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
-      const buffer = await buildRecuPdf({
-        nomEcole: config?.nomEcole || req.tenant?.nom || 'GestSchool',
-        numeroRecu: full.numeroRecu,
-        datePaiement: full.datePaiement,
-        montant: full.montant,
-        devise: config?.devise || 'FCFA',
-        typePaiement: full.typePaiement,
-        modePaiement: full.modePaiement,
-        reference: full.reference,
-        motif: full.motif,
-        eleve: `${full.inscription.eleve.prenom} ${full.inscription.eleve.nom}`,
-        matricule: full.inscription.eleve.matricule,
-        classe: full.inscription.classe?.nom,
-        anneeScolaire: full.inscription.anneeScolaire?.libelle,
-        recuPar: full.recuPar ? `${full.recuPar.prenom} ${full.recuPar.nom}` : null,
-      });
-
-      if (isCloudinaryConfigured()) {
-        try {
-          pdfUrl = await uploadPdfBuffer(buffer, {
-            folder: 'gestschool/recus',
-            publicId: `recu-${tenantId.slice(0, 8)}-${paiement.numeroRecu}`,
-          });
-        } catch (upErr) {
-          log.warn({ err: upErr }, 'Cloudinary recu upload failed');
-        }
-      }
-
-      if (pdfUrl) {
-        await prisma.paiement.update({ where: { id: paiement.id }, data: { pdfUrl } });
-      }
-    } catch (pdfErr) {
-      log.warn({ err: pdfErr }, 'PDF recu generation failed');
-    }
+    await attachRecuPdf(paiement, tenantId, req);
 
     const result = await loadPaiementFull(paiement.id, tenantId);
 
@@ -356,6 +398,83 @@ export const create = async (req, res) => {
       return res.status(404).json({ error: 'Échéance non trouvée' });
     }
     log.error({ err: error, tenantId: req.tenantId }, 'Create paiement error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const createBatch = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { inscriptionId, montant, typePaiement, modePaiement, reference, motif } = req.body;
+    const amount = parseFloat(montant);
+    if (!inscriptionId || !amount || amount <= 0) {
+      return res.status(400).json({ error: 'inscriptionId et montant > 0 requis' });
+    }
+
+    const mode = normalizeModePaiement(modePaiement);
+
+    const { paiement, allocations } = await prisma.$transaction(async (tx) => {
+      const inscription = await tx.inscription.findFirst({
+        where: { id: inscriptionId, tenantId },
+      });
+      if (!inscription) throw new Error('INSCRIPTION_NOT_FOUND');
+
+      const lastPaiement = await tx.paiement.findFirst({
+        where: { tenantId },
+        orderBy: { numeroRecu: 'desc' },
+        select: { numeroRecu: true },
+      });
+      const numeroRecu = (lastPaiement?.numeroRecu || 0) + 1;
+
+      const cascade = await applyPaymentCascade(tx, tenantId, inscriptionId, amount);
+      const firstEcheanceId = cascade.allocations[0]?.echeanceId || null;
+
+      const created = await tx.paiement.create({
+        data: {
+          tenantId,
+          inscriptionId,
+          echeanceId: firstEcheanceId,
+          numeroRecu,
+          montant: amount,
+          typePaiement: typePaiement || 'scolarite',
+          modePaiement: mode,
+          reference: reference || null,
+          motif: motif || (cascade.allocations.length
+            ? `Répartition: ${cascade.allocations.map((a) => a.libelle).join(', ')}`
+            : null),
+          recuParId: req.user.id,
+        },
+      });
+
+      const newSolde = Math.max(0, Number(inscription.soldeScolarite) - amount);
+      await tx.inscription.update({
+        where: { id: inscriptionId },
+        data: { soldeScolarite: newSolde },
+      });
+
+      return { paiement: created, allocations: cascade.allocations };
+    });
+
+    await attachRecuPdf(paiement, tenantId, req);
+    const result = await loadPaiementFull(paiement.id, tenantId);
+
+    await logAudit(req, 'paiement_encaisse', 'Paiement', paiement.id, {
+      montant: amount,
+      modePaiement: mode,
+      inscriptionId,
+      allocations,
+    });
+
+    try {
+      await broadcastPaiement(req.tenant?.slug, tenantId, result);
+    } catch { /* optional */ }
+
+    res.status(201).json({ ...result, allocations });
+  } catch (error) {
+    if (error.message === 'INSCRIPTION_NOT_FOUND') {
+      return res.status(404).json({ error: 'Inscription non trouvée' });
+    }
+    log.error({ err: error, tenantId: req.tenantId }, 'Create batch paiement error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -400,29 +519,135 @@ export const getRecuPdf = async (req, res) => {
       }
     }
 
-    const config = await prisma.tenantConfig.findUnique({ where: { tenantId: req.tenantId } });
-    const buffer = await buildRecuPdf({
-      nomEcole: config?.nomEcole || req.tenant?.nom || 'GestSchool',
-      numeroRecu: paiement.numeroRecu,
-      datePaiement: paiement.datePaiement,
-      montant: paiement.montant,
-      devise: config?.devise || 'FCFA',
-      typePaiement: paiement.typePaiement,
-      modePaiement: paiement.modePaiement,
-      reference: paiement.reference,
-      motif: paiement.motif,
-      eleve: `${paiement.inscription.eleve.prenom} ${paiement.inscription.eleve.nom}`,
-      matricule: paiement.inscription.eleve.matricule,
-      classe: paiement.inscription.classe?.nom,
-      anneeScolaire: paiement.inscription.anneeScolaire?.libelle,
-      recuPar: paiement.recuPar ? `${paiement.recuPar.prenom} ${paiement.recuPar.nom}` : null,
-    });
+    const buffer = await buildRecuPdf(await recuPdfPayload(paiement, req.tenantId, req));
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="recu-${paiement.numeroRecu}.pdf"`);
     res.send(buffer);
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Get recu PDF error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getJournalPdf = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { search, modePaiement, dateDebut, dateFin } = req.query;
+    const where = { tenantId };
+    if (modePaiement) where.modePaiement = normalizeModePaiement(modePaiement);
+    if (dateDebut || dateFin) {
+      where.datePaiement = {};
+      const from = parseDayStart(dateDebut);
+      const to = parseDayEnd(dateFin);
+      if (from) where.datePaiement.gte = from;
+      if (to) where.datePaiement.lte = to;
+    }
+    if (search) {
+      where.inscription = {
+        eleve: {
+          OR: [
+            { matricule: { contains: search, mode: 'insensitive' } },
+            { nom: { contains: search, mode: 'insensitive' } },
+            { prenom: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+      };
+    }
+
+    const rows = await prisma.paiement.findMany({
+      where,
+      include: {
+        inscription: {
+          select: {
+            eleve: { select: { nom: true, prenom: true } },
+            classe: { select: { nom: true } },
+          },
+        },
+      },
+      orderBy: { datePaiement: 'asc' },
+      take: 500,
+    });
+
+    const meta = await schoolPdfMeta(tenantId, req);
+    const buffer = await buildJournalCaissePdf({
+      ...meta,
+      dateDebut: dateDebut || rows[0]?.datePaiement,
+      dateFin: dateFin || new Date(),
+      recuPar: req.user ? `${req.user.prenom || ''} ${req.user.nom || ''}`.trim() : null,
+      paiements: rows.map((p) => ({
+        numeroRecu: p.numeroRecu,
+        datePaiement: p.datePaiement,
+        montant: Number(p.montant),
+        modePaiement: p.modePaiement,
+        elevePrenom: p.inscription?.eleve?.prenom,
+        eleveNom: p.inscription?.eleve?.nom,
+        classeNom: p.inscription?.classe?.nom,
+      })),
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="journal-caisse.pdf"');
+    res.send(buffer);
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Get journal PDF error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getSituationPdf = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { inscriptionId } = req.query;
+    if (!inscriptionId) {
+      return res.status(400).json({ error: 'inscriptionId requis' });
+    }
+
+    const inscription = await prisma.inscription.findFirst({
+      where: { id: inscriptionId, tenantId },
+      include: {
+        eleve: {
+          select: {
+            nom: true,
+            prenom: true,
+            matricule: true,
+            parent: { select: { nom: true, prenom: true } },
+          },
+        },
+        classe: { select: { nom: true } },
+        anneeScolaire: { select: { libelle: true } },
+        paiements: { orderBy: { datePaiement: 'desc' }, take: 50 },
+      },
+    });
+    if (!inscription) return res.status(404).json({ error: 'Inscription non trouvée' });
+
+    const echeances = await listByInscription(tenantId, inscriptionId);
+    const meta = await schoolPdfMeta(tenantId, req);
+    const buffer = await buildSituationFinancierePdf({
+      ...meta,
+      eleve: `${inscription.eleve.prenom} ${inscription.eleve.nom}`,
+      matricule: inscription.eleve.matricule,
+      classe: inscription.classe?.nom,
+      anneeScolaire: inscription.anneeScolaire?.libelle,
+      parent: inscription.eleve.parent
+        ? `${inscription.eleve.parent.prenom} ${inscription.eleve.parent.nom}`
+        : null,
+      echeances,
+      paiements: (inscription.paiements || []).map((p) => ({
+        numeroRecu: p.numeroRecu,
+        datePaiement: p.datePaiement,
+        montant: Number(p.montant),
+        modePaiement: p.modePaiement,
+        motif: p.motif,
+        typePaiement: p.typePaiement,
+      })),
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="situation-${inscription.eleve.matricule}.pdf"`);
+    res.send(buffer);
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Get situation PDF error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

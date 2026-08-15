@@ -8,11 +8,59 @@ import {
   countAbsencesHeures,
   mentionFromMoyenne,
 } from '../services/bulletins.service.js';
+import { loadSchoolPdfMeta } from '../services/pdf/schoolMeta.js';
 import { buildBulletinPdf } from '../services/pdf/bulletin.pdf.js';
 import { uploadPdfBuffer, isCloudinaryConfigured } from '../utils/cloudinary.js';
 import { broadcastBulletin } from '../utils/notifications.js';
 
 const log = createLogger('BulletinsController');
+
+const ELEVE_PDF_SELECT = {
+  id: true,
+  prenom: true,
+  nom: true,
+  matricule: true,
+  dateNaissance: true,
+  lieuNaissance: true,
+  sexe: true,
+  parent: { select: { prenom: true, nom: true } },
+};
+
+async function bulletinPdfPayload(bulletin, tenantId, req) {
+  const meta = await loadSchoolPdfMeta(tenantId, req);
+  const periode = await prisma.periodeScolaire.findFirst({
+    where: {
+      tenantId,
+      anneeScolaireId: bulletin.anneeScolaireId,
+      index: bulletin.periodeIndex,
+    },
+    select: { libelle: true },
+  });
+  const eleve = bulletin.eleve || {};
+  return {
+    ...meta,
+    adresseEcole: meta.adresse || '',
+    eleve: `${eleve.prenom || ''} ${eleve.nom || ''}`.trim() || '—',
+    matricule: eleve.matricule,
+    dateNaissance: eleve.dateNaissance,
+    lieuNaissance: eleve.lieuNaissance,
+    sexe: eleve.sexe,
+    parent: eleve.parent ? `${eleve.parent.prenom} ${eleve.parent.nom}` : null,
+    classe: bulletin.classe?.nom,
+    anneeScolaire: bulletin.anneeScolaire?.libelle,
+    periodeIndex: bulletin.periodeIndex,
+    periodeLibelle: periode?.libelle || `Période ${bulletin.periodeIndex}`,
+    moyenneGenerale: Number(bulletin.moyenneGenerale),
+    rang: bulletin.rang,
+    effectifClasse: bulletin.effectifClasse,
+    mention: bulletin.mention,
+    notesDetaillees: bulletin.notesDetaillees || [],
+    absencesHeures: bulletin.absencesHeures,
+    qrCodeHash: bulletin.qrCodeHash,
+    decisionConseil: bulletin.decisionConseil,
+    notationSur: meta.notationSur,
+  };
+}
 
 export const getAll = async (req, res) => {
   try {
@@ -105,7 +153,7 @@ export const calculer = async (req, res) => {
   }
 };
 
-async function upsertBulletinFromComputed(tenantId, computed, meta, config) {
+async function upsertBulletinFromComputed(tenantId, computed, meta, config, req) {
   const { anneeScolaireId, classeId, periodeIndex } = meta;
   const absencesHeures = await countAbsencesHeures(tenantId, computed.eleveId, anneeScolaireId);
   const qrCodeHash = buildQrHash({
@@ -143,7 +191,7 @@ async function upsertBulletinFromComputed(tenantId, computed, meta, config) {
       where: { id: existing.id },
       data: payload,
       include: {
-        eleve: { select: { id: true, prenom: true, nom: true, matricule: true } },
+        eleve: { select: ELEVE_PDF_SELECT },
         classe: { select: { id: true, nom: true } },
         anneeScolaire: { select: { id: true, libelle: true } },
       },
@@ -159,7 +207,7 @@ async function upsertBulletinFromComputed(tenantId, computed, meta, config) {
         ...payload,
       },
       include: {
-        eleve: { select: { id: true, prenom: true, nom: true, matricule: true } },
+        eleve: { select: ELEVE_PDF_SELECT },
         classe: { select: { id: true, nom: true } },
         anneeScolaire: { select: { id: true, libelle: true } },
       },
@@ -168,21 +216,7 @@ async function upsertBulletinFromComputed(tenantId, computed, meta, config) {
 
   // PDF
   try {
-    const buffer = await buildBulletinPdf({
-      nomEcole: config?.nomEcole || 'GestSchool',
-      eleve: `${bulletin.eleve.prenom} ${bulletin.eleve.nom}`,
-      matricule: bulletin.eleve.matricule,
-      classe: bulletin.classe?.nom,
-      anneeScolaire: bulletin.anneeScolaire?.libelle,
-      periodeIndex: bulletin.periodeIndex,
-      moyenneGenerale: Number(bulletin.moyenneGenerale),
-      rang: bulletin.rang,
-      effectifClasse: bulletin.effectifClasse,
-      mention: bulletin.mention,
-      notesDetaillees: bulletin.notesDetaillees,
-      absencesHeures: bulletin.absencesHeures,
-      qrCodeHash: bulletin.qrCodeHash,
-    });
+    const buffer = await buildBulletinPdf(await bulletinPdfPayload(bulletin, tenantId, req));
 
     let pdfUrl = null;
     if (isCloudinaryConfigured()) {
@@ -240,7 +274,8 @@ export const genererMasse = async (req, res) => {
         tenantId,
         row,
         { anneeScolaireId, classeId, periodeIndex },
-        config
+        config,
+        req
       );
       created.push(bulletin);
     }
@@ -346,7 +381,8 @@ export const generate = async (req, res) => {
       tenantId,
       row,
       { anneeScolaireId, classeId, periodeIndex },
-      config
+      config,
+      req
     );
 
     await logAudit(req, 'bulletin_generated', 'Bulletin', bulletin.id, { eleveId, periodeIndex });
@@ -483,7 +519,7 @@ export const downloadPdf = async (req, res) => {
     const bulletin = await prisma.bulletin.findFirst({
       where: { id, tenantId },
       include: {
-        eleve: { select: { id: true, prenom: true, nom: true, matricule: true, dateNaissance: true, sexe: true } },
+        eleve: { select: ELEVE_PDF_SELECT },
         classe: { select: { id: true, nom: true, niveau: true } },
         anneeScolaire: { select: { id: true, libelle: true } },
       },
@@ -494,28 +530,7 @@ export const downloadPdf = async (req, res) => {
       return res.redirect(bulletin.pdfUrl);
     }
 
-    const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
-    const periodeLibelle = `Période ${bulletin.periodeIndex}`;
-    const buffer = await buildBulletinPdf({
-      nomEcole: config?.nomEcole || 'GestSchool',
-      adresseEcole: config?.adresse || '',
-      eleve: `${bulletin.eleve.prenom} ${bulletin.eleve.nom}`,
-      matricule: bulletin.eleve.matricule,
-      dateNaissance: bulletin.eleve.dateNaissance,
-      sexe: bulletin.eleve.sexe,
-      classe: bulletin.classe?.nom,
-      anneeScolaire: bulletin.anneeScolaire?.libelle,
-      periodeIndex: bulletin.periodeIndex,
-      periodeLibelle,
-      moyenneGenerale: Number(bulletin.moyenneGenerale),
-      rang: bulletin.rang,
-      effectifClasse: bulletin.effectifClasse,
-      mention: bulletin.mention,
-      notesDetaillees: bulletin.notesDetaillees || [],
-      absencesHeures: bulletin.absencesHeures,
-      qrCodeHash: bulletin.qrCodeHash,
-      decisionConseil: bulletin.decisionConseil,
-    });
+    const buffer = await buildBulletinPdf(await bulletinPdfPayload(bulletin, tenantId, req));
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="bulletin-${bulletin.eleve.matricule || id}.pdf"`);

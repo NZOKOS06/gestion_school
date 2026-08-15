@@ -173,6 +173,15 @@ export const paiementValidator = [
   handleValidationErrors
 ];
 
+export const depenseValidator = [
+  body('categorie').trim().notEmpty().withMessage('Catégorie requise'),
+  body('montant').isFloat({ gt: 0 }).withMessage('Montant invalide'),
+  body('motif').trim().notEmpty().withMessage('Motif requis'),
+  body('reference').optional({ nullable: true }).trim(),
+  body('dateDepense').optional({ nullable: true }).isISO8601().withMessage('Date invalide'),
+  handleValidationErrors
+];
+
 // Validators Emploi du Temps
 export const emploiDuTempsValidator = [
   body('classeId').isUUID().withMessage('ID classe invalide'),
@@ -203,7 +212,7 @@ export const sanctionValidator = [
   body('eleveId').isUUID().withMessage('ID élève invalide'),
   body('type').isIn(['avertissement', 'blame', 'retenue', 'exclusion_temporaire', 'exclusion_definitive']).withMessage('Type de sanction invalide'),
   body('motif').trim().notEmpty().withMessage('Motif requis'),
-  body('dureeJours').optional().isInt({ min: 0 }),
+  body('dureeJours').optional({ values: 'falsy' }).isInt({ min: 0 }).withMessage('Durée invalide'),
   handleValidationErrors
 ];
 

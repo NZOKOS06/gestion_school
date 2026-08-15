@@ -1,13 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
-import { PageHeader, Card, Badge } from '../../components/ui';
+import { PageHeader, Badge } from '../../components/ui';
 import { CalendarDays } from 'lucide-react';
 
-const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const HEURES = Array.from({ length: 12 }, (_, i) => i + 7);
 
 const MonEmploi = () => {
   const { get } = useAxios();
+  const navigate = useNavigate();
   const [creneaux, setCreneaux] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -67,7 +69,20 @@ const MonEmploi = () => {
                   return (
                     <td key={jourIndex} style={cellStyle}>
                       {creneau && isStart ? (
-                        <div className="rounded-lg p-2 text-xs" style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)' }}>
+                        <div
+                          className="rounded-lg p-2 text-xs cursor-pointer"
+                          style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)' }}
+                          title="Cahier de textes / Appel"
+                          onClick={() => {
+                            const today = new Date().getDay();
+                            const jsDay = today === 0 ? 7 : today;
+                            if (jsDay === jourNum) {
+                              navigate(`/enseignant/appel?coursId=${creneau.id}`);
+                            } else {
+                              navigate(`/enseignant/cahier-de-textes?classeId=${creneau.classeId || ''}&matiereId=${creneau.matiereId || ''}&nouveau=1`);
+                            }
+                          }}
+                        >
                           <p className="font-semibold" style={{ color: 'var(--color-primary)' }}>{creneau.matiereNom}</p>
                           <p style={{ color: 'var(--text-secondary)' }}>{creneau.classeNom}</p>
                           {creneau.salle && <p style={{ color: 'var(--text-muted)' }}>Salle {creneau.salle}</p>}

@@ -191,7 +191,9 @@ const Messagerie = () => {
           </div>
           {user?.role !== 'parent' && parents.length > 0 && (
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Ou parent</label>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                {user?.role === 'enseignant' ? 'Ou parent (mes classes)' : 'Ou parent'}
+              </label>
               <select style={inputStyle} value={form.destinataireUserId} onChange={(e) => setForm({ ...form, destinataireUserId: e.target.value, destinataireStaffId: '' })}>
                 <option value="">Sélectionner un parent</option>
                 {parents.map((p) => (

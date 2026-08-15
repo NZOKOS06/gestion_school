@@ -6,6 +6,8 @@ const log = createLogger('EnseignantController');
 
 const mapCours = (c) => ({
   id: c.id,
+  classeId: c.classeId || c.classe?.id || null,
+  matiereId: c.matiereId || c.matiere?.id || null,
   matiereNom: c.matiere?.nom || null,
   classeNom: c.classe?.nom || null,
   salle: c.salleRef?.nom || c.salle || null,
@@ -32,8 +34,8 @@ export const getDashboard = async (req, res) => {
       prisma.emploiDuTemps.findMany({
         where: { tenantId, enseignantId, jourSemaine: jour },
         include: {
-          matiere: { select: { nom: true } },
-          classe: { select: { nom: true } },
+          matiere: { select: { id: true, nom: true } },
+          classe: { select: { id: true, nom: true } },
           salleRef: { select: { nom: true } },
         },
         orderBy: { heureDebut: 'asc' },
@@ -104,10 +106,18 @@ export const getMesClasses = async (req, res) => {
           niveau: a.classe.niveau,
           filiere: a.classe.filiere,
           cycle: a.classe.cycle,
-          matiereIds: new Set(),
+          anneeScolaireId: a.classe.anneeScolaireId,
+          matieres: [],
         });
       }
-      byClasse.get(a.classeId).matiereIds.add(a.matiereId);
+      const entry = byClasse.get(a.classeId);
+      if (a.matiere && !entry.matieres.some((m) => m.id === a.matiereId)) {
+        entry.matieres.push({
+          id: a.matiere.id,
+          nom: a.matiere.nom,
+          code: a.matiere.code,
+        });
+      }
     }
 
     const result = [];
@@ -121,8 +131,10 @@ export const getMesClasses = async (req, res) => {
         niveau: c.niveau,
         filiere: c.filiere,
         cycle: c.cycle,
+        anneeScolaireId: c.anneeScolaireId,
         effectif,
-        nbMatieres: c.matiereIds.size,
+        nbMatieres: c.matieres.length,
+        matieres: c.matieres,
       });
     }
 
@@ -166,6 +178,8 @@ export const getEvaluations = async (req, res) => {
       result.push({
         id: e.id,
         nom: e.nom,
+        classeId: e.classeId,
+        matiereId: e.matiereId,
         matiereNom: e.matiere?.nom,
         classeNom: e.classe?.nom,
         dateEvaluation: e.dateEvaluation,
@@ -197,8 +211,8 @@ export const getCoursAujourdhui = async (req, res) => {
         jourSemaine: jour,
       },
       include: {
-        matiere: { select: { nom: true } },
-        classe: { select: { nom: true } },
+        matiere: { select: { id: true, nom: true } },
+        classe: { select: { id: true, nom: true } },
         salleRef: { select: { nom: true } },
       },
       orderBy: { heureDebut: 'asc' },
@@ -231,8 +245,8 @@ export const getEmploiDuTemps = async (req, res) => {
     const cours = await prisma.emploiDuTemps.findMany({
       where: { tenantId: req.tenantId, enseignantId: req.user.id },
       include: {
-        matiere: { select: { nom: true } },
-        classe: { select: { nom: true } },
+        matiere: { select: { id: true, nom: true } },
+        classe: { select: { id: true, nom: true } },
         salleRef: { select: { nom: true } },
       },
       orderBy: [{ jourSemaine: 'asc' }, { heureDebut: 'asc' }],

@@ -86,6 +86,12 @@ export const create = async (req, res) => {
     const tenantId = req.tenantId;
     const { classeId, matiereId, anneeScolaireId, periodeIndex, nom, type, dateEvaluation, coefficient, noteMaximale } = req.body;
 
+    if (req.user.role === 'enseignant') {
+      const { assertEnseignantAssignedToClasseMatiere } = await import('../utils/ownership.js');
+      const ok = await assertEnseignantAssignedToClasseMatiere(req, res, classeId, matiereId);
+      if (!ok) return;
+    }
+
     const evaluation = await prisma.evaluation.create({
       data: {
         tenantId,

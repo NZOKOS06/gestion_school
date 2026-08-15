@@ -21,6 +21,7 @@ import {
   ClipboardEdit,
   CalendarCheck,
   UserRound,
+  TrendingDown,
 } from 'lucide-react';
 
 export const ADMIN_ROUTE_LABELS = {
@@ -172,19 +173,25 @@ export const PARENT_ROUTE_LABELS = {
 
 export const CAISSIER_NAV = [
   {
-    groupKey: 'espace_caissier',
+    groupKey: 'espace_gestionnaire',
     items: [
-      { path: '/caissier', icon: Wallet, labelKey: 'paiements' },
-      { path: '/caissier/retards', icon: CalendarX, labelKey: 'retards' },
-      { path: '/caissier/historique', icon: FileText, labelKey: 'historique' },
+      { path: '/caissier', icon: LayoutDashboard, labelKey: 'dashboard' },
+      { path: '/caissier/eleves', icon: GraduationCap, labelKey: 'eleves_finances' },
+      { path: '/caissier/historique', icon: Wallet, labelKey: 'caisse' },
+      { path: '/caissier/depenses', icon: TrendingDown, labelKey: 'depenses' },
+      { path: '/caissier/rapports', icon: BarChart3, labelKey: 'rapports' },
     ],
   },
 ];
 
 export const CAISSIER_ROUTE_LABELS = {
-  '/caissier': 'Paiements',
+  '/caissier': 'Tableau de bord',
+  '/caissier/eleves': 'Élèves (Finances)',
+  '/caissier/historique': 'Journal de caisse',
   '/caissier/retards': 'Retards',
-  '/caissier/historique': 'Historique',
+  '/caissier/encaisser': 'Encaisser',
+  '/caissier/depenses': 'Dépenses',
+  '/caissier/rapports': 'Rapports',
 };
 
 export function buildBreadcrumbs(pathname, routeLabels, homePath, homeLabel = 'GestSchool') {
