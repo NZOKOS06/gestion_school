@@ -4,6 +4,8 @@ import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, Card, DataTable, Badge, Button } from '../../components/ui';
 import { School, Users, BookOpen, ClipboardEdit, Plus } from 'lucide-react';
 
+const CYCLE_LABELS = { prescolaire: 'Préscolaire', primaire: 'Primaire', college: 'Collège', lycee: 'Lycée' };
+
 const MesClasses = () => {
   const { get } = useAxios();
   const navigate = useNavigate();
@@ -56,17 +58,19 @@ const MesClasses = () => {
                   <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{classe.nom}</h3>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{classe.niveau} {classe.filiere ? `· ${classe.filiere}` : ''}</p>
                 </div>
-                <Badge variant="info">{classe.cycle}</Badge>
+                <Badge variant="info">{CYCLE_LABELS[classe.cycle] || classe.cycle}</Badge>
               </div>
               <div className="flex items-center gap-4 text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-                <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {classe.effectif || 0} élèves</span>
+                <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {classe.effectif || 0} élève{classe.effectif > 1 ? 's' : ''}</span>
                 <span className="flex items-center gap-1"><BookOpen className="h-3.5 w-3.5" /> {classe.nbMatieres || 0} matières</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => viewEleves(classe)}>Voir les élèves</Button>
-                <Button size="sm" icon={ClipboardEdit} onClick={() => navigate(`/enseignant/saisie-notes?classeId=${classe.id}`)}>
-                  Saisir les notes
-                </Button>
+                {classe.effectif > 0 && (
+                  <Button size="sm" icon={ClipboardEdit} onClick={() => navigate(`/enseignant/saisie-notes?classeId=${classe.id}`)}>
+                    Saisir les notes
+                  </Button>
+                )}
                 <Button size="sm" icon={Plus} onClick={() => navigate(`/enseignant/saisie-notes?classeId=${classe.id}&nouveau=1`)}>
                   Programmer un devoir
                 </Button>

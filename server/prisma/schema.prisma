@@ -101,7 +101,7 @@ model TenantConfig {
   seuilReussite         Decimal @default(10.00) @db.Decimal(5, 2) // Moyenne minimale pour passer
   nombrePeriodes        Int     @default(3) // 3 pour Trimestres, 2 pour Semestres
   conventionPeriode     String  @default("trimestre") // trimestre | semestre
-  joursEcole            Json? // ex: ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]
+  joursEcole            TenantJourEcole[]
   heureDebut            String  @default("08:00")
   heureFin              String  @default("17:00")
 
@@ -129,7 +129,7 @@ model TenantConfig {
 
   // Sécurité & sessions
   dureeSessionMinutes Int     @default(480)
-  ipWhitelist         Json? // ["ip1", "ip2"]
+  ipWhitelist         TenantIpWhitelist[]
   forcer2FA           Boolean @default(false)
 
   // RGPD / consentement
@@ -144,6 +144,22 @@ model TenantConfig {
   updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model TenantJourEcole {
+  id           String       @id @default(uuid())
+  tenantId     String
+  jour         String
+  tenantConfig TenantConfig @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  @@unique([tenantId, jour])
+}
+
+model TenantIpWhitelist {
+  id           String       @id @default(uuid())
+  tenantId     String
+  ip           String
+  tenantConfig TenantConfig @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  @@unique([tenantId, ip])
 }
 
 model Staff {
@@ -459,6 +475,7 @@ model Matiere {
   heuresEnseignees HeureEnseignee[]
   matieresNiveauAnnee MatiereNiveauAnnee[]
   matieresClasseAnnee MatiereClasseAnnee[]
+  bulletinDetails BulletinDetail[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -681,7 +698,7 @@ model Bulletin {
   mention         MentionBulletin @default(aucune)
   decisionConseil String? // ex: "Passage au niveau supérieur", "Avertissement travail"
   absencesHeures  Int      @default(0)
-  notesDetaillees Json // Structure JSON contenant le détail des moyennes par matière
+  notesDetaillees BulletinDetail[]
   pdfUrl          String? // Copie archivée sur Cloudinary du bulletin généré
   qrCodeHash      String?  @unique // Hash anti-falsification pour vérification QR code
   valide          Boolean  @default(false)
@@ -698,6 +715,16 @@ model Bulletin {
   @@index([eleveId])
   @@index([classeId])
   @@index([anneeScolaireId])
+}
+
+model BulletinDetail {
+  id          String   @id @default(uuid())
+  bulletinId  String
+  matiereId   String
+  moyenne     Decimal  @db.Decimal(5, 2)
+  bulletin    Bulletin @relation(fields: [bulletinId], references: [id], onDelete: Cascade)
+  matiere     Matiere  @relation(fields: [matiereId], references: [id])
+  @@unique([bulletinId, matiereId])
 }
 
 model EmploiDuTemps {

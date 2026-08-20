@@ -307,21 +307,13 @@ const SaisieNotes = () => {
               <input type="date" style={inputStyle} value={form.dateEvaluation} onChange={(e) => setForm({ ...form, dateEvaluation: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <div>
               <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Période</label>
               <select style={inputStyle} value={form.periodeIndex} onChange={(e) => setForm({ ...form, periodeIndex: parseInt(e.target.value, 10) })}>
                 {periodes.length === 0 && <option value={1}>Période 1</option>}
                 {periodes.map((p) => <option key={p.id || p.index} value={p.index}>{p.libelle}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Coef.</label>
-              <input type="number" min="1" style={inputStyle} value={form.coefficient} onChange={(e) => setForm({ ...form, coefficient: e.target.value })} />
-            </div>
-            <div>
-              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Barème</label>
-              <input type="number" min="1" style={inputStyle} value={form.noteMaximale} onChange={(e) => setForm({ ...form, noteMaximale: e.target.value })} />
             </div>
           </div>
         </div>

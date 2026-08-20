@@ -916,8 +916,13 @@ async function main() {
           mention: 'encouragements',
           decisionConseil: 'Continue ainsi',
           absencesHeures: 2,
-          notesDetaillees: { MATH: 14.5, FR: 13.0 },
           valide: true,
+          notesDetaillees: {
+            create: [
+              { matiereId: matieresMap['MATH'].id, moyenne: 14.5 },
+              { matiereId: matieresMap['FR'].id, moyenne: 13.0 },
+            ],
+          },
         },
       });
     }

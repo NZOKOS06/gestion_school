@@ -54,7 +54,13 @@ async function bulletinPdfPayload(bulletin, tenantId, req) {
     rang: bulletin.rang,
     effectifClasse: bulletin.effectifClasse,
     mention: bulletin.mention,
-    notesDetaillees: bulletin.notesDetaillees || [],
+    notesDetaillees: (bulletin.notesDetaillees || []).map(d => ({
+      matiereId: d.matiereId,
+      matiereNom: d.matiere?.nom,
+      matiereCode: d.matiere?.code,
+      moyenne: Number(d.moyenne),
+      coefficient: d.matiere?.coefficient ?? 1,
+    })),
     absencesHeures: bulletin.absencesHeures,
     qrCodeHash: bulletin.qrCodeHash,
     decisionConseil: bulletin.decisionConseil,
@@ -85,6 +91,7 @@ export const getAll = async (req, res) => {
           eleve: { select: { id: true, matricule: true, nom: true, prenom: true } },
           classe: { select: { id: true, nom: true, niveau: true } },
           anneeScolaire: { select: { id: true, libelle: true } },
+          notesDetaillees: { include: { matiere: { select: { id: true, nom: true, code: true, coefficient: true } } } },
         },
         skip,
         take,
@@ -119,6 +126,7 @@ export const getById = async (req, res) => {
         eleve: { select: { id: true, matricule: true, nom: true, prenom: true, sexe: true, dateNaissance: true, photoUrl: true } },
         classe: { select: { id: true, nom: true, niveau: true, filiere: true } },
         anneeScolaire: { select: { id: true, libelle: true } },
+        notesDetaillees: { include: { matiere: { select: { id: true, nom: true, code: true, coefficient: true } } } },
       },
     });
 
@@ -170,10 +178,15 @@ async function upsertBulletinFromComputed(tenantId, computed, meta, config, req)
     effectifClasse: computed.effectifClasse,
     mention: computed.mention,
     absencesHeures,
-    notesDetaillees: computed.notesDetaillees,
     qrCodeHash,
     valide: false,
   };
+
+  // Build notesDetaillees for upsert (delete + recreate)
+  const notesDetailleesData = (computed.notesDetaillees || []).map(n => ({
+    matiereId: n.matiereId,
+    moyenne: n.moyenne,
+  }));
 
   const existing = await prisma.bulletin.findFirst({
     where: {
@@ -187,13 +200,19 @@ async function upsertBulletinFromComputed(tenantId, computed, meta, config, req)
 
   let bulletin;
   if (existing) {
+    // Delete existing details then recreate
+    await prisma.bulletinDetail.deleteMany({ where: { bulletinId: existing.id } });
     bulletin = await prisma.bulletin.update({
       where: { id: existing.id },
-      data: payload,
+      data: {
+        ...payload,
+        notesDetaillees: { create: notesDetailleesData },
+      },
       include: {
         eleve: { select: ELEVE_PDF_SELECT },
         classe: { select: { id: true, nom: true } },
         anneeScolaire: { select: { id: true, libelle: true } },
+        notesDetaillees: { include: { matiere: { select: { id: true, nom: true, code: true, coefficient: true } } } },
       },
     });
   } else {
@@ -205,11 +224,13 @@ async function upsertBulletinFromComputed(tenantId, computed, meta, config, req)
         anneeScolaireId,
         periodeIndex: parseInt(periodeIndex, 10),
         ...payload,
+        notesDetaillees: { create: notesDetailleesData },
       },
       include: {
         eleve: { select: ELEVE_PDF_SELECT },
         classe: { select: { id: true, nom: true } },
         anneeScolaire: { select: { id: true, libelle: true } },
+        notesDetaillees: { include: { matiere: { select: { id: true, nom: true, code: true, coefficient: true } } } },
       },
     });
   }
@@ -522,6 +543,7 @@ export const downloadPdf = async (req, res) => {
         eleve: { select: ELEVE_PDF_SELECT },
         classe: { select: { id: true, nom: true, niveau: true } },
         anneeScolaire: { select: { id: true, libelle: true } },
+        notesDetaillees: { include: { matiere: { select: { id: true, nom: true, code: true, coefficient: true } } } },
       },
     });
     if (!bulletin) return res.status(404).json({ error: 'Bulletin non trouvé' });

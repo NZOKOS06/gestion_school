@@ -169,55 +169,70 @@ const EmploiDuTemps = () => {
         }
       />
 
-      <div className="overflow-x-auto rounded-lg" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
-        <table className="w-full" style={{ borderCollapse: 'collapse', minWidth: 720 }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid var(--border-subtle)' }}>
-              <th className="text-left py-3 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', width: 60 }}>Heure</th>
-              {JOURS.map((jour, i) => (
-                <th key={jour} className="text-center py-3 px-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', ...(i < JOURS.length - 1 ? { borderRight: '1px solid var(--border-subtle)' } : {}) }}>
-                  {jour}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {HEURES.map((heure) => (
-              <tr key={heure}>
-                <td className="text-center text-xs font-medium py-2" style={{ color: 'var(--text-muted)', ...cellStyle }}>
-                  {heure.toString().padStart(2, '0')}:00
-                </td>
-                {JOURS.map((_, jourIndex) => {
-                  const jourNum = jourIndex + 1;
-                  const creneau = getCreneau(jourNum, heure);
-                  const isStart = creneau && parseInt(creneau.heureDebut.split(':')[0], 10) === heure;
-                  return (
-                    <td key={jourIndex} style={cellStyle}>
-                      {creneau && isStart ? (
-                        <div
-                          className="rounded-lg p-2 text-xs cursor-pointer group"
-                          style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)' }}
-                          onClick={() => handleDelete(creneau.id)}
-                          title="Cliquer pour supprimer"
-                        >
-                          <p className="font-semibold" style={{ color: 'var(--color-primary)' }}>{creneau.matiereNom || '—'}</p>
-                          {showEnseignant && creneau.enseignantNom && (
-                            <p style={{ color: 'var(--text-secondary)' }}>{creneau.enseignantNom}</p>
-                          )}
-                          {creneau.salleNom && <p style={{ color: 'var(--text-muted)' }}>Salle {creneau.salleNom}</p>}
-                          <p className="text-[10px] mt-1 opacity-0 group-hover:opacity-100" style={{ color: 'var(--color-danger)' }}>Cliquer pour supprimer</p>
-                        </div>
-                      ) : creneau ? (
-                        <div style={{ background: 'color-mix(in srgb, var(--color-primary) 6%, transparent)', height: '100%', minHeight: 44 }} />
-                      ) : null}
-                    </td>
-                  );
-                })}
+      {classes.length === 0 ? (
+        <div className="text-center py-16 rounded-xl" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
+          <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Aucune classe disponible</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Veuillez créer une classe d'abord.</p>
+        </div>
+      ) : creneaux.length === 0 ? (
+        <div className="text-center py-16 rounded-xl" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
+          <Plus className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Emploi du temps vide</p>
+          <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>Aucun cours n'est planifié pour cette classe.</p>
+          <Button icon={Plus} onClick={openCreate}>Créer le premier créneau</Button>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
+          <table className="w-full" style={{ borderCollapse: 'collapse', minWidth: 720 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--border-subtle)' }}>
+                <th className="text-left py-3 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', width: 60 }}>Heure</th>
+                {JOURS.map((jour, i) => (
+                  <th key={jour} className="text-center py-3 px-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', ...(i < JOURS.length - 1 ? { borderRight: '1px solid var(--border-subtle)' } : {}) }}>
+                    {jour}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {HEURES.map((heure) => (
+                <tr key={heure}>
+                  <td className="text-center text-xs font-medium py-2" style={{ color: 'var(--text-muted)', ...cellStyle }}>
+                    {heure.toString().padStart(2, '0')}:00
+                  </td>
+                  {JOURS.map((_, jourIndex) => {
+                    const jourNum = jourIndex + 1;
+                    const creneau = getCreneau(jourNum, heure);
+                    const isStart = creneau && parseInt(creneau.heureDebut.split(':')[0], 10) === heure;
+                    return (
+                      <td key={jourIndex} style={cellStyle}>
+                        {creneau && isStart ? (
+                          <div
+                            className="rounded-lg p-2 text-xs cursor-pointer group"
+                            style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)' }}
+                            onClick={() => handleDelete(creneau.id)}
+                            title="Cliquer pour supprimer"
+                          >
+                            <p className="font-semibold" style={{ color: 'var(--color-primary)' }}>{creneau.matiereNom || '—'}</p>
+                            {showEnseignant && creneau.enseignantNom && (
+                              <p style={{ color: 'var(--text-secondary)' }}>{creneau.enseignantNom}</p>
+                            )}
+                            {creneau.salleNom && <p style={{ color: 'var(--text-muted)' }}>Salle {creneau.salleNom}</p>}
+                            <p className="text-[10px] mt-1 opacity-0 group-hover:opacity-100" style={{ color: 'var(--color-danger)' }}>Cliquer pour supprimer</p>
+                          </div>
+                        ) : creneau ? (
+                          <div style={{ background: 'color-mix(in srgb, var(--color-primary) 6%, transparent)', height: '100%', minHeight: 44 }} />
+                        ) : null}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Modal
         open={createOpen}

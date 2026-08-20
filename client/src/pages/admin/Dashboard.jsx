@@ -5,7 +5,7 @@ import { Users, TrendingUp, Wallet, AlertTriangle, CalendarX } from 'lucide-reac
 import { KpiCard, Card, DataTable, PageHeader, Badge, Skeleton, EmptyState, Button } from '../../components/ui';
 import {
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar,
+  ResponsiveContainer, BarChart, Bar, Legend
 } from 'recharts';
 
 const CYCLE_COLORS = [
@@ -155,7 +155,7 @@ const Dashboard = () => {
                   <BarChart data={evolution}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
                     <XAxis dataKey="mois" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={60} />
+                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={60} tickFormatter={(val) => `${val >= 1000 ? (val/1000)+'k' : val}`} />
                     <Tooltip
                       content={({ active, payload, label }) => {
                         if (!active || !payload?.length) return null;
@@ -167,7 +167,8 @@ const Dashboard = () => {
                         );
                       }}
                     />
-                    <Bar dataKey="montant" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+                    <Bar dataKey="montant" name="Recettes" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -241,7 +242,7 @@ const Dashboard = () => {
               {
                 key: 'modePaiement',
                 label: 'Mode',
-                render: (val) => <Badge variant="info">{val}</Badge>,
+                render: (val) => <Badge variant="info">{val === 'especes' ? 'Espèces' : val}</Badge>,
               },
             ]}
             data={derniersPaiements || []}

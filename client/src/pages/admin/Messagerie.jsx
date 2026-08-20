@@ -180,28 +180,37 @@ const Messagerie = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-              Destinataire {user?.role === 'parent' ? '(personnel)' : '(staff)'}
+              Destinataire *
             </label>
-            <select style={inputStyle} value={form.destinataireStaffId} onChange={(e) => setForm({ ...form, destinataireStaffId: e.target.value, destinataireUserId: '' })}>
-              <option value="">Sélectionner</option>
-              {staff.filter((s) => s.id !== user?.id).map((s) => (
-                <option key={s.id} value={s.id}>{s.prenom} {s.nom} ({s.role})</option>
-              ))}
+            <select
+              style={inputStyle}
+              value={form.destinataireStaffId ? `staff_${form.destinataireStaffId}` : form.destinataireUserId ? `parent_${form.destinataireUserId}` : ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.startsWith('staff_')) {
+                  setForm({ ...form, destinataireStaffId: val.replace('staff_', ''), destinataireUserId: '' });
+                } else if (val.startsWith('parent_')) {
+                  setForm({ ...form, destinataireUserId: val.replace('parent_', ''), destinataireStaffId: '' });
+                } else {
+                  setForm({ ...form, destinataireStaffId: '', destinataireUserId: '' });
+                }
+              }}
+            >
+              <option value="">Sélectionner un destinataire</option>
+              <optgroup label="Personnel (Staff)">
+                {staff.filter((s) => s.id !== user?.id).map((s) => (
+                  <option key={`staff_${s.id}`} value={`staff_${s.id}`}>{s.prenom} {s.nom} ({s.role})</option>
+                ))}
+              </optgroup>
+              {user?.role !== 'parent' && parents.length > 0 && (
+                <optgroup label="Parents">
+                  {parents.map((p) => (
+                    <option key={`parent_${p.id}`} value={`parent_${p.id}`}>{p.prenom} {p.nom}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
-          {user?.role !== 'parent' && parents.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-                {user?.role === 'enseignant' ? 'Ou parent (mes classes)' : 'Ou parent'}
-              </label>
-              <select style={inputStyle} value={form.destinataireUserId} onChange={(e) => setForm({ ...form, destinataireUserId: e.target.value, destinataireStaffId: '' })}>
-                <option value="">Sélectionner un parent</option>
-                {parents.map((p) => (
-                  <option key={p.id} value={p.id}>{p.prenom} {p.nom}</option>
-                ))}
-              </select>
-            </div>
-          )}
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Sujet *</label>
             <input style={inputStyle} value={form.sujet} onChange={(e) => setForm({ ...form, sujet: e.target.value })} placeholder="Objet du message" />

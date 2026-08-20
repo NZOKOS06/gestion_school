@@ -170,7 +170,8 @@ export const TenantProvider = ({ children }) => {
 
   const formatPrice = (amount) => {
     const currency = getCurrency();
-    const formatted = new Intl.NumberFormat('fr-FR').format(amount);
+    const rounded = Math.round(Number(amount));
+    const formatted = new Intl.NumberFormat('fr-FR').format(rounded);
     return `${formatted} ${currency}`;
   };
 

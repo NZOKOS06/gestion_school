@@ -214,7 +214,7 @@ const CaissierDashboard = () => {
               { key: 'montant', label: 'Montant', render: (val) => (
                 <span className="font-semibold" style={{ color: 'var(--color-success)' }}>{formatPrice(val)}</span>
               )},
-              { key: 'modePaiement', label: 'Mode', render: (val) => <Badge variant="info">{val}</Badge> },
+              { key: 'modePaiement', label: 'Mode', render: (val) => <Badge variant="info">{val === 'especes' ? 'Espèces' : val}</Badge> },
               { key: 'recu', label: '', render: (_, row) => (
                 <button
                   type="button"

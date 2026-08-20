@@ -76,7 +76,7 @@ const sanitizeConfigBody = (body) => {
     }
     config[key] = value;
   }
-  return config;
+  return { config, joursEcole: aliased.joursEcole, ipWhitelist: aliased.ipWhitelist };
 };
 
 export const getBySlug = async (req, res) => {
@@ -85,7 +85,7 @@ export const getBySlug = async (req, res) => {
 
     const tenant = await rawPrisma.tenant.findFirst({
       where: { slug, actif: true },
-      include: { config: true },
+      include: { config: { include: { joursEcole: true, ipWhitelist: true } } },
     });
 
     if (!tenant) {
@@ -121,6 +121,8 @@ export const getBySlug = async (req, res) => {
       modeMaintenance: tenant.modeMaintenance || false,
       customDomain: tenant.customDomain || null,
       ...config,
+      joursEcole: config.joursEcole?.map(j => j.jour) || [],
+      ipWhitelist: config.ipWhitelist?.map(i => i.ip) || [],
       conventionPeriode: config.conventionPeriode || 'trimestre',
       periodesScolaires: periodesActives,
       anneeScolaireActive: anneeActive
@@ -183,7 +185,7 @@ export const updateBySlug = async (req, res) => {
       return res.status(403).json({ error: 'Accès refusé à cette école' });
     }
 
-    const configData = sanitizeConfigBody(req.body);
+    const { config: configData, joursEcole, ipWhitelist } = sanitizeConfigBody(req.body);
 
     if (req.body.nom && typeof req.body.nom === 'string' && req.body.nom.trim()) {
       await rawPrisma.tenant.update({
@@ -198,10 +200,25 @@ export const updateBySlug = async (req, res) => {
       });
     }
 
+    const updatePayload = { ...configData };
+    if (joursEcole !== undefined) {
+      updatePayload.joursEcole = {
+        deleteMany: {},
+        create: Array.isArray(joursEcole) ? joursEcole.map(jour => ({ jour })) : []
+      };
+    }
+    if (ipWhitelist !== undefined) {
+      updatePayload.ipWhitelist = {
+        deleteMany: {},
+        create: Array.isArray(ipWhitelist) ? ipWhitelist.map(ip => ({ ip })) : []
+      };
+    }
+
     const config = await rawPrisma.tenantConfig.upsert({
       where: { tenantId: tenant.id },
-      update: configData,
-      create: { tenantId: tenant.id, ...configData },
+      update: updatePayload,
+      create: { tenantId: tenant.id, ...updatePayload },
+      include: { joursEcole: true, ipWhitelist: true },
     });
 
     res.json(config);

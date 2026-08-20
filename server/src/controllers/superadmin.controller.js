@@ -77,7 +77,7 @@ const sanitizeConfigBody = (body) => {
       config[key] = value;
     }
   }
-  return config;
+  return { config, ipWhitelist: body.ipWhitelist };
 };
 
 const log = createLogger('SuperAdminController');
@@ -222,7 +222,7 @@ const enforceModuleConstraints = (configData, tenantPlan) => {
 export const updateTenantConfig = async (req, res) => {
   try {
     const tenantId = req.params.id;
-    let configData = sanitizeConfigBody(req.body);
+    let { config: configData, ipWhitelist } = sanitizeConfigBody(req.body);
 
     const tenant = await rawPrisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) return res.status(404).json({ error: 'Tenant non trouvé' });
@@ -235,10 +235,19 @@ export const updateTenantConfig = async (req, res) => {
     // Appliquer les contraintes de modules
     configData = enforceModuleConstraints(configData, tenant.plan);
 
+    const updatePayload = { ...configData };
+    if (ipWhitelist !== undefined) {
+      updatePayload.ipWhitelist = {
+        deleteMany: {},
+        create: Array.isArray(ipWhitelist) ? ipWhitelist.map(ip => ({ ip })) : []
+      };
+    }
+
     const config = await rawPrisma.tenantConfig.upsert({
       where: { tenantId },
-      update: configData,
-      create: { tenantId, ...configData }
+      update: updatePayload,
+      create: { tenantId, ...updatePayload },
+      include: { ipWhitelist: true }
     });
 
     res.json(config);

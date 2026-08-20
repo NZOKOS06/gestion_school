@@ -61,6 +61,7 @@ export const ADMIN_NAV = [
   },
   {
     groupKey: 'vie_scolaire',
+    label: 'Vie Scolaire',
     items: [
       { path: '/admin/eleves', icon: GraduationCap, labelKey: 'eleves', roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
       { path: '/admin/classes', icon: School, labelKey: 'classes', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
@@ -75,6 +76,7 @@ export const ADMIN_NAV = [
   },
   {
     groupKey: 'pedagogie',
+    label: 'Pédagogie',
     items: [
       { path: '/admin/cahier-de-textes', icon: NotebookPen, labelKey: 'cahier_de_textes', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/conseil-de-classe', icon: Users2, labelKey: 'conseil_de_classe', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
