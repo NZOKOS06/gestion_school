@@ -47,6 +47,14 @@ router.put('/:id/activate',
   ctrl.activate
 );
 
+router.post('/:id/dupliquer',
+  authenticate,
+  requireRole(...writeRoles),
+  requireTenantMatch,
+  idParamValidator,
+  ctrl.dupliquer
+);
+
 router.delete('/:id',
   authenticate,
   requireRole('directeur'),

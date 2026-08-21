@@ -1,8 +1,15 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { syncEvenementRentree } from './calendrierScolaire.controller.js';
 
 const log = createLogger('AnneesScolairesController');
+
+function addYears(date, years) {
+  const d = new Date(date);
+  d.setFullYear(d.getFullYear() + years);
+  return d;
+}
 
 export const getAll = async (req, res) => {
   try {
@@ -78,6 +85,7 @@ export const create = async (req, res) => {
       },
     });
 
+    await syncEvenementRentree(tenantId, annee);
     await logAudit(req, 'annee_scolaire_created', 'AnneeScolaire', annee.id, { libelle });
 
     res.status(201).json(annee);
@@ -105,11 +113,17 @@ export const update = async (req, res) => {
     if (actif !== undefined) data.actif = actif;
     if (referentielVersionId !== undefined) data.referentielVersionId = referentielVersionId || null;
 
-    if (data.dateDebut && data.dateFin && data.dateDebut >= data.dateFin) {
+    const nextDebut = data.dateDebut || existing.dateDebut;
+    const nextFin = data.dateFin || existing.dateFin;
+    if (nextDebut >= nextFin) {
       return res.status(400).json({ error: 'La date de début doit être antérieure à la date de fin' });
     }
 
     const annee = await prisma.anneeScolaire.update({ where: { id }, data });
+
+    if (data.dateDebut || data.libelle) {
+      await syncEvenementRentree(tenantId, annee);
+    }
 
     await logAudit(req, 'annee_scolaire_updated', 'AnneeScolaire', annee.id, { libelle });
 
@@ -166,6 +180,84 @@ export const activate = async (req, res) => {
     res.json(annee);
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Activate anneeScolaire error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const dupliquer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+
+    const source = await prisma.anneeScolaire.findFirst({
+      where: { id, tenantId },
+      include: { periodes: { orderBy: { index: 'asc' } } },
+    });
+    if (!source) {
+      return res.status(404).json({ error: 'Année scolaire non trouvée' });
+    }
+
+    const match = String(source.libelle).match(/(\d{4})\s*[-–]\s*(\d{4})/);
+    let nouveauLibelle;
+    if (match) {
+      nouveauLibelle = `${parseInt(match[1], 10) + 1}-${parseInt(match[2], 10) + 1}`;
+    } else {
+      nouveauLibelle = `${source.libelle} (copie)`;
+    }
+
+    const existingLibelle = await prisma.anneeScolaire.findFirst({
+      where: { tenantId, libelle: nouveauLibelle },
+    });
+    if (existingLibelle) {
+      return res.status(409).json({ error: `L'année ${nouveauLibelle} existe déjà` });
+    }
+
+    const nouvelle = await prisma.$transaction(async (tx) => {
+      const annee = await tx.anneeScolaire.create({
+        data: {
+          tenantId,
+          libelle: nouveauLibelle,
+          dateDebut: addYears(source.dateDebut, 1),
+          dateFin: addYears(source.dateFin, 1),
+          actif: false,
+          referentielVersionId: source.referentielVersionId,
+        },
+      });
+
+      for (const p of source.periodes) {
+        await tx.periodeScolaire.create({
+          data: {
+            tenantId,
+            anneeScolaireId: annee.id,
+            index: p.index,
+            libelle: p.libelle,
+            dateDebut: addYears(p.dateDebut, 1),
+            dateFin: addYears(p.dateFin, 1),
+            dateEvaluationDebut: p.dateEvaluationDebut ? addYears(p.dateEvaluationDebut, 1) : null,
+            dateEvaluationFin: p.dateEvaluationFin ? addYears(p.dateEvaluationFin, 1) : null,
+            poids: p.poids,
+            concerneCycles: p.concerneCycles ?? undefined,
+          },
+        });
+      }
+
+      return annee;
+    });
+
+    await syncEvenementRentree(tenantId, nouvelle);
+    await logAudit(req, 'annee_scolaire_dupliquee', 'AnneeScolaire', nouvelle.id, {
+      sourceId: id,
+      libelle: nouveauLibelle,
+    });
+
+    const full = await prisma.anneeScolaire.findFirst({
+      where: { id: nouvelle.id },
+      include: { periodes: { orderBy: { index: 'asc' } }, referentielVersion: true },
+    });
+
+    res.status(201).json(full);
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Dupliquer anneeScolaire error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

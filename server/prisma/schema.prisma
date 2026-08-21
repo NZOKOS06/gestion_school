@@ -64,6 +64,7 @@ model Tenant {
   resultatsExamens  ResultatExamen[]
   matieresNiveauAnnee MatiereNiveauAnnee[]
   matieresClasseAnnee MatiereClasseAnnee[]
+  enseignantClassesQuittees EnseignantClasseQuittee[]
 
   @@index([slug])
 }
@@ -187,6 +188,7 @@ model Staff {
 
   // Relations pédagogiques spécifiques
   enseignantClasses EnseignantClasse[]
+  classesQuittees   EnseignantClasseQuittee[]
   emploisDuTemps    EmploiDuTemps[]
   paiementsRecus    Paiement[]         @relation("RecuPar")
   depensesSaisies   Depense[]          @relation("DepenseSaisiePar")
@@ -439,6 +441,7 @@ model Classe {
 
   inscriptions   Inscription[]
   enseignants    EnseignantClasse[]
+  enseignantsQuittes EnseignantClasseQuittee[]
   evaluations    Evaluation[]
   emploisDuTemps EmploiDuTemps[]
   matieresClasseAnnee MatiereClasseAnnee[]
@@ -575,6 +578,24 @@ model EnseignantClasse {
   @@index([tenantId])
   @@index([classeId])
   @@index([matiereId])
+}
+
+model EnseignantClasseQuittee {
+  // Classe retirée à un enseignant par la direction : le retour y est définitivement fermé
+  id           String   @id @default(uuid())
+  tenantId     String
+  enseignantId String
+  classeId     String
+  motif        String?
+  dateSortie   DateTime @default(now())
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  enseignant Staff  @relation(fields: [enseignantId], references: [id], onDelete: Cascade)
+  classe     Classe @relation(fields: [classeId], references: [id], onDelete: Cascade)
+
+  @@unique([enseignantId, classeId])
+  @@index([tenantId])
+  @@index([classeId])
 }
 
 model Inscription {
@@ -1016,41 +1037,17 @@ enum TypeNotification {
   message
   relance_impaye
   systeme
+  evenement
 }
 
 // ==================== MODÈLE AUDIT ====================
-
-enum AuditAction {
-  login
-  logout
-  staff_created
-  staff_updated
-  staff_deleted
-  tenant_created
-  tenant_updated
-  eleve_created
-  eleve_updated
-  inscription_created
-  note_saisie
-  note_modifiee
-  bulletin_genere
-  paiement_encaisse
-  absence_saisie
-  sanction_attribuee
-  certificat_genere
-  password_changed
-  conseil_classe_tenu
-  cahier_de_textes_saisi
-  message_envoye
-  decision_fin_annee
-}
 
 model AuditLog {
   id         String      @id @default(uuid())
   tenantId   String? // optionnel pour actions globales (superadmin)
   actorId    String? // staffId ou userId qui a fait l'action
   actorRole  String? // rôle de l'acteur au moment de l'action
-  action     AuditAction
+  action     String // ex: login, affectation_created, paiement_encaisse…
   targetType String? // ex: Staff, Tenant, Eleve, Note, Paiement...
   targetId   String? // ID de l'entité ciblée
   details    Json? // données contextuelles (ancien rôle, nouveau rôle, etc.)
@@ -1096,6 +1093,7 @@ enum TypeEvenementCalendrier {
   conseil_classe
   evenement_scolaire
   composition
+  reprise_cours
 }
 
 // --- Salle de cours ---
@@ -1128,6 +1126,7 @@ model CalendrierScolaire {
   dateFin         DateTime?
   description     String?
   concerneCycles  Json?                 // ex: ["primaire", "college"] — null = tous les cycles
+  alerteEnvoyeeAt DateTime?             // Horodatage de l'alerte J-14 (idempotence)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 

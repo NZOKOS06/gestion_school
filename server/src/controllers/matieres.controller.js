@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { getMatieresForClasse } from '../services/matieresProgramme.service.js';
+import { evaluerAffectation, libererClassesPrecedentes } from '../services/affectations.service.js';
 
 const log = createLogger('MatieresController');
 
@@ -196,6 +197,26 @@ export const createAffectation = async (req, res) => {
       return res.status(409).json({ error: 'Affectation déjà existante' });
     }
 
+    const verdict = await evaluerAffectation(tenantId, { enseignantId, classeId, matiereId });
+    if (verdict.error) {
+      return res.status(verdict.status).json({ error: verdict.error });
+    }
+
+    const liberation = await libererClassesPrecedentes(
+      tenantId,
+      enseignantId,
+      verdict.affectationsALiberer,
+      `Réaffectation vers la classe ${verdict.classe.nom}`
+    );
+
+    if (liberation.affectationsSupprimees) {
+      await logAudit(req, 'affectations_liberees', 'EnseignantClasse', enseignantId, {
+        classeIds: liberation.classeIds,
+        affectationsSupprimees: liberation.affectationsSupprimees,
+        creneauxSupprimes: liberation.creneauxSupprimes,
+      });
+    }
+
     const row = await prisma.enseignantClasse.create({
       data: { tenantId, enseignantId, classeId, matiereId },
       include: {
@@ -215,6 +236,9 @@ export const createAffectation = async (req, res) => {
       enseignantPrenom: row.enseignant?.prenom,
       enseignantNom: row.enseignant?.nom,
       classeNom: row.classe?.nom,
+      mode: verdict.mode,
+      classesLiberees: verdict.classesALiberer.map((c) => c.nom),
+      creneauxSupprimes: liberation.creneauxSupprimes,
     });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'createAffectation error');

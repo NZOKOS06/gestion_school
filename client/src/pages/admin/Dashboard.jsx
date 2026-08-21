@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
-import { Users, TrendingUp, Wallet, AlertTriangle, CalendarX } from 'lucide-react';
+import { Users, TrendingUp, Wallet, AlertTriangle } from 'lucide-react';
 import { KpiCard, Card, DataTable, PageHeader, Badge, Skeleton, EmptyState, Button } from '../../components/ui';
 import {
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -21,12 +21,14 @@ const Dashboard = () => {
   const { get } = useAxios();
   const [data, setData] = useState(null);
   const [evolution, setEvolution] = useState([]);
+  const [alertes, setAlertes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchKPIs();
     fetchEvolution();
+    fetchAlertes();
   }, []);
 
   const fetchKPIs = async () => {
@@ -55,6 +57,15 @@ const Dashboard = () => {
       })));
     } catch {
       setEvolution([]);
+    }
+  };
+
+  const fetchAlertes = async () => {
+    try {
+      const res = await get('/api/calendrier/alertes?jours=14', { silent: true });
+      setAlertes(res?.data || []);
+    } catch {
+      setAlertes([]);
     }
   };
 
@@ -88,7 +99,7 @@ const Dashboard = () => {
           icon={AlertTriangle}
           title="Impossible de charger le tableau de bord"
           description={error || 'Une erreur est survenue.'}
-          action={<Button size="sm" onClick={() => { fetchKPIs(); fetchEvolution(); }}>Réessayer</Button>}
+          action={<Button size="sm" onClick={() => { fetchKPIs(); fetchEvolution(); fetchAlertes(); }}>Réessayer</Button>}
         />
       </div>
     );
@@ -114,6 +125,20 @@ const Dashboard = () => {
         title="Tableau de bord"
         subtitle="Vue d'ensemble de votre établissement"
       />
+
+      {alertes.length > 0 && (
+        <div
+          className="rounded-lg px-4 py-3 space-y-1.5"
+          style={{ background: 'color-mix(in srgb, var(--color-warning) 12%, transparent)', border: '1px solid var(--color-warning)' }}
+        >
+          {alertes.map((a) => (
+            <div key={a.id} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-primary)' }}>
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: 'var(--color-warning)' }} />
+              <span>{a.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {stats.map((stat, index) => (
@@ -155,7 +180,7 @@ const Dashboard = () => {
                   <BarChart data={evolution}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
                     <XAxis dataKey="mois" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={60} tickFormatter={(val) => `${val >= 1000 ? (val/1000)+'k' : val}`} />
+                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={60} tickFormatter={(val) => `${val >= 1000 ? (val / 1000) + 'k' : val}`} />
                     <Tooltip
                       content={({ active, payload, label }) => {
                         if (!active || !payload?.length) return null;

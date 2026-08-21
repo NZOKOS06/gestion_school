@@ -161,10 +161,19 @@ const EleveDetailModal = ({ open, onClose, eleve, detail, loadingDetail, onPaid,
   // Preview cascade en temps réel
   const cascadePreview = montantSaisi ? computeCascade(echeances, montantSaisi) : echeances.map((e) => ({ ...e, toPay: 0, avance: 0 }));
 
+  const soldeComplet = solde <= 0.01 && totalDu <= 0.01;
+  const montantDemande = parseFloat(montantSaisi) || 0;
+  const depassement = montantDemande > totalDu + 0.01;
+
   const handlePay = async () => {
     const amount = parseFloat(montantSaisi);
     if (!amount || amount <= 0) { toast.error('Entrez un montant valide'); return; }
     if (!inscriptionActuelle?.id) { toast.error('Aucune inscription active trouvée'); return; }
+    if (soldeComplet) { toast.error('La scolarité est entièrement soldée'); return; }
+    if (amount > totalDu + 0.01) {
+      toast.error(`Veuillez saisir le montant restant : ${formatPrice(totalDu)}`);
+      return;
+    }
     setPaying(true);
     try {
       await post('/api/paiements/batch', {
@@ -247,8 +256,24 @@ const EleveDetailModal = ({ open, onClose, eleve, detail, loadingDetail, onPaid,
 
           {activeTab === 'echeances' && (
             <>
+              {/* Scolarité soldée : la saisie n'a plus lieu d'être */}
+              {inscriptionActuelle && echeances.length > 0 && soldeComplet && (
+                <div className="rounded-xl p-4 flex items-start gap-3"
+                  style={{ background: 'color-mix(in srgb, var(--color-success) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--color-success) 30%, transparent)' }}>
+                  <CheckCircle className="h-5 w-5 shrink-0" style={{ color: 'var(--color-success)' }} />
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--color-success)' }}>
+                      Scolarité entièrement soldée
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      Le solde restant et le total dû sont à zéro : aucun nouveau paiement ne peut être enregistré pour cet élève.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Zone de saisie du montant */}
-              {inscriptionActuelle && echeances.length > 0 && (
+              {inscriptionActuelle && echeances.length > 0 && !soldeComplet && (
                 <div className="rounded-xl p-4 space-y-3"
                   style={{ background: 'color-mix(in srgb, var(--color-primary) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)' }}>
                   <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -286,8 +311,19 @@ const EleveDetailModal = ({ open, onClose, eleve, detail, loadingDetail, onPaid,
                     </FormField>
                   </div>
 
+                  {/* Montant supérieur au reste dû */}
+                  {depassement && (
+                    <div className="flex items-start gap-2 p-3 rounded-lg"
+                      style={{ background: 'color-mix(in srgb, var(--color-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)' }}>
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: 'var(--color-danger)' }} />
+                      <p className="text-sm" style={{ color: 'var(--color-danger)' }}>
+                        Veuillez saisir le montant restant : <strong>{formatPrice(totalDu)}</strong>
+                      </p>
+                    </div>
+                  )}
+
                   {/* Preview cascade */}
-                  {montantSaisi && parseFloat(montantSaisi) > 0 && (() => {
+                  {montantSaisi && parseFloat(montantSaisi) > 0 && !depassement && (() => {
                     const cascade = computeCascade(echeances, montantSaisi);
                     const nbPaid = cascade.filter((e) => e.toPay >= (e.montantAttendu - e.montantPaye) - 0.01 && e.statut !== 'payee').length;
                     const avanceGlobale = parseFloat(montantSaisi) - echeances.reduce((s, e) => s + Math.max(0, e.montantAttendu - e.montantPaye), 0);

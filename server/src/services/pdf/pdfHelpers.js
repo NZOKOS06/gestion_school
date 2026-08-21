@@ -35,8 +35,10 @@ export function formatDateFr(d) {
   }
 }
 
+// Séparateur de milliers posé à la main : toLocaleString('fr-FR') renvoie une
+// espace fine insécable (U+202F) absente de l'encodage WinAnsi de PDFKit.
 export function formatMontant(n, devise = 'FCFA') {
-  const num = Number(n || 0).toLocaleString('fr-FR');
+  const num = Math.round(Number(n || 0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return devise ? `${num} ${devise}` : num;
 }
 

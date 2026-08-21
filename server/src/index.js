@@ -57,6 +57,7 @@ import parentsRoutes from './routes/parents.js';
 import enseignantRoutes from './routes/enseignant.js';
 import referentielRoutes from './routes/referentiel.js';
 import examensRoutes from './routes/examens.js';
+import notificationsRoutes from './routes/notifications.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -291,6 +292,7 @@ app.use('/api/rapports', tenantMiddleware, rapportsRoutes);
 app.use('/api/parent', tenantMiddleware, parentRoutes);
 app.use('/api/parents', tenantMiddleware, parentsRoutes);
 app.use('/api/enseignant', tenantMiddleware, enseignantRoutes);
+app.use('/api/notifications', tenantMiddleware, notificationsRoutes);
 
 // Super admin routes
 app.use('/api/superadmin', superadminRoutes);
@@ -414,6 +416,8 @@ if (process.env.NODE_ENV !== 'test') httpServer.listen(PORT, '0.0.0.0', async ()
 
     const { startRelancesCron } = await import('./jobs/relances.job.js');
     startRelancesCron();
+    const { startAlertesCalendrierCron } = await import('./jobs/alertesCalendrier.job.js');
+    startAlertesCalendrierCron();
   } catch (error) {
     logger.fatal({ err: error }, 'Cannot start without database connection');
     process.exit(1);

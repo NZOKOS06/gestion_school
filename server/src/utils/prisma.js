@@ -20,6 +20,7 @@ const TENANT_MODELS = new Set([
   'Eleve',
   'Inscription',
   'EnseignantClasse',
+  'EnseignantClasseQuittee',
   'Evaluation',
   'Note',
   'Bulletin',

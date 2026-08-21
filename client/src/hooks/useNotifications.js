@@ -5,6 +5,16 @@ import { useAuth } from '../contexts/AuthContext';
 
 const MAX_NOTIFICATIONS = 50;
 
+const STAFF_ROLES = [
+  'directeur',
+  'directeur_etudes',
+  'secretaire',
+  'enseignant',
+  'surveillant',
+  'comptable',
+  'super_admin',
+];
+
 export function useNotifications() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -12,6 +22,7 @@ export function useNotifications() {
   const { get, put } = useAxios();
   const { user } = useAuth();
   const isParent = user?.role === 'parent';
+  const isStaff = STAFF_ROLES.includes(user?.role);
 
   const add = useCallback((notif) => {
     const entry = {
@@ -35,11 +46,14 @@ export function useNotifications() {
   const markAllRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
-    if (!isParent) return;
     try {
-      await put('/api/parent/notifications/read-all', {}, { silent: true });
+      if (isParent) {
+        await put('/api/parent/notifications/read-all', {}, { silent: true });
+      } else if (isStaff) {
+        await put('/api/notifications/read-all', {}, { silent: true });
+      }
     } catch { /* ignore */ }
-  }, [put, isParent]);
+  }, [put, isParent, isStaff]);
 
   const markRead = useCallback(async (id) => {
     setNotifications((prev) =>
@@ -51,24 +65,27 @@ export function useNotifications() {
         return n;
       })
     );
-    if (!isParent) return;
     try {
-      await put(`/api/parent/notifications/${id}/read`, {}, { silent: true });
+      if (isParent) {
+        await put(`/api/parent/notifications/${id}/read`, {}, { silent: true });
+      } else if (isStaff) {
+        await put(`/api/notifications/${id}/read`, {}, { silent: true });
+      }
     } catch { /* ignore */ }
-  }, [put, isParent]);
+  }, [put, isParent, isStaff]);
 
   const clear = useCallback(() => {
     setNotifications([]);
     setUnreadCount(0);
   }, []);
 
-  // Hydrate from API — parents only (staff rely on sockets)
   useEffect(() => {
-    if (!isParent) return undefined;
+    if (!isParent && !isStaff) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const res = await get('/api/parent/notifications', { silent: true });
+        const endpoint = isParent ? '/api/parent/notifications' : '/api/notifications';
+        const res = await get(endpoint, { silent: true });
         const rows = res?.data || res || [];
         if (cancelled || !Array.isArray(rows)) return;
         setNotifications(
@@ -86,7 +103,7 @@ export function useNotifications() {
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [get, isParent]);
+  }, [get, isParent, isStaff]);
 
   useEffect(() => {
     const handlers = {

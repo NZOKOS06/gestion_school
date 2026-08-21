@@ -211,6 +211,11 @@ async function main() {
     { email: 'surveillant@demo.cg', password: 'Surveillant123!', role: 'surveillant', nom: 'Moussa', prenom: 'Amadou', typeContrat: 'titulaire' },
     { email: 'comptable@demo.cg', password: 'Comptable123!', role: 'comptable', nom: 'Lingui', prenom: 'Sarah', typeContrat: 'titulaire' },
     { email: 'vacataire@demo.cg', password: 'Vacataire123!', role: 'enseignant', nom: 'Bouanga', prenom: 'Alain', typeContrat: 'vacataire', heuresHebdo: 12, tauxHoraire: 5000 },
+    { email: 'titulaire.gs@demo.cg', password: 'TitulaireGS123!', role: 'enseignant', nom: 'Nkodia', prenom: 'Bernadette', typeContrat: 'titulaire' },
+    { email: 'titulaire.cm2@demo.cg', password: 'TitulaireCM2123!', role: 'enseignant', nom: 'Obami', prenom: 'Sylvie', typeContrat: 'titulaire' },
+    { email: 'prof.francais@demo.cg', password: 'ProfFrancais123!', role: 'enseignant', nom: 'Loemba', prenom: 'Estelle', typeContrat: 'titulaire' },
+    { email: 'prof.histoire@demo.cg', password: 'ProfHistoire123!', role: 'enseignant', nom: 'Tchicaya', prenom: 'Rodrigue', typeContrat: 'contractuel' },
+    { email: 'prof.svt@demo.cg', password: 'ProfSvt123!', role: 'enseignant', nom: 'Ondongo', prenom: 'Nadège', typeContrat: 'titulaire' },
   ];
 
   const staffMap = {};
@@ -518,32 +523,41 @@ async function main() {
 
   // ==================== ENSEIGNANT-CLASSE-MATIERE ====================
   const enseignant = staffMap.enseignantTitulaire || staffMap['enseignant@demo.cg'];
+  // Préscolaire / primaire : un titulaire par classe, sur toutes les matières du programme.
+  // Collège / lycée : une seule matière par enseignant, réparti sur plusieurs classes.
   const ecLinks = [
-    { classe: 'GS A', matiere: 'MATH' },
-    { classe: 'GS A', matiere: 'FR' },
-    { classe: 'CM2 A', matiere: 'MATH' },
-    { classe: 'CM2 A', matiere: 'FR' },
-    { classe: '6ème A', matiere: 'MATH' },
-    { classe: '6ème A', matiere: 'FR' },
-    { classe: '5ème B', matiere: 'MATH' },
-    { classe: '5ème B', matiere: 'HIST-GEO' },
-    { classe: '3ème A', matiere: 'MATH' },
-    { classe: '3ème A', matiere: 'FR' },
-    { classe: '2nde A', matiere: 'MATH' },
-    { classe: '2nde A', matiere: 'FR' },
-    { classe: 'Terminale S1', matiere: 'PHY' },
-    { classe: 'Terminale S1', matiere: 'SVT' },
+    { email: 'titulaire.gs@demo.cg', classe: 'GS A', matiere: 'FR' },
+    { email: 'titulaire.gs@demo.cg', classe: 'GS A', matiere: 'MATH' },
+    { email: 'titulaire.cm2@demo.cg', classe: 'CM2 A', matiere: 'FR' },
+    { email: 'titulaire.cm2@demo.cg', classe: 'CM2 A', matiere: 'MATH' },
+    { email: 'titulaire.cm2@demo.cg', classe: 'CM2 A', matiere: 'HIST-GEO' },
+    { email: 'enseignant@demo.cg', classe: '6ème A', matiere: 'MATH' },
+    { email: 'enseignant@demo.cg', classe: '5ème B', matiere: 'MATH' },
+    { email: 'enseignant@demo.cg', classe: '3ème A', matiere: 'MATH' },
+    { email: 'enseignant@demo.cg', classe: '2nde A', matiere: 'MATH' },
+    { email: 'enseignant@demo.cg', classe: 'Terminale S1', matiere: 'MATH' },
+    { email: 'prof.francais@demo.cg', classe: '6ème A', matiere: 'FR' },
+    { email: 'prof.francais@demo.cg', classe: '3ème A', matiere: 'FR' },
+    { email: 'prof.francais@demo.cg', classe: '2nde A', matiere: 'FR' },
+    { email: 'prof.histoire@demo.cg', classe: '6ème A', matiere: 'HIST-GEO' },
+    { email: 'prof.histoire@demo.cg', classe: '5ème B', matiere: 'HIST-GEO' },
+    { email: 'vacataire@demo.cg', classe: '2nde A', matiere: 'PHY' },
+    { email: 'vacataire@demo.cg', classe: 'Terminale S1', matiere: 'PHY' },
+    { email: 'prof.svt@demo.cg', classe: '3ème A', matiere: 'SVT' },
+    { email: 'prof.svt@demo.cg', classe: 'Terminale S1', matiere: 'SVT' },
   ];
   let ecCount = 0;
   for (const link of ecLinks) {
     const classe = classesMap[link.classe];
     const matiere = matieresMap[link.matiere];
+    const prof = staffMap[link.email];
+    if (!classe || !matiere || !prof) continue;
     const existing = await prisma.enseignantClasse.findFirst({
-      where: { enseignantId: enseignant.id, classeId: classe.id, matiereId: matiere.id },
+      where: { enseignantId: prof.id, classeId: classe.id, matiereId: matiere.id },
     });
     if (!existing) {
       await prisma.enseignantClasse.create({
-        data: { tenantId: demoTenant.id, enseignantId: enseignant.id, classeId: classe.id, matiereId: matiere.id },
+        data: { tenantId: demoTenant.id, enseignantId: prof.id, classeId: classe.id, matiereId: matiere.id },
       });
       ecCount++;
     }
@@ -795,24 +809,27 @@ async function main() {
   const todayJs = new Date().getDay();
   const todayJour = todayJs === 0 ? 7 : todayJs;
 
+  // Un même enseignant peut cumuler plusieurs classes le même jour, sur des horaires disjoints
   const edtSlots = [
-    { classe: '6ème A', matiere: 'MATH', jourSemaine: todayJour, heureDebut: '08:00', heureFin: '09:00', salle: 'A12' },
-    { classe: '6ème A', matiere: 'FR', jourSemaine: todayJour, heureDebut: '09:00', heureFin: '10:00', salle: 'A12' },
-    { classe: '6ème A', matiere: 'MATH', jourSemaine: 1, heureDebut: '08:00', heureFin: '09:00', salle: 'A12' },
-    { classe: '6ème A', matiere: 'FR', jourSemaine: 2, heureDebut: '10:00', heureFin: '11:00', salle: 'A12' },
-    { classe: '5ème B', matiere: 'MATH', jourSemaine: 3, heureDebut: '08:00', heureFin: '09:00', salle: 'B05' },
-    { classe: 'Terminale S1', matiere: 'PHY', jourSemaine: 4, heureDebut: '14:00', heureFin: '16:00', salle: 'Labo Sciences' },
+    { classe: '6ème A', matiere: 'MATH', email: 'enseignant@demo.cg', jourSemaine: todayJour, heureDebut: '08:00', heureFin: '09:00', salle: 'A12' },
+    { classe: '6ème A', matiere: 'FR', email: 'prof.francais@demo.cg', jourSemaine: todayJour, heureDebut: '09:00', heureFin: '10:00', salle: 'A12' },
+    { classe: '5ème B', matiere: 'MATH', email: 'enseignant@demo.cg', jourSemaine: todayJour, heureDebut: '10:00', heureFin: '11:00', salle: 'B05' },
+    { classe: '6ème A', matiere: 'MATH', email: 'enseignant@demo.cg', jourSemaine: 1, heureDebut: '08:00', heureFin: '09:00', salle: 'A12' },
+    { classe: '6ème A', matiere: 'FR', email: 'prof.francais@demo.cg', jourSemaine: 2, heureDebut: '10:00', heureFin: '11:00', salle: 'A12' },
+    { classe: '5ème B', matiere: 'MATH', email: 'enseignant@demo.cg', jourSemaine: 3, heureDebut: '08:00', heureFin: '09:00', salle: 'B05' },
+    { classe: 'Terminale S1', matiere: 'PHY', email: 'vacataire@demo.cg', jourSemaine: 4, heureDebut: '14:00', heureFin: '16:00', salle: 'Labo Sciences' },
   ];
 
   let edtCount = 0;
   for (const slot of edtSlots) {
     const classe = classesMap[slot.classe];
     const matiere = matieresMap[slot.matiere];
-    if (!classe || !matiere || !enseignant) continue;
+    const prof = staffMap[slot.email];
+    if (!classe || !matiere || !prof) continue;
     const existing = await prisma.emploiDuTemps.findFirst({
       where: {
         tenantId: demoTenant.id,
-        enseignantId: enseignant.id,
+        enseignantId: prof.id,
         classeId: classe.id,
         matiereId: matiere.id,
         jourSemaine: slot.jourSemaine,
@@ -828,7 +845,7 @@ async function main() {
           tenantId: demoTenant.id,
           classeId: classe.id,
           matiereId: matiere.id,
-          enseignantId: enseignant.id,
+          enseignantId: prof.id,
           jourSemaine: slot.jourSemaine,
           heureDebut: slot.heureDebut,
           heureFin: slot.heureFin,
@@ -1050,9 +1067,23 @@ async function main() {
   console.log('        Email    : enseignant@demo.cg');
   console.log('        Password : Enseignant123!');
   console.log('     ----------------------------------------');
-  console.log('     👨‍🏫 Enseignant (vacataire)');
+  console.log('        Matière  : Mathématiques (6ème A, 5ème B, 3ème A, 2nde A, Tle S1)');
+  console.log('     ----------------------------------------');
+  console.log('     👨‍🏫 Enseignant (vacataire) — Physique');
   console.log('        Email    : vacataire@demo.cg');
   console.log('        Password : Vacataire123!');
+  console.log('     ----------------------------------------');
+  console.log('     👩‍🏫 Titulaire GS A (préscolaire)');
+  console.log('        Email    : titulaire.gs@demo.cg');
+  console.log('        Password : TitulaireGS123!');
+  console.log('     ----------------------------------------');
+  console.log('     👩‍🏫 Titulaire CM2 A (primaire)');
+  console.log('        Email    : titulaire.cm2@demo.cg');
+  console.log('        Password : TitulaireCM2123!');
+  console.log('     ----------------------------------------');
+  console.log('     👩‍🏫 Français : prof.francais@demo.cg / ProfFrancais123!');
+  console.log('     👨‍🏫 Histoire-Géo : prof.histoire@demo.cg / ProfHistoire123!');
+  console.log('     👩‍🏫 SVT : prof.svt@demo.cg / ProfSvt123!');
   console.log('     ----------------------------------------');
   console.log('     👮 Surveillant');
   console.log('        Email    : surveillant@demo.cg');
@@ -1072,9 +1103,9 @@ async function main() {
   console.log('     • 6 matières');
   console.log('     • 6 élèves avec inscriptions');
   console.log('     • 3 actualités');
-  console.log('     • 6 associations enseignant-classe-matière');
+  console.log(`     • ${ecLinks.length} associations enseignant-classe-matière`);
   console.log('     • 24 échéances de paiement');
-  console.log('     • 6 utilisateurs staff (dont 1 vacataire)');
+  console.log(`     • ${staffDemo.length} utilisateurs staff (dont 1 vacataire)`);
   console.log('     • 1 compte parent');
   console.log('     • 4 salles');
   console.log('     • 7 événements calendrier scolaire');

@@ -2,6 +2,7 @@ import { prisma } from './prisma.js';
 import { createLogger } from './logger.js';
 import {
   emitNotificationParent,
+  emitNotificationStaff,
   emitNouvelleNote,
   emitNouvelleAbsence,
   emitNouvelleSanction,
@@ -51,6 +52,52 @@ export async function notifyParent({
     return notif;
   } catch (err) {
     log.warn({ err, userId, type }, 'notifyParent failed');
+    return null;
+  }
+}
+
+/**
+ * Persist + push a notification to a staff member.
+ */
+export async function notifyStaff({
+  tenantId,
+  staffId,
+  type = 'systeme',
+  titre,
+  contenu,
+  lien = null,
+  tenantSlug = null,
+}) {
+  if (!staffId || !tenantId) return null;
+
+  try {
+    const notif = await prisma.notification.create({
+      data: {
+        tenantId,
+        staffId,
+        type,
+        titre,
+        contenu,
+        lien,
+      },
+    });
+
+    if (tenantSlug) {
+      emitNotificationStaff(tenantSlug, {
+        id: notif.id,
+        type: notif.type,
+        titre: notif.titre,
+        contenu: notif.contenu,
+        message: notif.contenu,
+        lien: notif.lien,
+        lu: false,
+        staffId,
+      });
+    }
+
+    return notif;
+  } catch (err) {
+    log.warn({ err, staffId, type }, 'notifyStaff failed');
     return null;
   }
 }

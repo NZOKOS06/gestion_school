@@ -6,13 +6,20 @@ import * as ctrl from '../controllers/calendrierScolaire.controller.js';
 const router = Router();
 
 const readRoles = ['directeur', 'directeur_etudes', 'secretaire', 'enseignant', 'surveillant', 'comptable'];
-const writeRoles = ['directeur', 'directeur_etudes', 'secretaire'];
+const writeRoles = ['directeur', 'directeur_etudes'];
 
 router.get('/',
   authenticate,
   requireRole(...readRoles),
   requireTenantMatch,
   ctrl.getAll
+);
+
+router.get('/alertes',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  ctrl.getAlertes
 );
 
 router.post('/',
@@ -32,7 +39,7 @@ router.put('/:id',
 
 router.delete('/:id',
   authenticate,
-  requireRole('directeur', 'directeur_etudes'),
+  requireRole(...writeRoles),
   requireTenantMatch,
   idParamValidator,
   ctrl.remove

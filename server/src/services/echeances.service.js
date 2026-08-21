@@ -175,6 +175,18 @@ async function convertTranchesToMonthsIfNeeded(db, tenantId, inscriptionId) {
   await db.echeance.createMany({ data });
 }
 
+/** Somme restant due sur une inscription (échéances non soldées). */
+export async function resteAPayer(db, tenantId, inscriptionId) {
+  const rows = await db.echeance.findMany({
+    where: { tenantId, inscriptionId },
+    select: { montantAttendu: true, montantPaye: true },
+  });
+  return rows.reduce(
+    (s, e) => s + Math.max(0, Number(e.montantAttendu) - Number(e.montantPaye)),
+    0
+  );
+}
+
 export async function applyPaymentToEcheance(tx, echeanceId, montant) {
   if (!echeanceId) return null;
   const echeance = await tx.echeance.findUnique({ where: { id: echeanceId } });

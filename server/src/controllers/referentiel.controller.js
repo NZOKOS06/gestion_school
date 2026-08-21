@@ -126,19 +126,41 @@ export const upsertPeriode = async (req, res) => {
     } = req.body;
     const id = req.params.id || req.body.id;
 
-    if (!anneeScolaireId || !index || !libelle || !dateDebut || !dateFin) {
+    if (!anneeScolaireId || index == null || !libelle || !dateDebut || !dateFin) {
       return res.status(400).json({ error: 'Champs obligatoires manquants' });
     }
 
     const annee = await prisma.anneeScolaire.findFirst({ where: { id: anneeScolaireId, tenantId } });
     if (!annee) return res.status(404).json({ error: 'Année scolaire introuvable' });
 
+    const check = validerPeriodeDates({
+      annee,
+      dateDebut,
+      dateFin,
+      dateEvaluationDebut,
+      dateEvaluationFin,
+    });
+    if (check.error) return res.status(400).json({ error: check.error });
+
+    const overlap = await detecterChevauchement({
+      tenantId,
+      anneeScolaireId,
+      dateDebut: check.dateDebut,
+      dateFin: check.dateFin,
+      excludeId: id || null,
+    });
+    if (overlap) {
+      return res.status(400).json({
+        error: `Chevauchement avec la période « ${overlap.libelle} » (${overlap.dateDebut.toLocaleDateString('fr-FR')} → ${overlap.dateFin.toLocaleDateString('fr-FR')})`,
+      });
+    }
+
     const data = {
       libelle,
-      dateDebut: new Date(dateDebut),
-      dateFin: new Date(dateFin),
-      dateEvaluationDebut: dateEvaluationDebut ? new Date(dateEvaluationDebut) : null,
-      dateEvaluationFin: dateEvaluationFin ? new Date(dateEvaluationFin) : null,
+      dateDebut: check.dateDebut,
+      dateFin: check.dateFin,
+      dateEvaluationDebut: check.dateEvaluationDebut,
+      dateEvaluationFin: check.dateEvaluationFin,
       poids: poids != null ? parseFloat(poids) : null,
       concerneCycles: concerneCycles === undefined
         ? undefined
@@ -168,6 +190,86 @@ export const upsertPeriode = async (req, res) => {
     res.json(periode);
   } catch (error) {
     log.error({ err: error }, 'upsertPeriode');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const upsertPeriodesBatch = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { anneeScolaireId, periodes } = req.body;
+    if (!anneeScolaireId || !Array.isArray(periodes)) {
+      return res.status(400).json({ error: 'anneeScolaireId et periodes[] requis' });
+    }
+
+    const annee = await prisma.anneeScolaire.findFirst({ where: { id: anneeScolaireId, tenantId } });
+    if (!annee) return res.status(404).json({ error: 'Année scolaire introuvable' });
+
+    const validated = [];
+    for (const p of periodes) {
+      if (!p.libelle || !p.dateDebut || !p.dateFin || p.index == null) {
+        return res.status(400).json({ error: `Période incomplète (index ${p.index ?? '?'})` });
+      }
+      const check = validerPeriodeDates({
+        annee,
+        dateDebut: p.dateDebut,
+        dateFin: p.dateFin,
+        dateEvaluationDebut: p.dateEvaluationDebut,
+        dateEvaluationFin: p.dateEvaluationFin,
+      });
+      if (check.error) {
+        return res.status(400).json({ error: `${p.libelle} : ${check.error}` });
+      }
+      validated.push({ ...p, ...check });
+    }
+
+    // Chevauchements internes
+    const sorted = [...validated].sort((a, b) => a.dateDebut - b.dateDebut);
+    for (let i = 1; i < sorted.length; i += 1) {
+      if (sorted[i].dateDebut <= sorted[i - 1].dateFin) {
+        return res.status(400).json({
+          error: `Chevauchement entre « ${sorted[i - 1].libelle} » et « ${sorted[i].libelle} »`,
+        });
+      }
+    }
+
+    const saved = await prisma.$transaction(async (tx) => {
+      const results = [];
+      for (const p of validated) {
+        const data = {
+          libelle: p.libelle,
+          dateDebut: p.dateDebut,
+          dateFin: p.dateFin,
+          dateEvaluationDebut: p.dateEvaluationDebut,
+          dateEvaluationFin: p.dateEvaluationFin,
+          poids: p.poids != null ? parseFloat(p.poids) : null,
+          concerneCycles: Array.isArray(p.concerneCycles) && p.concerneCycles.length ? p.concerneCycles : null,
+        };
+        if (p.id) {
+          const existing = await tx.periodeScolaire.findFirst({ where: { id: p.id, tenantId } });
+          if (!existing) throw Object.assign(new Error(`Période ${p.id} introuvable`), { status: 404 });
+          results.push(await tx.periodeScolaire.update({ where: { id: p.id }, data }));
+        } else {
+          results.push(await tx.periodeScolaire.upsert({
+            where: { anneeScolaireId_index: { anneeScolaireId, index: parseInt(p.index, 10) } },
+            update: data,
+            create: {
+              tenantId,
+              anneeScolaireId,
+              index: parseInt(p.index, 10),
+              ...data,
+            },
+          }));
+        }
+      }
+      return results;
+    });
+
+    await logAudit(req, 'periodes_batch_upserted', 'PeriodeScolaire', anneeScolaireId, { count: saved.length });
+    res.json({ data: saved, count: saved.length });
+  } catch (error) {
+    if (error.status === 404) return res.status(404).json({ error: error.message });
+    log.error({ err: error }, 'upsertPeriodesBatch');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -214,6 +316,7 @@ export const generateCalendrierFromPeriodes = async (req, res) => {
     );
 
     const created = [];
+    const updated = [];
     for (const ev of templates) {
       const exists = await prisma.calendrierScolaire.findFirst({
         where: {
@@ -223,7 +326,19 @@ export const generateCalendrierFromPeriodes = async (req, res) => {
           type: ev.type,
         },
       });
-      if (exists) continue;
+      if (exists) {
+        updated.push(await prisma.calendrierScolaire.update({
+          where: { id: exists.id },
+          data: {
+            dateDebut: new Date(ev.dateDebut),
+            dateFin: ev.dateFin ? new Date(ev.dateFin) : null,
+            description: ev.description,
+            // Reset alert if date moved forward
+            alerteEnvoyeeAt: null,
+          },
+        }));
+        continue;
+      }
       created.push(await prisma.calendrierScolaire.create({
         data: {
           tenantId,
@@ -237,10 +352,85 @@ export const generateCalendrierFromPeriodes = async (req, res) => {
       }));
     }
 
-    await logAudit(req, 'calendrier_templates_generated', 'CalendrierScolaire', anneeScolaireId, { count: created.length });
-    res.json({ data: created, count: created.length });
+    // Ensure rentree exists
+    const { syncEvenementRentree } = await import('./calendrierScolaire.controller.js');
+    await syncEvenementRentree(tenantId, annee);
+
+    await logAudit(req, 'calendrier_templates_generated', 'CalendrierScolaire', anneeScolaireId, {
+      created: created.length,
+      updated: updated.length,
+    });
+    res.json({ data: [...created, ...updated], count: created.length + updated.length, created: created.length, updated: updated.length });
   } catch (error) {
     log.error({ err: error }, 'generateCalendrierFromPeriodes');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfDay(d) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function formatFr(d) {
+  return new Date(d).toLocaleDateString('fr-FR');
+}
+
+function validerPeriodeDates({ annee, dateDebut, dateFin, dateEvaluationDebut, dateEvaluationFin }) {
+  const debut = startOfDay(dateDebut);
+  const fin = startOfDay(dateFin);
+  const debutAnnee = startOfDay(annee.dateDebut);
+  const finAnnee = endOfDay(annee.dateFin);
+
+  if (debut >= fin) {
+    return { error: 'La date de début doit être antérieure à la date de fin' };
+  }
+  if (debut < debutAnnee || fin > finAnnee) {
+    return {
+      error: `Les dates doivent être comprises entre le ${formatFr(annee.dateDebut)} et le ${formatFr(annee.dateFin)}`,
+    };
+  }
+
+  let dateEvaluationDebutParsed = null;
+  let dateEvaluationFinParsed = null;
+  if (dateEvaluationDebut) {
+    dateEvaluationDebutParsed = startOfDay(dateEvaluationDebut);
+    if (dateEvaluationDebutParsed < debut || dateEvaluationDebutParsed > fin) {
+      return { error: 'La date de début d\'évaluation doit être dans la période' };
+    }
+  }
+  if (dateEvaluationFin) {
+    dateEvaluationFinParsed = startOfDay(dateEvaluationFin);
+    if (dateEvaluationFinParsed < debut || dateEvaluationFinParsed > fin) {
+      return { error: 'La date de fin d\'évaluation doit être dans la période' };
+    }
+  }
+  if (dateEvaluationDebutParsed && dateEvaluationFinParsed && dateEvaluationDebutParsed > dateEvaluationFinParsed) {
+    return { error: 'La fenêtre d\'évaluation est incohérente (début > fin)' };
+  }
+
+  return {
+    dateDebut: debut,
+    dateFin: fin,
+    dateEvaluationDebut: dateEvaluationDebutParsed,
+    dateEvaluationFin: dateEvaluationFinParsed,
+  };
+}
+
+async function detecterChevauchement({ tenantId, anneeScolaireId, dateDebut, dateFin, excludeId }) {
+  const others = await prisma.periodeScolaire.findMany({
+    where: {
+      tenantId,
+      anneeScolaireId,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+  });
+  return others.find((p) => dateDebut <= p.dateFin && dateFin >= p.dateDebut) || null;
+}

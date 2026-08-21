@@ -53,8 +53,31 @@ export const getKpis = async (req, res) => {
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 
-    const [totalEleves, totalClasses, paiementsToday, paiementsMonth, inscriptionsEnAttente, absencesToday, objectifMoisAgg, echeancesStats] = await Promise.all([
-      prisma.eleve.count({ where: { tenantId, actif: true } }),
+    const anneeActive = await prisma.anneeScolaire.findFirst({
+      where: { tenantId, actif: true },
+      select: { id: true },
+    });
+    const anneeActiveId = anneeActive?.id || null;
+    const inscriptionWhere = {
+      tenantId,
+      statut: 'validee',
+      ...(anneeActiveId ? { anneeScolaireId: anneeActiveId } : {}),
+    };
+
+    const [
+      totalEleves,
+      totalClasses,
+      paiementsToday,
+      paiementsMonth,
+      inscriptionsEnAttente,
+      absencesToday,
+      objectifMoisAgg,
+      echeancesStats,
+      inscriptionsParClasse,
+      dernieresAbsencesRaw,
+      derniersPaiementsRaw,
+    ] = await Promise.all([
+      prisma.inscription.count({ where: inscriptionWhere }),
       prisma.classe.count({ where: { tenantId, anneeScolaire: { actif: true } } }),
       prisma.paiement.aggregate({
         where: { tenantId, datePaiement: { gte: today, lt: tomorrow } },
@@ -67,7 +90,14 @@ export const getKpis = async (req, res) => {
         _count: { id: true }
       }),
       prisma.inscription.count({ where: { tenantId, statut: 'en_attente' } }),
-      prisma.absence.count({ where: { tenantId, dateAbsence: { gte: today, lt: tomorrow } } }),
+      prisma.absence.count({
+        where: {
+          tenantId,
+          dateAbsence: { gte: today, lt: tomorrow },
+          typeAbsence: 'absent',
+          justifiee: false,
+        },
+      }),
       prisma.echeance.aggregate({
         where: { tenantId, dateEcheance: { gte: startOfMonth, lt: startOfNextMonth } },
         _sum: { montantAttendu: true },
@@ -75,6 +105,40 @@ export const getKpis = async (req, res) => {
       prisma.echeance.findMany({
         where: { tenantId, statut: { in: ['en_attente', 'en_retard'] } },
         select: { statut: true, montantAttendu: true, montantPaye: true, dateEcheance: true },
+      }),
+      prisma.inscription.findMany({
+        where: inscriptionWhere,
+        select: { classe: { select: { cycle: true } } },
+      }),
+      prisma.absence.findMany({
+        where: { tenantId, justifiee: false, typeAbsence: 'absent' },
+        orderBy: { dateAbsence: 'desc' },
+        take: 5,
+        include: {
+          eleve: {
+            select: {
+              nom: true,
+              prenom: true,
+              inscriptions: {
+                where: { statut: 'validee', ...(anneeActiveId ? { anneeScolaireId: anneeActiveId } : {}) },
+                take: 1,
+                select: { classe: { select: { nom: true } } },
+              },
+            },
+          },
+        },
+      }),
+      prisma.paiement.findMany({
+        where: { tenantId },
+        orderBy: { datePaiement: 'desc' },
+        take: 5,
+        include: {
+          inscription: {
+            select: {
+              eleve: { select: { nom: true, prenom: true } },
+            },
+          },
+        },
       }),
     ]);
 
@@ -85,9 +149,42 @@ export const getKpis = async (req, res) => {
       .filter((e) => e.statut === 'en_retard' || e.dateEcheance < today)
       .reduce((s, e) => s + Math.max(0, Number(e.montantAttendu) - Number(e.montantPaye)), 0);
     const tauxImpayes = totalReste > 0 ? Math.round((resteRetard / totalReste) * 1000) / 10 : 0;
+    const tauxPresence = totalEleves > 0
+      ? Math.round(((totalEleves - Math.min(absencesToday, totalEleves)) / totalEleves) * 1000) / 10
+      : 0;
+
+    const cycleCounts = {};
+    for (const row of inscriptionsParClasse) {
+      const cycle = row.classe?.cycle || 'autre';
+      cycleCounts[cycle] = (cycleCounts[cycle] || 0) + 1;
+    }
+    const repartitionCycles = Object.entries(cycleCounts).map(([cycle, count]) => ({ cycle, count }));
+
+    const dernieresAbsences = dernieresAbsencesRaw.map((a) => ({
+      id: a.id,
+      dateAbsence: a.dateAbsence,
+      eleveNom: a.eleve?.nom || '',
+      elevePrenom: a.eleve?.prenom || '',
+      classeNom: a.eleve?.inscriptions?.[0]?.classe?.nom || '—',
+      statut: 'non_justifiee',
+    }));
+
+    const derniersPaiements = derniersPaiementsRaw.map((p) => ({
+      id: p.id,
+      montant: Number(p.montant),
+      modePaiement: p.modePaiement,
+      numeroRecu: p.numeroRecu,
+      eleveNom: p.inscription?.eleve?.nom || '',
+      elevePrenom: p.inscription?.eleve?.prenom || '',
+    }));
 
     res.json({
       eleves: { total: totalEleves },
+      totalEleves,
+      tauxPresence,
+      repartitionCycles,
+      dernieresAbsences,
+      derniersPaiements,
       classes: { total: totalClasses },
       paiements: {
         today: { count: paiementsToday._count.id, montant: paiementsToday._sum.montant || 0 },

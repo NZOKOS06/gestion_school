@@ -7,7 +7,7 @@ const log = createLogger('AuditLogger');
  * Enregistre une action d'audit dans la base de données.
  * 
  * @param {Object} req - L'objet de requête Express (pour l'acteur, l'IP, etc.)
- * @param {string} action - L'action effectuée (enum AuditAction)
+ * @param {string} action - L'action effectuée (ex: affectation_created)
  * @param {string} [targetType] - Le type de l'entité ciblée (ex: "Staff", "Tenant", "Vente")
  * @param {string} [targetId] - L'ID de l'entité ciblée
  * @param {Object} [details] - Données additionnelles au format JSON

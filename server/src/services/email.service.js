@@ -319,6 +319,36 @@ export const sendRelanceEcheance = async ({
   return sendEmail({ to, subject, html, text });
 };
 
+export const sendAlerteEvenement = async ({
+  to,
+  nomApp = 'GestSchool',
+  typeLabel = 'Événement',
+  titre = '',
+  dateDebut,
+  joursRestants = 0,
+}) => {
+  const dateStr = dateDebut ? new Date(dateDebut).toLocaleDateString('fr-FR') : '—';
+  const delai = joursRestants > 0
+    ? `dans ${joursRestants} jour${joursRestants > 1 ? 's' : ''}`
+    : "aujourd'hui";
+  const subject = `${typeLabel} proche — ${nomApp}`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #1d4ed8;">Alerte calendrier scolaire</h2>
+      <p>La date prévue pour <strong>${typeLabel.toLowerCase()} « ${titre} »</strong> approche.</p>
+      <ul>
+        <li><strong>Date :</strong> ${dateStr}</li>
+        <li><strong>Échéance :</strong> ${delai}</li>
+      </ul>
+      <p>Merci de préparer l'établissement en conséquence.</p>
+      <p style="color:#666;font-size:12px;">Message automatique — ${nomApp}</p>
+    </div>
+  `;
+  const text = `Alerte ${nomApp}\n${typeLabel} « ${titre} » le ${dateStr} (${delai})`;
+
+  return sendEmail({ to, subject, html, text });
+};
+
 export default {
   sendEmail,
   sendPasswordResetEmail,
@@ -328,4 +358,5 @@ export default {
   sendAccountDeactivatedEmail,
   sendRelanceEcheance,
   sendStaffWelcomeEmail,
+  sendAlerteEvenement,
 };

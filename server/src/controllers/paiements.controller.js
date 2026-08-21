@@ -7,7 +7,9 @@ import {
   listByInscription,
   listRetards,
   normalizeModePaiement,
+  resteAPayer,
 } from '../services/echeances.service.js';
+import { formatMontant } from '../utils/formatters.js';
 import { loadSchoolPdfMeta } from '../services/pdf/schoolMeta.js';
 import { buildRecuPdf } from '../services/pdf/recu.pdf.js';
 import { buildJournalCaissePdf } from '../services/pdf/journalCaisse.pdf.js';
@@ -36,6 +38,31 @@ function parseDayEnd(value) {
 
 async function schoolPdfMeta(tenantId, req) {
   return loadSchoolPdfMeta(tenantId, req);
+}
+
+/** Un encaissement ne peut ni dépasser le reste dû, ni s'ajouter à une scolarité soldée. */
+async function assertMontantEncaissable(tx, tenantId, inscriptionId, amount) {
+  const reste = await resteAPayer(tx, tenantId, inscriptionId);
+  if (reste <= 0.01) throw new Error('SCOLARITE_SOLDEE');
+  if (amount > reste + 0.01) {
+    const err = new Error('MONTANT_SUPERIEUR_RESTE');
+    err.reste = reste;
+    throw err;
+  }
+}
+
+function reponseEncaissementRefuse(res, error) {
+  if (error.message === 'SCOLARITE_SOLDEE') {
+    return res.status(400).json({
+      error: 'La scolarité est entièrement soldée : aucun paiement supplémentaire ne peut être enregistré.',
+    });
+  }
+  if (error.message === 'MONTANT_SUPERIEUR_RESTE') {
+    return res.status(400).json({
+      error: `Veuillez saisir le montant restant : ${formatMontant(error.reste)}`,
+    });
+  }
+  return null;
 }
 
 async function recuPdfPayload(full, tenantId, req) {
@@ -341,6 +368,8 @@ export const create = async (req, res) => {
         }
       }
 
+      await assertMontantEncaissable(tx, tenantId, inscriptionId, amount);
+
       const lastPaiement = await tx.paiement.findFirst({
         where: { tenantId },
         orderBy: { numeroRecu: 'desc' },
@@ -397,6 +426,8 @@ export const create = async (req, res) => {
     if (error.message === 'ECHEANCE_NOT_FOUND') {
       return res.status(404).json({ error: 'Échéance non trouvée' });
     }
+    const refus = reponseEncaissementRefuse(res, error);
+    if (refus) return refus;
     log.error({ err: error, tenantId: req.tenantId }, 'Create paiement error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -418,6 +449,8 @@ export const createBatch = async (req, res) => {
         where: { id: inscriptionId, tenantId },
       });
       if (!inscription) throw new Error('INSCRIPTION_NOT_FOUND');
+
+      await assertMontantEncaissable(tx, tenantId, inscriptionId, amount);
 
       const lastPaiement = await tx.paiement.findFirst({
         where: { tenantId },
@@ -474,6 +507,8 @@ export const createBatch = async (req, res) => {
     if (error.message === 'INSCRIPTION_NOT_FOUND') {
       return res.status(404).json({ error: 'Inscription non trouvée' });
     }
+    const refus = reponseEncaissementRefuse(res, error);
+    if (refus) return refus;
     log.error({ err: error, tenantId: req.tenantId }, 'Create batch paiement error');
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -75,6 +75,24 @@ export const create = async (req, res) => {
       return res.status(409).json({ error: 'Conflit d\'horaire pour cette classe' });
     }
 
+    // Un enseignant peut cumuler les classes le même jour, mais pas sur des horaires qui se chevauchent
+    const conflitEnseignant = await prisma.emploiDuTemps.findFirst({
+      where: {
+        tenantId,
+        enseignantId: resolvedEnseignantId,
+        jourSemaine: parseInt(jourSemaine),
+        heureDebut: { lt: heureFin },
+        heureFin: { gt: heureDebut },
+      },
+      include: { classe: { select: { nom: true } } },
+    });
+
+    if (conflitEnseignant) {
+      return res.status(409).json({
+        error: `Cet enseignant a déjà cours en ${conflitEnseignant.classe?.nom || 'une autre classe'} de ${conflitEnseignant.heureDebut} à ${conflitEnseignant.heureFin} ce jour-là`,
+      });
+    }
+
     const emploi = await prisma.emploiDuTemps.create({
       data: {
         tenantId,

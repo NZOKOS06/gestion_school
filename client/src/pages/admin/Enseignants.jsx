@@ -145,14 +145,28 @@ const Enseignants = () => {
           return;
         }
         let ok = 0;
+        let refus = null;
+        let classesLiberees = [];
         for (const matiereId of matiereIds) {
           try {
-            await post(`/api/matieres/${matiereId}/affectations`, {
-              enseignantId: selected.id,
-              classeId: assignForm.classeId,
-            });
+            const res = await post(
+              `/api/matieres/${matiereId}/affectations`,
+              { enseignantId: selected.id, classeId: assignForm.classeId },
+              { silent: true }
+            );
             ok += 1;
-          } catch { /* déjà existant */ }
+            if (res?.classesLiberees?.length) classesLiberees = res.classesLiberees;
+          } catch (err) {
+            const message = err.response?.data?.error;
+            if (message && message !== 'Affectation déjà existante' && !refus) refus = message;
+          }
+        }
+        if (refus) {
+          toast.error(refus);
+          return;
+        }
+        if (classesLiberees.length) {
+          toast(`Retiré de ${classesLiberees.join(', ')} — retour désormais impossible`, { icon: '⚠️' });
         }
         toast.success(ok ? `Titulaire assigné (${ok} matière${ok > 1 ? 's' : ''})` : 'Affectations déjà présentes');
       } else {
@@ -160,10 +174,13 @@ const Enseignants = () => {
           toast.error('Sélectionnez une matière (collège / lycée)');
           return;
         }
-        await post(`/api/matieres/${assignForm.matiereId}/affectations`, {
+        const res = await post(`/api/matieres/${assignForm.matiereId}/affectations`, {
           enseignantId: selected.id,
           classeId: assignForm.classeId,
         });
+        if (res?.classesLiberees?.length) {
+          toast(`Retiré de ${res.classesLiberees.join(', ')} — retour désormais impossible`, { icon: '⚠️' });
+        }
         toast.success('Affectation enregistrée');
       }
       setAssignForm({ classeId: '', matiereId: '' });
@@ -326,8 +343,9 @@ const Enseignants = () => {
         {selected && (
           <div className="space-y-4">
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Préscolaire / primaire : un titulaire reste sur la classe jusqu’à fin de contrat (matière optionnelle = toutes les matières).
-              Collège / lycée : matière obligatoire par classe.
+              Préscolaire / primaire : titulaire d’une seule classe (matière optionnelle = toutes les matières).
+              Toute réaffectation retire la classe précédente et en ferme définitivement le retour.
+              Collège / lycée : une seule matière par enseignant, sur autant de classes que nécessaire.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
               <div>

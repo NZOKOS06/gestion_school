@@ -1,21 +1,18 @@
 import PDFDocument from 'pdfkit';
 import { montantEnLettres } from './montantLettres.js';
-import {
-  MODE_LABELS, formatDateFr, formatMontant,
-  drawOfficialHeader, drawStamp, drawFooter, toBuffer,
-} from './pdfHelpers.js';
+import { MODE_LABELS, formatDateFr, formatMontant, drawStamp, toBuffer } from './pdfHelpers.js';
 
 /**
- * Reçu de paiement scolaire A4 — forme carnet de caisse (Afrique francophone) :
- * en-tête République, identité élève, montant chiffres + lettres,
- * détail mensuel, déjà versé / reste, cachet et signatures.
+ * Reçu de paiement scolaire tenant sur la moitié haute d'une feuille A4 :
+ * en-tête école, identité élève, montant en chiffres et en lettres,
+ * reste à verser, signatures. Une ligne de découpe marque le milieu de page.
+ * Le détail mensuel reste consultable via la situation financière.
  */
 export function buildRecuPdf(data) {
   const doc = new PDFDocument({ size: 'A4', margin: 40 });
   const done = toBuffer(doc);
 
   const {
-    pays = 'CG',
     nomEcole = 'GestSchool',
     adresse,
     telephone,
@@ -38,120 +35,104 @@ export function buildRecuPdf(data) {
 
   const left = 40;
   const usable = doc.page.width - 80;
-  let y = drawOfficialHeader(doc, {
-    pays, nomEcole, adresse, telephone, email,
-    titre: 'REÇU DE PAIEMENT DE SCOLARITÉ',
-  });
-
-  y += 6;
-  doc.font('Helvetica-Bold').fontSize(10).fillColor('#1a365d')
-    .text(`Reçu N° ${String(numeroRecu ?? '—').padStart(6, '0')}`, left, y);
-  doc.font('Helvetica').fontSize(9).fillColor('#333')
-    .text(`Date : ${formatDateFr(datePaiement)}`, left + usable / 2, y, { width: usable / 2, align: 'right' });
-  y += 14;
-  doc.text(`Année scolaire : ${anneeScolaire || '—'}`, left, y);
-  doc.text(`Exemplaire parent / tuteur`, left + usable / 2, y, { width: usable / 2, align: 'right' });
-
-  y += 18;
-  doc.rect(left, y, usable, 54).stroke('#cbd5e0');
-  doc.font('Helvetica').fontSize(8).fillColor('#666')
-    .text('Reçu de M. / Mme (parent ou tuteur)', left + 8, y + 6);
-  doc.font('Helvetica-Bold').fontSize(10).fillColor('#111')
-    .text(parent || '—', left + 8, y + 18);
-  doc.font('Helvetica').fontSize(8).fillColor('#333')
-    .text(`Pour l'élève : ${eleve || '—'}`, left + 8, y + 34);
-  doc.text(`Matricule : ${matricule || '—'}   Classe : ${classe || '—'}`, left + usable / 2, y + 34, { width: usable / 2 - 8 });
+  const half = doc.page.height / 2;
 
   const totalDu = echeances.reduce((s, e) => s + Number(e.montantAttendu || 0), 0);
   const totalPaye = echeances.reduce((s, e) => s + Number(e.montantPaye || 0), 0);
   const reste = Math.max(0, totalDu - totalPaye);
 
-  y += 66;
-  doc.rect(left, y, usable, 48).fillAndStroke('#1a365d', '#1a365d');
-  doc.fillColor('#fff').font('Helvetica').fontSize(8)
-    .text('MONTANT DU VERSEMENT DU JOUR', left + 10, y + 8);
-  doc.font('Helvetica-Bold').fontSize(16)
-    .text(formatMontant(montant, devise), left + 10, y + 22);
-  doc.font('Helvetica').fontSize(8)
-    .text(MODE_LABELS[modePaiement] || modePaiement || 'Espèces', left, y + 12, { width: usable - 12, align: 'right' });
-  if (reference) {
-    doc.text(`Réf. ${reference}`, left, y + 26, { width: usable - 12, align: 'right' });
+  // En-tête compact
+  doc.font('Helvetica-Bold').fontSize(13).fillColor('#1a365d')
+    .text((nomEcole || 'GestSchool').toUpperCase(), left, 30, { width: usable, align: 'center' });
+  const contact = [adresse, telephone, email].filter(Boolean).join('  ·  ');
+  if (contact) {
+    doc.font('Helvetica').fontSize(7).fillColor('#555')
+      .text(contact, left, 47, { width: usable, align: 'center' });
   }
+  const ruleY = contact ? 60 : 50;
+  doc.moveTo(left, ruleY).lineTo(left + usable, ruleY).lineWidth(1).stroke('#1a365d');
 
-  y += 56;
-  doc.font('Helvetica-Oblique').fontSize(9).fillColor('#1a365d')
-    .text(`Arrêté le présent reçu à la somme de : ${montantEnLettres(montant)}.`, left, y, { width: usable });
-  if (motif) {
-    y += 14;
-    doc.font('Helvetica').fontSize(8).fillColor('#333').text(`Objet : ${motif}`, left, y);
-  }
+  let y = ruleY + 6;
+  doc.rect(left, y, usable, 20).fillAndStroke('#1a365d', '#1a365d');
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#fff')
+    .text('REÇU DE PAIEMENT DE SCOLARITÉ', left, y + 5, { width: usable, align: 'center' });
 
-  y += 18;
-  const boxW = (usable - 16) / 3;
-  [
-    ['Frais de base', formatMontant(totalDu, devise)],
-    ['Déjà versé', formatMontant(totalPaye, devise)],
-    ['Reste à verser', formatMontant(reste, devise)],
-  ].forEach((b, i) => {
-    const x = left + i * (boxW + 8);
-    doc.rect(x, y, boxW, 32).stroke('#e2e8f0');
-    doc.font('Helvetica').fontSize(7).fillColor('#666').text(b[0], x + 8, y + 5);
-    doc.font('Helvetica-Bold').fontSize(9).fillColor('#111').text(b[1], x + 8, y + 16);
-  });
+  // Références
+  y += 28;
+  doc.font('Helvetica-Bold').fontSize(10).fillColor('#1a365d')
+    .text(`Reçu N° ${String(numeroRecu ?? '—').padStart(6, '0')}`, left, y);
+  doc.font('Helvetica').fontSize(9).fillColor('#333')
+    .text(`Date : ${formatDateFr(datePaiement)}`, left + usable / 2, y, { width: usable / 2, align: 'right' });
 
-  y += 44;
-  if (echeances.length) {
-    doc.font('Helvetica-Bold').fontSize(9).fillColor('#1a365d')
-      .text('Détail mensuel de la scolarité', left, y);
-    y += 14;
-    const cols = [usable * 0.38, usable * 0.18, usable * 0.18, usable * 0.26];
-    const headers = ['Mois / libellé', 'Dû', 'Payé', 'Reste / observation'];
-    doc.rect(left, y, usable, 15).fill('#1a365d');
-    doc.font('Helvetica-Bold').fontSize(7).fillColor('#fff');
-    let x = left + 4;
-    headers.forEach((h, i) => {
-      doc.text(h, x, y + 4, { width: cols[i] - 4 });
-      x += cols[i];
-    });
-    y += 15;
-    doc.font('Helvetica').fontSize(8).fillColor('#111');
-    for (const ech of echeances) {
-      if (y > doc.page.height - 120) {
-        doc.addPage();
-        y = 40;
-      }
-      const attendu = Number(ech.montantAttendu || 0);
-      const paye = Number(ech.montantPaye || 0);
-      const r = Math.max(0, attendu - paye);
-      const obs = r <= 0.01 ? 'Soldé' : (paye > 0 ? 'Acompte' : 'À payer');
-      doc.rect(left, y, usable, 14).stroke('#edf2f7');
-      const vals = [ech.libelle || '—', formatMontant(attendu, ''), formatMontant(paye, ''), `${formatMontant(r, '')}  ${obs}`];
-      x = left + 4;
-      vals.forEach((v, i) => {
-        doc.text(String(v), x, y + 3, { width: cols[i] - 4 });
-        x += cols[i];
-      });
-      y += 14;
-    }
-  }
+  y += 14;
+  doc.fontSize(8).fillColor('#444')
+    .text(`Année scolaire : ${anneeScolaire || '—'}`, left, y);
+  doc.text(`Classe : ${classe || '—'}`, left + usable / 2, y, { width: usable / 2, align: 'right' });
 
+  // Identité
   y += 16;
-  doc.font('Helvetica-Oblique').fontSize(7).fillColor('#666')
-    .text('Les frais de scolarité ne sont ni remboursables, ni cessibles, ni transférables. Conservez ce reçu : il constitue la preuve du versement.', left, y, { width: usable });
+  doc.rect(left, y, usable, 42).stroke('#cbd5e0');
+  doc.font('Helvetica').fontSize(7).fillColor('#666').text('Élève', left + 8, y + 5);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111').text(eleve || '—', left + 8, y + 15);
+  doc.font('Helvetica').fontSize(8).fillColor('#444')
+    .text(`Matricule : ${matricule || '—'}`, left + 8, y + 30);
+  doc.text(`Versé par : ${parent || '—'}`, left + usable / 2, y + 30, { width: usable / 2 - 8, align: 'right' });
 
-  y = Math.max(y + 28, doc.page.height - 130);
-  doc.font('Helvetica').fontSize(8).fillColor('#333');
-  doc.text('Le caissier / comptable', left, y, { width: usable / 3, align: 'center' });
-  doc.text("Cachet de l'établissement", left + usable / 3, y, { width: usable / 3, align: 'center' });
-  doc.text('Le parent / tuteur', left + (2 * usable) / 3, y, { width: usable / 3, align: 'center' });
-  if (recuPar) {
-    doc.fontSize(7).text(recuPar, left, y + 12, { width: usable / 3, align: 'center' });
+  // Montant
+  y += 52;
+  doc.rect(left, y, usable, 44).fillAndStroke('#1a365d', '#1a365d');
+  doc.fillColor('#fff').font('Helvetica').fontSize(8)
+    .text('MONTANT DU VERSEMENT', left + 10, y + 7);
+  doc.font('Helvetica-Bold').fontSize(17)
+    .text(formatMontant(montant, devise), left + 10, y + 19);
+  doc.font('Helvetica').fontSize(8)
+    .text(MODE_LABELS[modePaiement] || modePaiement || 'Espèces', left, y + 10, { width: usable - 12, align: 'right' });
+  if (reference) {
+    doc.text(`Réf. ${reference}`, left, y + 24, { width: usable - 12, align: 'right' });
   }
-  doc.moveTo(left + 16, y + 42).lineTo(left + usable / 3 - 16, y + 42).stroke('#999');
-  drawStamp(doc, left + usable / 2, y + 36);
-  doc.moveTo(left + (2 * usable) / 3 + 16, y + 42).lineTo(left + usable - 16, y + 42).stroke('#999');
 
-  drawFooter(doc, 'Reçu officiel de scolarité — Toute rature ou surcharge annule ce document.');
+  // Montant en lettres
+  y += 52;
+  const lettres = `Arrêté à la somme de : ${montantEnLettres(montant)}.`;
+  doc.font('Helvetica-Oblique').fontSize(9).fillColor('#1a365d')
+    .text(lettres, left, y, { width: usable });
+  y += doc.heightOfString(lettres, { width: usable }) + 6;
+
+  if (motif) {
+    doc.font('Helvetica').fontSize(8).fillColor('#444').text(`Objet : ${motif}`, left, y, { width: usable });
+    y += 14;
+  }
+
+  // Situation après versement
+  doc.rect(left, y, usable, 24).stroke('#e2e8f0');
+  doc.font('Helvetica').fontSize(8).fillColor('#666').text('Déjà versé', left + 8, y + 4);
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#111')
+    .text(formatMontant(totalPaye, devise), left + 8, y + 13);
+  doc.font('Helvetica').fontSize(8).fillColor('#666')
+    .text('Reste à verser', left + usable / 2, y + 4, { width: usable / 2 - 8, align: 'right' });
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(reste > 0.01 ? '#c53030' : '#276749')
+    .text(formatMontant(reste, devise), left + usable / 2, y + 13, { width: usable / 2 - 8, align: 'right' });
+
+  // Signatures
+  y += 34;
+  doc.font('Helvetica').fontSize(8).fillColor('#333');
+  doc.text('Le caissier / comptable', left, y, { width: usable / 2, align: 'center' });
+  doc.text("Cachet de l'établissement", left + usable / 2, y, { width: usable / 2, align: 'center' });
+  if (recuPar) {
+    doc.fontSize(7).fillColor('#666').text(recuPar, left, y + 11, { width: usable / 2, align: 'center' });
+  }
+  doc.moveTo(left + 40, y + 36).lineTo(left + usable / 2 - 40, y + 36).lineWidth(0.5).stroke('#999');
+  drawStamp(doc, left + (3 * usable) / 4, y + 30);
+
+  // Mention légale + découpe à mi-page
+  doc.font('Helvetica-Oblique').fontSize(6.5).fillColor('#888')
+    .text('Frais non remboursables. Conservez ce reçu : il constitue la preuve du versement.', left, half - 22, { width: usable, align: 'center' });
+  doc.moveTo(left, half - 6).lineTo(left + usable, half - 6)
+    .lineWidth(0.5).dash(3, { space: 3 }).stroke('#bbb');
+  doc.undash();
+  doc.font('Helvetica').fontSize(6).fillColor('#bbb')
+    .text('— découper ici —', left, half - 3, { width: usable, align: 'center' });
+
   doc.end();
   return done;
 }
