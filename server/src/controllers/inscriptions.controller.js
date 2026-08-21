@@ -3,6 +3,7 @@ import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { generateForInscription } from '../services/echeances.service.js';
 import { messageErreurDateNaissance } from '../utils/formatters.js';
+import { resolveAnneeScolaireId, getAnneeOperationnelle } from '../utils/anneeScolaire.js';
 
 const log = createLogger('InscriptionsController');
 
@@ -23,10 +24,12 @@ export const getAll = async (req, res) => {
     const take = parseInt(limit);
     const skip = (parseInt(page) - 1) * take;
 
+    const resolvedAnneeId = await resolveAnneeScolaireId(tenantId, anneeScolaireId || null);
+
     const where = { tenantId };
     if (statut) where.statut = statut;
     if (classeId) where.classeId = classeId;
-    if (anneeScolaireId) where.anneeScolaireId = anneeScolaireId;
+    if (resolvedAnneeId) where.anneeScolaireId = resolvedAnneeId;
     if (search) {
       where.eleve = {
         OR: [
@@ -46,7 +49,7 @@ export const getAll = async (req, res) => {
         include: {
           eleve: { select: { id: true, matricule: true, nom: true, prenom: true, sexe: true, photoUrl: true, dateNaissance: true } },
           classe: { select: { id: true, nom: true, niveau: true } },
-          anneeScolaire: { select: { id: true, libelle: true } },
+          anneeScolaire: { select: { id: true, libelle: true, statut: true } },
         },
         skip,
         take,
@@ -57,6 +60,7 @@ export const getAll = async (req, res) => {
 
     res.json({
       data: rows,
+      anneeScolaireId: resolvedAnneeId,
       pagination: {
         page: parseInt(page),
         limit: take,
@@ -490,6 +494,257 @@ export const remove = async (req, res) => {
     res.json({ message: 'Inscription annulée' });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Delete inscription error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Élèves de l'année source éligibles à la réinscription sur l'année active (ou cible).
+ */
+export const eligiblesReinscription = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    let { anneeSourceId, anneeCibleId } = req.query;
+
+    const anneeActive = await getAnneeOperationnelle(tenantId);
+    if (!anneeCibleId) anneeCibleId = anneeActive?.id;
+    if (!anneeCibleId) {
+      return res.status(400).json({ error: 'Aucune année active pour la réinscription' });
+    }
+
+    if (!anneeSourceId) {
+      const archivee = await prisma.anneeScolaire.findFirst({
+        where: { tenantId, statut: 'archivee', id: { not: anneeCibleId } },
+        orderBy: { dateFin: 'desc' },
+      });
+      anneeSourceId = archivee?.id;
+    }
+    if (!anneeSourceId) {
+      return res.status(400).json({ error: 'Aucune année source (archivée) trouvée' });
+    }
+
+    const [sources, dejaInscrits, classesCibles] = await Promise.all([
+      prisma.inscription.findMany({
+        where: {
+          tenantId,
+          anneeScolaireId: anneeSourceId,
+          statut: { in: ['validee', 'en_attente'] },
+        },
+        include: {
+          eleve: { select: { id: true, matricule: true, nom: true, prenom: true, sexe: true } },
+          classe: {
+            include: {
+              niveauOfficiel: { select: { id: true, code: true, libelle: true, referentielVersionId: true } },
+            },
+          },
+        },
+        orderBy: [{ classe: { nom: 'asc' } }, { eleve: { nom: 'asc' } }],
+      }),
+      prisma.inscription.findMany({
+        where: { tenantId, anneeScolaireId: anneeCibleId },
+        select: { eleveId: true },
+      }),
+      prisma.classe.findMany({
+        where: { tenantId, anneeScolaireId: anneeCibleId },
+        select: {
+          id: true,
+          nom: true,
+          niveau: true,
+          cycle: true,
+          niveauOfficielId: true,
+          fraisScolarite: true,
+        },
+        orderBy: { nom: 'asc' },
+      }),
+    ]);
+
+    const dejaSet = new Set(dejaInscrits.map((i) => i.eleveId));
+    const { PASSAGE_NIVEAU } = await import('../data/referentielCongo.js');
+
+    const data = sources.map((insc) => {
+      const deja = dejaSet.has(insc.eleveId);
+      let suggestedDecision = insc.decisionFinAnnee || 'passage';
+      let suggestedClasseId = null;
+
+      // Homonyme par nom de classe
+      const sameName = classesCibles.find((c) => c.nom === insc.classe?.nom);
+      if (suggestedDecision === 'redoublement') {
+        suggestedClasseId = sameName?.id || null;
+      } else if (suggestedDecision === 'passage' || !insc.decisionFinAnnee) {
+        const nextCode = insc.classe?.niveauOfficiel
+          ? PASSAGE_NIVEAU[insc.classe.niveauOfficiel.code]
+          : null;
+        if (nextCode) {
+          const next = classesCibles.find((c) => c.niveau === nextCode || c.nom.startsWith(nextCode));
+          suggestedClasseId = next?.id || sameName?.id || null;
+        } else {
+          suggestedClasseId = sameName?.id || null;
+        }
+      }
+
+      return {
+        inscriptionSourceId: insc.id,
+        eleve: insc.eleve,
+        classeSource: insc.classe,
+        decisionExistante: insc.decisionFinAnnee,
+        suggestedDecision,
+        suggestedClasseId,
+        dejaInscrit: deja,
+      };
+    });
+
+    res.json({
+      data,
+      anneeSourceId,
+      anneeCibleId,
+      classesCibles,
+    });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'eligiblesReinscription error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Lot de réinscription : décisions + inscriptions N+1.
+ * Body: { anneeCibleId, items: [{ inscriptionSourceId, decisionFinAnnee, classeCibleId, motifDecision? }] }
+ */
+export const reinscriptionLot = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { items } = req.body;
+    let { anneeCibleId } = req.body;
+
+    if (!Array.isArray(items) || !items.length) {
+      return res.status(400).json({ error: 'items[] requis' });
+    }
+
+    const anneeActive = await getAnneeOperationnelle(tenantId);
+    if (!anneeCibleId) anneeCibleId = anneeActive?.id;
+    const anneeCible = await prisma.anneeScolaire.findFirst({
+      where: { id: anneeCibleId, tenantId },
+    });
+    if (!anneeCible) {
+      return res.status(404).json({ error: 'Année cible introuvable' });
+    }
+    if (anneeCible.statut === 'archivee') {
+      return res.status(403).json({ error: 'Impossible de réinscrire sur une année archivée' });
+    }
+
+    const result = { created: 0, skipped: 0, decisionsOnly: 0, errors: [] };
+
+    for (const item of items) {
+      try {
+        const {
+          inscriptionSourceId,
+          decisionFinAnnee,
+          classeCibleId,
+          motifDecision,
+        } = item;
+
+        if (!inscriptionSourceId || !decisionFinAnnee) {
+          result.errors.push({ inscriptionSourceId, error: 'Champs manquants' });
+          continue;
+        }
+
+        const existing = await prisma.inscription.findFirst({
+          where: { id: inscriptionSourceId, tenantId },
+          include: {
+            classe: { include: { niveauOfficiel: true } },
+            eleve: true,
+          },
+        });
+        if (!existing) {
+          result.errors.push({ inscriptionSourceId, error: 'Inscription source introuvable' });
+          continue;
+        }
+
+        let resolvedNiveauCibleId = null;
+        if (decisionFinAnnee === 'passage' && existing.classe?.niveauOfficiel) {
+          const { PASSAGE_NIVEAU } = await import('../data/referentielCongo.js');
+          const nextCode = PASSAGE_NIVEAU[existing.classe.niveauOfficiel.code];
+          if (nextCode) {
+            const next = await prisma.niveauOfficiel.findFirst({
+              where: {
+                tenantId,
+                referentielVersionId: existing.classe.niveauOfficiel.referentielVersionId,
+                code: nextCode,
+              },
+            });
+            resolvedNiveauCibleId = next?.id || null;
+          }
+        }
+        if (decisionFinAnnee === 'redoublement') {
+          resolvedNiveauCibleId = existing.classe?.niveauOfficielId || null;
+        }
+
+        await prisma.inscription.update({
+          where: { id: existing.id },
+          data: {
+            decisionFinAnnee,
+            niveauCibleId: resolvedNiveauCibleId,
+            classeCibleId: classeCibleId || null,
+            motifDecision: motifDecision || null,
+          },
+        });
+
+        if (decisionFinAnnee === 'exclusion') {
+          result.decisionsOnly += 1;
+          continue;
+        }
+
+        if (!classeCibleId || !['passage', 'redoublement', 'orientation'].includes(decisionFinAnnee)) {
+          result.decisionsOnly += 1;
+          continue;
+        }
+
+        const already = await prisma.inscription.findFirst({
+          where: {
+            tenantId,
+            anneeScolaireId: anneeCibleId,
+            eleveId: existing.eleveId,
+          },
+        });
+        if (already) {
+          result.skipped += 1;
+          continue;
+        }
+
+        const classeCible = await prisma.classe.findFirst({
+          where: { id: classeCibleId, tenantId, anneeScolaireId: anneeCibleId },
+        });
+        if (!classeCible) {
+          result.errors.push({ inscriptionSourceId, error: 'Classe cible invalide' });
+          continue;
+        }
+
+        const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, classeCible.id);
+        await prisma.$transaction(async (tx) => {
+          const insc = await tx.inscription.create({
+            data: {
+              tenantId,
+              eleveId: existing.eleveId,
+              classeId: classeCible.id,
+              anneeScolaireId: anneeCibleId,
+              statut: 'validee',
+              soldeScolarite: fraisInscription + fraisScolarite,
+            },
+          });
+          await generateForInscription(tx, insc, { fraisInscription, fraisScolarite });
+        });
+        result.created += 1;
+      } catch (itemErr) {
+        result.errors.push({
+          inscriptionSourceId: item?.inscriptionSourceId,
+          error: itemErr.message || 'Erreur',
+        });
+      }
+    }
+
+    await logAudit(req, 'reinscription_lot', 'Inscription', anneeCibleId, result);
+    res.json(result);
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'reinscriptionLot error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

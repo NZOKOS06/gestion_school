@@ -4,7 +4,7 @@ import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader, DataTable, Badge, Button, Modal, SearchInput, FilterBar, Select, QuickSearchSelect } from '../../components/ui';
-import { Plus, Check, X, Pause, UserPlus } from 'lucide-react';
+import { Plus, Check, X, Pause, UserPlus, RefreshCw } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import toast from 'react-hot-toast';
 
@@ -84,6 +84,11 @@ const Inscriptions = () => {
   const [fraisInscriptionDefault, setFraisInscriptionDefault] = useState(0);
   const [parentQuickOpen, setParentQuickOpen] = useState(false);
   const [parentForm, setParentForm] = useState({ nom: '', prenom: '', email: '', telephone: '' });
+  const [reinscriptionOpen, setReinscriptionOpen] = useState(false);
+  const [reinscriptionLoading, setReinscriptionLoading] = useState(false);
+  const [reinscriptionSaving, setReinscriptionSaving] = useState(false);
+  const [reinscriptionMeta, setReinscriptionMeta] = useState({ data: [], anneeSourceId: '', anneeCibleId: '', classesCibles: [] });
+  const [reinscriptionRows, setReinscriptionRows] = useState({});
 
   const fetchInscriptions = useCallback(async () => {
     setLoading(true);
@@ -304,6 +309,112 @@ const Inscriptions = () => {
     } catch { /* silent */ }
   };
 
+  const loadEligiblesReinscription = async () => {
+    setReinscriptionLoading(true);
+    try {
+      const res = await get('/api/inscriptions/eligibles-reinscription', { silent: true });
+      const list = res?.data || [];
+      const rows = {};
+      list.forEach((item) => {
+        rows[item.inscriptionSourceId] = {
+          selected: !item.dejaInscrit,
+          decisionFinAnnee: item.suggestedDecision || 'passage',
+          classeCibleId: item.suggestedClasseId || '',
+        };
+      });
+      setReinscriptionMeta({
+        data: list,
+        anneeSourceId: res?.anneeSourceId || '',
+        anneeCibleId: res?.anneeCibleId || '',
+        classesCibles: res?.classesCibles || [],
+      });
+      setReinscriptionRows(rows);
+    } catch {
+      setReinscriptionMeta({ data: [], anneeSourceId: '', anneeCibleId: '', classesCibles: [] });
+      setReinscriptionRows({});
+    }
+    setReinscriptionLoading(false);
+  };
+
+  const openReinscription = () => {
+    setReinscriptionOpen(true);
+    loadEligiblesReinscription();
+  };
+
+  const updateReinscriptionRow = (inscriptionSourceId, patch) => {
+    setReinscriptionRows((prev) => ({
+      ...prev,
+      [inscriptionSourceId]: { ...prev[inscriptionSourceId], ...patch },
+    }));
+  };
+
+  const selectableReinscriptionIds = reinscriptionMeta.data
+    .filter((item) => !item.dejaInscrit)
+    .map((item) => item.inscriptionSourceId);
+  const allSelectableSelected = selectableReinscriptionIds.length > 0
+    && selectableReinscriptionIds.every((id) => reinscriptionRows[id]?.selected);
+  const selectedReinscriptionCount = selectableReinscriptionIds.filter((id) => reinscriptionRows[id]?.selected).length;
+
+  const toggleAllReinscription = () => {
+    const next = !allSelectableSelected;
+    setReinscriptionRows((prev) => {
+      const updated = { ...prev };
+      selectableReinscriptionIds.forEach((id) => {
+        updated[id] = { ...updated[id], selected: next };
+      });
+      return updated;
+    });
+  };
+
+  const submitReinscriptionLot = async () => {
+    const items = reinscriptionMeta.data
+      .filter((item) => !item.dejaInscrit && reinscriptionRows[item.inscriptionSourceId]?.selected)
+      .map((item) => {
+        const row = reinscriptionRows[item.inscriptionSourceId];
+        return {
+          inscriptionSourceId: item.inscriptionSourceId,
+          decisionFinAnnee: row.decisionFinAnnee,
+          classeCibleId: row.decisionFinAnnee === 'exclusion' ? undefined : (row.classeCibleId || undefined),
+        };
+      });
+
+    if (!items.length) {
+      toast.error('Sélectionnez au moins un élève');
+      return;
+    }
+
+    const missingClasse = items.find(
+      (it) => it.decisionFinAnnee !== 'exclusion' && !it.classeCibleId
+    );
+    if (missingClasse) {
+      toast.error('Classe cible requise pour chaque élève (sauf exclusion)');
+      return;
+    }
+
+    setReinscriptionSaving(true);
+    try {
+      const result = await post('/api/inscriptions/reinscription-lot', {
+        anneeCibleId: reinscriptionMeta.anneeCibleId,
+        items,
+      });
+      const created = result?.created ?? 0;
+      const skipped = result?.skipped ?? 0;
+      const decisionsOnly = result?.decisionsOnly ?? 0;
+      const errCount = result?.errors?.length ?? 0;
+      let msg = `${created} inscription(s) créée(s)`;
+      if (skipped) msg += `, ${skipped} ignorée(s)`;
+      if (decisionsOnly) msg += `, ${decisionsOnly} décision(s) seule(s)`;
+      if (errCount) msg += `, ${errCount} erreur(s)`;
+      toast.success(msg);
+      await fetchInscriptions();
+      await loadEligiblesReinscription();
+      if (created === 0 && skipped === 0 && errCount === 0) {
+        setReinscriptionOpen(false);
+      }
+    } catch { /* toast via useAxios */ }
+    setReinscriptionSaving(false);
+  };
+
   const inputStyle = {
     width: '100%',
     height: 38,
@@ -325,9 +436,18 @@ const Inscriptions = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Inscriptions"
+        title="Inscriptions / Réinscriptions"
         subtitle="L'inscription lie l'élève à une classe et ouvre le dossier financier"
-        actions={<Button icon={Plus} onClick={openCreate}>Nouvelle inscription</Button>}
+        actions={
+          <div className="flex items-center gap-2">
+            {(canDecideFinAnnee || user?.role === 'secretaire') && (
+              <Button variant="secondary" icon={RefreshCw} onClick={openReinscription}>
+                Réinscription
+              </Button>
+            )}
+            <Button icon={Plus} onClick={openCreate}>Nouvelle inscription</Button>
+          </div>
+        }
       />
 
       <FilterBar>
@@ -679,6 +799,145 @@ const Inscriptions = () => {
             L’inscription démarre en attente. La validation active la scolarité (effectif, notes, bulletins) et le dossier financier (échéances) est créé immédiatement.
           </p>
         </div>
+      </Modal>
+
+      <Modal
+        open={reinscriptionOpen}
+        onClose={() => setReinscriptionOpen(false)}
+        title="Réinscription en lot"
+        subtitle={
+          reinscriptionLoading
+            ? 'Chargement des élèves éligibles…'
+            : `${reinscriptionMeta.data.length} élève(s) — ${selectedReinscriptionCount} sélectionné(s)`
+        }
+        size="xl"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setReinscriptionOpen(false)}>Fermer</Button>
+            {canDecideFinAnnee && (
+              <Button
+                onClick={submitReinscriptionLot}
+                disabled={reinscriptionSaving || reinscriptionLoading || selectedReinscriptionCount === 0}
+              >
+                {reinscriptionSaving ? 'Traitement…' : 'Valider la sélection'}
+              </Button>
+            )}
+          </>
+        }
+      >
+        {reinscriptionLoading ? (
+          <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>Chargement…</p>
+        ) : reinscriptionMeta.data.length === 0 ? (
+          <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>
+            Aucun élève éligible à la réinscription.
+          </p>
+        ) : (
+          <div className="overflow-x-auto -mx-1">
+            <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                  <th className="py-2 px-2 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allSelectableSelected}
+                      onChange={toggleAllReinscription}
+                      disabled={!canDecideFinAnnee || selectableReinscriptionIds.length === 0}
+                      title="Tout sélectionner"
+                    />
+                  </th>
+                  <th className="py-2 px-2 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Élève</th>
+                  <th className="py-2 px-2 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Classe source</th>
+                  <th className="py-2 px-2 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Décision</th>
+                  <th className="py-2 px-2 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Classe cible</th>
+                  <th className="py-2 px-2 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reinscriptionMeta.data.map((item) => {
+                  const row = reinscriptionRows[item.inscriptionSourceId] || {};
+                  const isExclusion = row.decisionFinAnnee === 'exclusion';
+                  const classeDisabled = item.dejaInscrit || isExclusion || !canDecideFinAnnee;
+                  const rowDisabled = item.dejaInscrit || !canDecideFinAnnee;
+                  return (
+                    <tr
+                      key={item.inscriptionSourceId}
+                      style={{
+                        borderBottom: '1px solid var(--border-subtle)',
+                        opacity: item.dejaInscrit ? 0.65 : 1,
+                      }}
+                    >
+                      <td className="py-2 px-2">
+                        <input
+                          type="checkbox"
+                          checked={!!row.selected}
+                          disabled={item.dejaInscrit || !canDecideFinAnnee}
+                          onChange={(e) => updateReinscriptionRow(item.inscriptionSourceId, { selected: e.target.checked })}
+                        />
+                      </td>
+                      <td className="py-2 px-2">
+                        <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                          {item.eleve?.prenom} {item.eleve?.nom}
+                        </p>
+                        <p className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{item.eleve?.matricule}</p>
+                      </td>
+                      <td className="py-2 px-2" style={{ color: 'var(--text-secondary)' }}>
+                        {item.classeSource?.nom || '—'}
+                      </td>
+                      <td className="py-2 px-2 min-w-[140px]">
+                        <select
+                          style={{ ...inputStyle, height: 34, opacity: rowDisabled ? 0.7 : 1 }}
+                          value={row.decisionFinAnnee || 'passage'}
+                          disabled={rowDisabled}
+                          onChange={(e) => {
+                            const decisionFinAnnee = e.target.value;
+                            updateReinscriptionRow(item.inscriptionSourceId, {
+                              decisionFinAnnee,
+                              ...(decisionFinAnnee === 'exclusion' ? { classeCibleId: '' } : {}),
+                            });
+                          }}
+                        >
+                          <option value="passage">Passage</option>
+                          <option value="redoublement">Redoublement</option>
+                          <option value="orientation">Orientation</option>
+                          <option value="exclusion">Exclusion</option>
+                        </select>
+                      </td>
+                      <td className="py-2 px-2 min-w-[160px]">
+                        <select
+                          style={{ ...inputStyle, height: 34, opacity: classeDisabled ? 0.6 : 1 }}
+                          value={row.classeCibleId || ''}
+                          disabled={classeDisabled}
+                          onChange={(e) => updateReinscriptionRow(item.inscriptionSourceId, { classeCibleId: e.target.value })}
+                        >
+                          <option value="">{isExclusion ? '—' : 'Sélectionner'}</option>
+                          {reinscriptionMeta.classesCibles.map((c) => (
+                            <option key={c.id} value={c.id}>{c.nom}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 px-2">
+                        {item.dejaInscrit ? (
+                          <Badge variant="neutral">Déjà inscrit</Badge>
+                        ) : item.decisionExistante ? (
+                          <Badge variant={(DECISION_LABEL[item.decisionExistante] || {}).variant || 'neutral'}>
+                            {(DECISION_LABEL[item.decisionExistante] || {}).label || item.decisionExistante}
+                          </Badge>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {!canDecideFinAnnee && reinscriptionMeta.data.length > 0 && (
+          <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
+            Consultation seule — seule la direction peut valider la réinscription.
+          </p>
+        )}
       </Modal>
 
       <Modal

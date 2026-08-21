@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { Wallet, TrendingDown, AlertTriangle, TrendingUp, Users, ArrowUpRight, Printer } from 'lucide-react';
-import { KpiCard, Card, DataTable, PageHeader, Badge, Skeleton, EmptyState, Button } from '../../components/ui';
+import { KpiCard, Card, DataTable, PageHeader, Badge, Skeleton, EmptyState, Button, SegmentedControl } from '../../components/ui';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -23,20 +23,48 @@ const CaissierDashboard = () => {
   const [depensesStats, setDepensesStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [annees, setAnnees] = useState([]);
+  const [yearScope, setYearScope] = useState('active');
+
+  const anneeActive = useMemo(
+    () => annees.find((a) => a.actif || a.statut === 'active'),
+    [annees],
+  );
+  const anneePrev = useMemo(
+    () => annees
+      .filter((a) => a.statut === 'archivee' || (!a.actif && a.id !== anneeActive?.id))
+      .sort((a, b) => new Date(b.dateFin || 0) - new Date(a.dateFin || 0))[0],
+    [annees, anneeActive],
+  );
+  const resolvedAnneeId = yearScope === 'archive' ? anneePrev?.id : anneeActive?.id;
+  const isArchiveView = yearScope === 'archive';
+  const yearOptions = useMemo(() => {
+    const opts = [{ value: 'active', label: anneeActive?.libelle || 'Année en cours' }];
+    if (anneePrev) opts.push({ value: 'archive', label: anneePrev.libelle || 'Année précédente' });
+    return opts;
+  }, [anneeActive, anneePrev]);
 
   useEffect(() => {
-    fetchAll();
-  }, []);
+    (async () => {
+      try {
+        const res = await get('/api/annees-scolaires', { silent: true });
+        setAnnees(res?.data || res || []);
+      } catch { /* silent */ }
+    })();
+  }, [get]);
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const yearQs = resolvedAnneeId ? `anneeScolaireId=${resolvedAnneeId}` : '';
+    const yearParam = resolvedAnneeId ? `?${yearQs}` : '';
+    const yearAmp = resolvedAnneeId ? `&${yearQs}` : '';
     try {
       const [kpiRes, evoRes, retardRes, paiementsRes, depRes] = await Promise.allSettled([
-        get('/api/dashboard/kpis'),
-        get('/api/dashboard/evolution?periode=30', { silent: true }),
-        get('/api/paiements/echeances-retard', { silent: true }),
-        get('/api/paiements?limit=5', { silent: true }),
+        get(`/api/dashboard/kpis${yearParam}`),
+        get(`/api/dashboard/evolution?periode=30${yearAmp}`, { silent: true }),
+        get(`/api/paiements/echeances-retard${yearParam}`, { silent: true }),
+        get(`/api/paiements?limit=5${yearAmp}`, { silent: true }),
         get('/api/depenses/stats', { silent: true }),
       ]);
 
@@ -61,7 +89,11 @@ const CaissierDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [get, resolvedAnneeId]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   if (loading) {
     return (
@@ -128,11 +160,22 @@ const CaissierDashboard = () => {
         title="Tableau de bord Gestionnaire"
         subtitle="Vue financière complète de l'établissement"
         actions={
-          <Button icon={Users} onClick={() => navigate('/caissier/eleves')}>
-            Élèves & Finances
-          </Button>
+          isArchiveView ? (
+            <Badge variant="neutral">Lecture seule</Badge>
+          ) : (
+            <Button icon={Users} onClick={() => navigate('/caissier/eleves')}>
+              Élèves & Finances
+            </Button>
+          )
         }
       />
+
+      {yearOptions.length > 1 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <SegmentedControl value={yearScope} onChange={setYearScope} options={yearOptions} />
+          {isArchiveView && <Badge variant="neutral">Consultation archive</Badge>}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -256,10 +299,12 @@ const CaissierDashboard = () => {
                 <span className="font-semibold" style={{ color: 'var(--color-danger)' }}>{formatPrice(val)}</span>
               )},
               { key: 'action', label: '', render: (_, row) => (
-                <button className="text-xs px-2 py-1 rounded-md" style={{ background: 'var(--surface-overlay)', color: 'var(--color-primary)', border: '1px solid var(--border-subtle)' }}
-                  onClick={() => navigate(`/caissier/eleves?search=${row.eleveNom}`)}>
-                  Régler
-                </button>
+                !isArchiveView ? (
+                  <button className="text-xs px-2 py-1 rounded-md" style={{ background: 'var(--surface-overlay)', color: 'var(--color-primary)', border: '1px solid var(--border-subtle)' }}
+                    onClick={() => navigate(`/caissier/eleves?search=${row.eleveNom}`)}>
+                    Régler
+                  </button>
+                ) : null
               )},
             ]}
             data={retards.slice(0, 5)}

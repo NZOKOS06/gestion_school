@@ -2,8 +2,17 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader, Card, Badge, Button, Modal } from '../../components/ui';
-import { CalendarRange, Plus, Save, Trash2, Copy, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { CalendarRange, Plus, Save, Trash2, Copy, AlertTriangle, CheckCircle2, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const STATUT_LABEL = { brouillon: 'Brouillon', active: 'Active', archivee: 'Archivée' };
+const STATUT_VARIANT = { brouillon: 'warning', active: 'success', archivee: 'neutral' };
+
+const getAnneeStatut = (a) => {
+  if (!a) return null;
+  if (a.statut) return a.statut;
+  return a.actif ? 'active' : 'archivee';
+};
 
 const CYCLES_OPTS = [
   { value: 'prescolaire', label: 'Préscolaire' },
@@ -40,6 +49,7 @@ const AnneesScolaires = () => {
   const { get, post, put, delete: del } = useAxios();
   const { hasRole } = useAuth();
   const canWrite = hasRole('directeur', 'directeur_etudes');
+  const isDirecteur = hasRole('directeur');
 
   const [annees, setAnnees] = useState([]);
   const [versions, setVersions] = useState([]);
@@ -49,7 +59,14 @@ const AnneesScolaires = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editDatesOpen, setEditDatesOpen] = useState(false);
+  const [editDatesForm, setEditDatesForm] = useState({ libelle: '', dateDebut: '', dateFin: '' });
   const [form, setForm] = useState({ libelle: '', dateDebut: '', dateFin: '', referentielVersionId: '' });
+
+  const selectedStatut = getAnneeStatut(selected);
+  const isArchivee = selectedStatut === 'archivee';
+  const canEditContent = canWrite && !isArchivee;
+  const canEditDates = isDirecteur || (canWrite && !isArchivee);
 
   const inputStyle = {
     width: '100%',
@@ -83,7 +100,7 @@ const AnneesScolaires = () => {
       const list = an?.data || an || [];
       setAnnees(list);
       setVersions(ver?.data || ver || []);
-      const active = list.find((a) => a.actif) || list[0];
+      const active = list.find((a) => getAnneeStatut(a) === 'active' || a.actif) || list[0];
       if (active) {
         setSelected(active);
         setPeriodes(mapPeriodes(active.periodes));
@@ -203,7 +220,7 @@ const AnneesScolaires = () => {
   }, [periodes, selected]);
 
   const savePeriodes = async () => {
-    if (!selected || !canWrite) return;
+    if (!selected || !canEditContent) return;
     if (coherence.some((i) => !i.startsWith('Trou'))) {
       toast.error('Corrigez les incohérences avant d\'enregistrer');
       return;
@@ -314,6 +331,10 @@ const AnneesScolaires = () => {
   };
 
   const activate = async (id) => {
+    const ok = window.confirm(
+      'Activer cette année ? L\'année actuellement active sera archivée.'
+    );
+    if (!ok) return;
     try {
       await put(`/api/annees-scolaires/${id}/activate`, {});
       toast.success('Année activée');
@@ -326,10 +347,46 @@ const AnneesScolaires = () => {
   const dupliquer = async (id) => {
     try {
       const res = await post(`/api/annees-scolaires/${id}/dupliquer`, {});
-      toast.success(`Année ${res?.libelle || ''} créée`);
+      const annee = res?.annee || res;
+      const stats = res?.stats;
+      const libelle = annee?.libelle || '';
+      if (stats) {
+        toast.success(
+          `${libelle} créée — ${stats.classes || 0} classe(s), ${stats.affectations || 0} affectation(s), ${stats.creneaux || 0} créneau(x). Pensez à l'activer.`,
+          { duration: 6000 }
+        );
+      } else {
+        toast.success(`Année ${libelle} créée — pensez à l'activer`);
+      }
       fetchAnnees();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Duplication impossible');
+    }
+  };
+
+  const openEditDates = () => {
+    if (!selected) return;
+    setEditDatesForm({
+      libelle: selected.libelle || '',
+      dateDebut: sliceDate(selected.dateDebut),
+      dateFin: sliceDate(selected.dateFin),
+    });
+    setEditDatesOpen(true);
+  };
+
+  const handleEditDates = async () => {
+    if (!selected) return;
+    try {
+      await put(`/api/annees-scolaires/${selected.id}`, {
+        libelle: editDatesForm.libelle,
+        dateDebut: editDatesForm.dateDebut,
+        dateFin: editDatesForm.dateFin,
+      });
+      toast.success('Dates mises à jour');
+      setEditDatesOpen(false);
+      fetchAnnees();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Modification impossible');
     }
   };
 
@@ -374,7 +431,14 @@ const AnneesScolaires = () => {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span>{a.libelle}</span>
-                  {a.actif && <Badge variant="success">Active</Badge>}
+                  {(() => {
+                    const st = getAnneeStatut(a);
+                    return (
+                      <Badge variant={STATUT_VARIANT[st] || 'neutral'}>
+                        {STATUT_LABEL[st] || st}
+                      </Badge>
+                    );
+                  })()}
                 </div>
                 {a.referentielVersion && (
                   <p className="text-xs opacity-80 mt-0.5">{a.referentielVersion.libelle}</p>
@@ -411,15 +475,29 @@ const AnneesScolaires = () => {
                 </div>
                 {canWrite && (
                   <div className="flex gap-2 flex-wrap">
-                    {!selected.actif && (
+                    {canEditDates && (
+                      <Button variant="secondary" icon={Pencil} onClick={() => openEditDates(selected)}>
+                        Modifier dates
+                      </Button>
+                    )}
+                    {canEditContent && selectedStatut !== 'active' && (
                       <Button variant="secondary" onClick={() => activate(selected.id)}>Activer</Button>
                     )}
-                    <Button variant="secondary" onClick={genererMensuelles}>Compositions mensuelles</Button>
-                    <Button icon={Plus} variant="secondary" onClick={addPeriode}>Ajouter</Button>
-                    <Button icon={Save} onClick={savePeriodes} disabled={saving || blockingIssues.length > 0}>
-                      Enregistrer
-                    </Button>
+                    {canEditContent && (
+                      <>
+                        <Button variant="secondary" onClick={genererMensuelles}>Compositions mensuelles</Button>
+                        <Button icon={Plus} variant="secondary" onClick={addPeriode}>Ajouter</Button>
+                        <Button icon={Save} onClick={savePeriodes} disabled={saving || blockingIssues.length > 0}>
+                          Enregistrer
+                        </Button>
+                      </>
+                    )}
                   </div>
+                )}
+                {isArchivee && !isDirecteur && (
+                  <p className="text-xs w-full" style={{ color: 'var(--text-muted)' }}>
+                    Année archivée — modification réservée au directeur.
+                  </p>
                 )}
               </div>
 
@@ -494,7 +572,7 @@ const AnneesScolaires = () => {
                       <input
                         style={inputStyle}
                         value={p.libelle}
-                        disabled={!canWrite}
+                        disabled={!canEditContent}
                         onChange={(e) => {
                           const next = [...periodes];
                           next[idx] = { ...p, libelle: e.target.value };
@@ -509,7 +587,7 @@ const AnneesScolaires = () => {
                           style={inputStyle}
                           type="number"
                           value={p.index}
-                          disabled={!canWrite || !!p.id}
+                          disabled={!canEditContent || !!p.id}
                           onChange={(e) => {
                             const next = [...periodes];
                             next[idx] = { ...p, index: parseInt(e.target.value, 10) || p.index };
@@ -517,7 +595,7 @@ const AnneesScolaires = () => {
                           }}
                         />
                       </div>
-                      {canWrite && (
+                      {canEditContent && (
                         <button
                           type="button"
                           onClick={() => removePeriode(idx)}
@@ -544,7 +622,7 @@ const AnneesScolaires = () => {
                           min={sliceDate(selected.dateDebut)}
                           max={sliceDate(selected.dateFin)}
                           value={p[key] || ''}
-                          disabled={!canWrite}
+                          disabled={!canEditContent}
                           onChange={(e) => {
                             const next = [...periodes];
                             next[idx] = { ...p, [key]: e.target.value };
@@ -563,7 +641,7 @@ const AnneesScolaires = () => {
                         <label key={c.value} className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: 'var(--text-primary)' }}>
                           <input
                             type="checkbox"
-                            disabled={!canWrite}
+                            disabled={!canEditContent}
                             checked={(p.concerneCycles || []).includes(c.value)}
                             onChange={() => toggleCycle(idx, c.value)}
                           />
@@ -578,6 +656,55 @@ const AnneesScolaires = () => {
           )}
         </Card>
       </div>
+
+      <Modal
+        open={editDatesOpen}
+        onClose={() => setEditDatesOpen(false)}
+        title="Modifier les dates"
+        subtitle={selected?.libelle}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setEditDatesOpen(false)}>Annuler</Button>
+            <Button
+              onClick={handleEditDates}
+              disabled={!editDatesForm.libelle || !editDatesForm.dateDebut || !editDatesForm.dateFin}
+            >
+              Enregistrer
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Libellé</label>
+            <input
+              style={inputStyle}
+              value={editDatesForm.libelle}
+              onChange={(e) => setEditDatesForm({ ...editDatesForm, libelle: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Début</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={editDatesForm.dateDebut}
+                onChange={(e) => setEditDatesForm({ ...editDatesForm, dateDebut: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Fin</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={editDatesForm.dateFin}
+                onChange={(e) => setEditDatesForm({ ...editDatesForm, dateFin: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={createOpen}

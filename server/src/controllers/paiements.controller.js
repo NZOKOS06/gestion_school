@@ -148,9 +148,12 @@ async function attachRecuPdf(paiement, tenantId, req) {
 export const getAll = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { page = 1, limit = 20, search, inscriptionId, typePaiement, modePaiement, type, dateDebut, dateFin, sortBy = 'datePaiement', order = 'desc' } = req.query;
+    const { page = 1, limit = 20, search, inscriptionId, typePaiement, modePaiement, type, dateDebut, dateFin, anneeScolaireId, sortBy = 'datePaiement', order = 'desc' } = req.query;
     const take = parseInt(limit);
     const skip = (parseInt(page) - 1) * take;
+
+    const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
+    const resolvedAnneeId = await resolveAnneeScolaireId(tenantId, anneeScolaireId || null);
 
     const where = { tenantId };
     if (inscriptionId) where.inscriptionId = inscriptionId;
@@ -163,8 +166,15 @@ export const getAll = async (req, res) => {
       if (from) where.datePaiement.gte = from;
       if (to) where.datePaiement.lte = to;
     }
+    if (resolvedAnneeId) {
+      where.inscription = {
+        ...(where.inscription || {}),
+        anneeScolaireId: resolvedAnneeId,
+      };
+    }
     if (search) {
       where.inscription = {
+        ...(where.inscription || {}),
         eleve: {
           OR: [
             { matricule: { contains: search, mode: 'insensitive' } },
@@ -187,7 +197,7 @@ export const getAll = async (req, res) => {
               id: true,
               eleve: { select: { id: true, matricule: true, nom: true, prenom: true } },
               classe: { select: { id: true, nom: true } },
-              anneeScolaire: { select: { id: true, libelle: true } },
+              anneeScolaire: { select: { id: true, libelle: true, statut: true } },
             },
           },
           recuPar: { select: { id: true, nom: true, prenom: true } },
@@ -210,6 +220,7 @@ export const getAll = async (req, res) => {
 
     res.json({
       data,
+      anneeScolaireId: resolvedAnneeId,
       pagination: {
         page: parseInt(page),
         limit: take,
@@ -250,8 +261,10 @@ export const getEcheances = async (req, res) => {
 
 export const getEcheancesRetard = async (req, res) => {
   try {
-    const data = await listRetards(req.tenantId);
-    res.json(data);
+    const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
+    const anneeScolaireId = await resolveAnneeScolaireId(req.tenantId, req.query.anneeScolaireId || null);
+    const data = await listRetards(req.tenantId, { anneeScolaireId });
+    res.json({ data, anneeScolaireId });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'getEcheancesRetard error');
     res.status(500).json({ error: 'Internal server error' });

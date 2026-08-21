@@ -38,12 +38,26 @@ const pctChange = (current, previous) => {
 export const getRapports = async (req, res) => {
   const tenantId = req.tenantId;
   try {
+    const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
+    const resolvedAnneeId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
+
     const { debut, fin } = resolvePeriod(req.query);
     const prev = previousPeriod(debut, fin);
 
+    const paiementYearFilter = resolvedAnneeId
+      ? { inscription: { anneeScolaireId: resolvedAnneeId } }
+      : {};
+    const inscriptionYearFilter = resolvedAnneeId
+      ? { anneeScolaireId: resolvedAnneeId }
+      : {};
+
     const [paiements, paiementsPrev, inscriptions, depensesAgg] = await Promise.all([
       prisma.paiement.findMany({
-        where: { tenantId, datePaiement: { gte: debut, lte: fin } },
+        where: {
+          tenantId,
+          datePaiement: { gte: debut, lte: fin },
+          ...paiementYearFilter,
+        },
         include: {
           inscription: {
             include: {
@@ -55,11 +69,19 @@ export const getRapports = async (req, res) => {
         orderBy: { datePaiement: 'asc' },
       }),
       prisma.paiement.findMany({
-        where: { tenantId, datePaiement: { gte: prev.debut, lte: prev.fin } },
+        where: {
+          tenantId,
+          datePaiement: { gte: prev.debut, lte: prev.fin },
+          ...paiementYearFilter,
+        },
         select: { montant: true },
       }),
       prisma.inscription.findMany({
-        where: { tenantId, statut: { in: ['validee', 'en_attente'] } },
+        where: {
+          tenantId,
+          statut: { in: ['validee', 'en_attente'] },
+          ...inscriptionYearFilter,
+        },
         select: {
           id: true,
           soldeScolarite: true,
@@ -169,6 +191,7 @@ export const getRapports = async (req, res) => {
 
     res.json({
       periode: { debut: debut.toISOString(), fin: fin.toISOString() },
+      anneeScolaireId: resolvedAnneeId,
       ca_total: Math.round(caTotal),
       total_paiements: Math.round(caTotal),
       ca_evolution_pct: pctChange(caTotal, caPrev),
@@ -195,9 +218,14 @@ export const exportRapports = async (req, res) => {
   try {
     const format = (req.query.format || 'csv').toLowerCase();
     const { debut, fin } = resolvePeriod(req.query);
+    const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
+    const resolvedAnneeId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
+    const paiementYearFilter = resolvedAnneeId
+      ? { inscription: { anneeScolaireId: resolvedAnneeId } }
+      : {};
 
     const paiements = await prisma.paiement.findMany({
-      where: { tenantId, datePaiement: { gte: debut, lte: fin } },
+      where: { tenantId, datePaiement: { gte: debut, lte: fin }, ...paiementYearFilter },
       include: {
         inscription: {
           include: {

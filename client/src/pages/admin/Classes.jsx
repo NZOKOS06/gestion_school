@@ -3,19 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { PageHeader, Badge, Button, Modal, Input, Select, FormField, SegmentedControl, EmptyState, Skeleton, DataTable } from '../../components/ui';
-import { School, Plus, Users, BookOpen, Printer, BarChart3 } from 'lucide-react';
+import { School, Plus, Users, BookOpen, Printer, BarChart3, Pencil } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const CYCLES = ['prescolaire', 'primaire', 'college', 'lycee'];
 const CYCLE_LABELS = { prescolaire: 'Préscolaire', primaire: 'Primaire', college: 'Collège', lycee: 'Lycée' };
 
 const Classes = () => {
-  const { get, post } = useAxios();
+  const { get, post, put } = useAxios();
   const { formatPrice } = useTenant();
   const navigate = useNavigate();
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterCycle, setFilterCycle] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(null);
+  const [editForm, setEditForm] = useState({ nom: '', capacite: 40, fraisScolarite: 0 });
   const [detail, setDetail] = useState(null);
   const [niveaux, setNiveaux] = useState([]);
   const [filieres, setFilieres] = useState([]);
@@ -67,7 +70,7 @@ const Classes = () => {
     try {
       const an = await get('/api/annees-scolaires', { silent: true });
       const annees = an?.data || an || [];
-      const active = annees.find((a) => a.actif) || annees[0];
+      const active = annees.find((a) => a.statut === 'active' || a.actif) || annees[0];
       const activeId = active?.id || '';
       setAnneeId(activeId);
       const qs = activeId ? `?anneeScolaireId=${activeId}` : '';
@@ -89,8 +92,37 @@ const Classes = () => {
       });
       setCreateOpen(false);
       setForm({ nom: '', niveauOfficielId: '', filiereOfficielleId: '', capacite: 40, fraisScolarite: 0 });
+      toast.success('Classe créée');
       fetchClasses();
-    } catch { /* silent */ }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Création impossible');
+    }
+  };
+
+  const openEdit = (classe, e) => {
+    e?.stopPropagation();
+    setEditOpen(classe);
+    setEditForm({
+      nom: classe.nom || '',
+      capacite: classe.capacite ?? 40,
+      fraisScolarite: Number(classe.fraisScolarite) || 0,
+    });
+  };
+
+  const handleEdit = async () => {
+    if (!editOpen) return;
+    try {
+      await put(`/api/classes/${editOpen.id}`, {
+        nom: editForm.nom,
+        capacite: editForm.capacite,
+        fraisScolarite: editForm.fraisScolarite,
+      });
+      toast.success('Classe mise à jour');
+      setEditOpen(null);
+      fetchClasses();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Modification impossible');
+    }
   };
 
   const openDetail = async (classe) => {
@@ -154,7 +186,17 @@ const Classes = () => {
                     {classe.filiere ? ` · ${classe.filiere}` : ''}
                   </p>
                 </div>
-                <Badge variant="info">{CYCLE_LABELS[classe.cycle] || classe.cycle}</Badge>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={(e) => openEdit(classe, e)}
+                    className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]"
+                    title="Modifier"
+                  >
+                    <Pencil className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+                  </button>
+                  <Badge variant="info">{CYCLE_LABELS[classe.cycle] || classe.cycle}</Badge>
+                </div>
               </div>
               <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
                 <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {classe.effectif || 0}/{classe.capacite}</span>
@@ -209,6 +251,34 @@ const Classes = () => {
             </FormField>
             <FormField label="Frais de scolarité">
               <Input type="number" value={form.fraisScolarite} onChange={(e) => setForm({ ...form, fraisScolarite: parseFloat(e.target.value) || 0 })} />
+            </FormField>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!editOpen}
+        onClose={() => setEditOpen(null)}
+        title="Modifier la classe"
+        subtitle={editOpen?.anneeScolaire?.libelle}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setEditOpen(null)}>Annuler</Button>
+            <Button onClick={handleEdit} disabled={!editForm.nom}>Enregistrer</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <FormField label="Nom de la classe" required>
+            <Input value={editForm.nom} onChange={(e) => setEditForm({ ...editForm, nom: e.target.value })} />
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Capacité">
+              <Input type="number" value={editForm.capacite} onChange={(e) => setEditForm({ ...editForm, capacite: parseInt(e.target.value, 10) || 0 })} />
+            </FormField>
+            <FormField label="Frais de scolarité">
+              <Input type="number" value={editForm.fraisScolarite} onChange={(e) => setEditForm({ ...editForm, fraisScolarite: parseFloat(e.target.value) || 0 })} />
             </FormField>
           </div>
         </div>

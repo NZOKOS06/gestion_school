@@ -53,11 +53,8 @@ export const getKpis = async (req, res) => {
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 
-    const anneeActive = await prisma.anneeScolaire.findFirst({
-      where: { tenantId, actif: true },
-      select: { id: true },
-    });
-    const anneeActiveId = anneeActive?.id || null;
+    const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
+    const anneeActiveId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
     const inscriptionWhere = {
       tenantId,
       statut: 'validee',
@@ -78,18 +75,37 @@ export const getKpis = async (req, res) => {
       derniersPaiementsRaw,
     ] = await Promise.all([
       prisma.inscription.count({ where: inscriptionWhere }),
-      prisma.classe.count({ where: { tenantId, anneeScolaire: { actif: true } } }),
+      prisma.classe.count({
+        where: {
+          tenantId,
+          ...(anneeActiveId ? { anneeScolaireId: anneeActiveId } : { anneeScolaire: { actif: true } }),
+        },
+      }),
       prisma.paiement.aggregate({
-        where: { tenantId, datePaiement: { gte: today, lt: tomorrow } },
+        where: {
+          tenantId,
+          datePaiement: { gte: today, lt: tomorrow },
+          ...(anneeActiveId ? { inscription: { anneeScolaireId: anneeActiveId } } : {}),
+        },
         _sum: { montant: true },
         _count: { id: true }
       }),
       prisma.paiement.aggregate({
-        where: { tenantId, datePaiement: { gte: startOfMonth } },
+        where: {
+          tenantId,
+          datePaiement: { gte: startOfMonth },
+          ...(anneeActiveId ? { inscription: { anneeScolaireId: anneeActiveId } } : {}),
+        },
         _sum: { montant: true },
         _count: { id: true }
       }),
-      prisma.inscription.count({ where: { tenantId, statut: 'en_attente' } }),
+      prisma.inscription.count({
+        where: {
+          tenantId,
+          statut: 'en_attente',
+          ...(anneeActiveId ? { anneeScolaireId: anneeActiveId } : {}),
+        },
+      }),
       prisma.absence.count({
         where: {
           tenantId,
@@ -99,11 +115,19 @@ export const getKpis = async (req, res) => {
         },
       }),
       prisma.echeance.aggregate({
-        where: { tenantId, dateEcheance: { gte: startOfMonth, lt: startOfNextMonth } },
+        where: {
+          tenantId,
+          dateEcheance: { gte: startOfMonth, lt: startOfNextMonth },
+          ...(anneeActiveId ? { inscription: { anneeScolaireId: anneeActiveId } } : {}),
+        },
         _sum: { montantAttendu: true },
       }),
       prisma.echeance.findMany({
-        where: { tenantId, statut: { in: ['en_attente', 'en_retard'] } },
+        where: {
+          tenantId,
+          statut: { in: ['en_attente', 'en_retard'] },
+          ...(anneeActiveId ? { inscription: { anneeScolaireId: anneeActiveId } } : {}),
+        },
         select: { statut: true, montantAttendu: true, montantPaye: true, dateEcheance: true },
       }),
       prisma.inscription.findMany({
@@ -129,7 +153,10 @@ export const getKpis = async (req, res) => {
         },
       }),
       prisma.paiement.findMany({
-        where: { tenantId },
+        where: {
+          tenantId,
+          ...(anneeActiveId ? { inscription: { anneeScolaireId: anneeActiveId } } : {}),
+        },
         orderBy: { datePaiement: 'desc' },
         take: 5,
         include: {
@@ -260,6 +287,9 @@ export const getEvolution = async (req, res) => {
   try {
     const { periode = '30' } = req.query;
     const jours = parseInt(periode);
+    const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
+    const anneeId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
+    const yearFilter = anneeId ? { inscription: { anneeScolaireId: anneeId } } : {};
 
     const data = [];
     const today = new Date();
@@ -273,7 +303,7 @@ export const getEvolution = async (req, res) => {
       nextDay.setDate(nextDay.getDate() + 1);
 
       const paiements = await prisma.paiement.aggregate({
-        where: { tenantId, datePaiement: { gte: date, lt: nextDay } },
+        where: { tenantId, datePaiement: { gte: date, lt: nextDay }, ...yearFilter },
         _sum: { montant: true },
         _count: { id: true }
       });

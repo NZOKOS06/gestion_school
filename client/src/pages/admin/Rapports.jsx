@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
-import { Button, Card, KpiCard, DataTable, PageHeader } from '../../components/ui';
+import { Button, Card, KpiCard, DataTable, PageHeader, SegmentedControl, Badge } from '../../components/ui';
 
 const PERIODES = [
   { label: '7 jours', value: '7j' },
@@ -112,6 +112,35 @@ const Rapports = () => {
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
   const [exporting, setExporting] = useState(null);
+  const [annees, setAnnees] = useState([]);
+  const [yearScope, setYearScope] = useState('active');
+
+  const anneeActive = useMemo(
+    () => annees.find((a) => a.actif || a.statut === 'active'),
+    [annees],
+  );
+  const anneePrev = useMemo(
+    () => annees
+      .filter((a) => a.statut === 'archivee' || (!a.actif && a.id !== anneeActive?.id))
+      .sort((a, b) => new Date(b.dateFin || 0) - new Date(a.dateFin || 0))[0],
+    [annees, anneeActive],
+  );
+  const resolvedAnneeId = yearScope === 'archive' ? anneePrev?.id : anneeActive?.id;
+  const isArchiveView = yearScope === 'archive';
+  const yearOptions = useMemo(() => {
+    const opts = [{ value: 'active', label: anneeActive?.libelle || 'Année en cours' }];
+    if (anneePrev) opts.push({ value: 'archive', label: anneePrev.libelle || 'Année précédente' });
+    return opts;
+  }, [anneeActive, anneePrev]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await get('/api/annees-scolaires', { silent: true });
+        setAnnees(res?.data || res || []);
+      } catch { /* silent */ }
+    })();
+  }, [get]);
 
   const queryParams = useMemo(() => {
     const params = { periode };
@@ -119,8 +148,9 @@ const Rapports = () => {
       params.dateDebut = dateDebut;
       params.dateFin = dateFin;
     }
+    if (resolvedAnneeId) params.anneeScolaireId = resolvedAnneeId;
     return params;
-  }, [periode, dateDebut, dateFin]);
+  }, [periode, dateDebut, dateFin, resolvedAnneeId]);
 
   const canFetch = periode !== 'custom' || (dateDebut && dateFin);
 
@@ -319,6 +349,13 @@ const Rapports = () => {
           </>
         }
       />
+
+      {yearOptions.length > 1 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <SegmentedControl value={yearScope} onChange={setYearScope} options={yearOptions} />
+          {isArchiveView && <Badge variant="neutral">Lecture seule</Badge>}
+        </div>
+      )}
 
       {loadError && (
         <Card>

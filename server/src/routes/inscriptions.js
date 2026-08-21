@@ -15,6 +15,22 @@ router.get('/',
   ctrl.getAll
 );
 
+router.get('/eligibles-reinscription',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes', 'secretaire'),
+  requireTenantMatch,
+  requireModule('inscriptions'),
+  ctrl.eligiblesReinscription
+);
+
+router.post('/reinscription-lot',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes'),
+  requireTenantMatch,
+  requireModule('inscriptions'),
+  ctrl.reinscriptionLot
+);
+
 router.post('/avec-eleve',
   authenticate,
   requireRole('directeur', 'directeur_etudes', 'secretaire'),

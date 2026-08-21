@@ -295,13 +295,17 @@ export async function markOverdue(tenantId) {
   return result;
 }
 
-export async function listRetards(tenantId) {
+export async function listRetards(tenantId, { anneeScolaireId = null } = {}) {
   const now = new Date();
+  const yearFilter = anneeScolaireId
+    ? { inscription: { anneeScolaireId } }
+    : {};
   const candidates = await prisma.echeance.findMany({
     where: {
       tenantId,
       statut: { in: ['en_attente', 'en_retard'] },
       dateEcheance: { lt: now },
+      ...yearFilter,
     },
   });
   const overdueIds = candidates
@@ -318,6 +322,7 @@ export async function listRetards(tenantId) {
     where: {
       tenantId,
       statut: 'en_retard',
+      ...yearFilter,
     },
     include: {
       inscription: {

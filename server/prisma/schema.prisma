@@ -310,7 +310,8 @@ model AnneeScolaire {
   libelle   String // ex: "2025-2026"
   dateDebut DateTime
   dateFin   DateTime
-  actif     Boolean  @default(false) // Une seule année est active à la fois par tenant
+  actif     Boolean  @default(false) // Une seule année est active à la fois par tenant (sync avec statut)
+  statut    StatutAnneeScolaire @default(brouillon)
   referentielVersionId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -332,6 +333,7 @@ model AnneeScolaire {
   @@unique([tenantId, libelle])
   @@index([tenantId])
   @@index([actif])
+  @@index([statut])
   @@index([referentielVersionId])
 }
 
@@ -962,6 +964,12 @@ enum StatutInscription {
   validee
   annulee
   suspendue
+}
+
+enum StatutAnneeScolaire {
+  brouillon
+  active
+  archivee
 }
 
 enum StatutEcheance {

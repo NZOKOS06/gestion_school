@@ -5,7 +5,7 @@ import { useTenant } from '../../contexts/TenantContext';
 import { useDebounce } from '../../hooks/useDebounce';
 import {
   PageHeader, DataTable, Badge, Button, Modal, Card, Input, Select,
-  FormField, FilterBar, SearchInput, KpiCard,
+  FormField, FilterBar, SearchInput, KpiCard, SegmentedControl,
 } from '../../components/ui';
 import { Wallet, Plus, Printer, Mail, AlertCircle, FileDown, Users } from 'lucide-react';
 import { openPdf } from '../../utils/pdf';
@@ -40,6 +40,35 @@ const Paiements = () => {
   const [form, setForm] = useState({
     inscriptionId: '', echeanceId: '', montant: '', modePaiement: 'especes', reference: '', motif: '',
   });
+  const [annees, setAnnees] = useState([]);
+  const [yearScope, setYearScope] = useState('active');
+
+  const anneeActive = useMemo(
+    () => annees.find((a) => a.actif || a.statut === 'active'),
+    [annees],
+  );
+  const anneePrev = useMemo(
+    () => annees
+      .filter((a) => a.statut === 'archivee' || (!a.actif && a.id !== anneeActive?.id))
+      .sort((a, b) => new Date(b.dateFin || 0) - new Date(a.dateFin || 0))[0],
+    [annees, anneeActive],
+  );
+  const resolvedAnneeId = yearScope === 'archive' ? anneePrev?.id : anneeActive?.id;
+  const isArchiveView = yearScope === 'archive';
+  const yearOptions = useMemo(() => {
+    const opts = [{ value: 'active', label: anneeActive?.libelle || 'Année en cours' }];
+    if (anneePrev) opts.push({ value: 'archive', label: anneePrev.libelle || 'Année précédente' });
+    return opts;
+  }, [anneeActive, anneePrev]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await get('/api/annees-scolaires', { silent: true });
+        setAnnees(res?.data || res || []);
+      } catch { /* silent */ }
+    })();
+  }, [get]);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -48,9 +77,10 @@ const Paiements = () => {
     if (filters.mode) params.set('modePaiement', filters.mode);
     if (filters.dateDebut) params.set('dateDebut', filters.dateDebut);
     if (filters.dateFin) params.set('dateFin', filters.dateFin);
+    if (resolvedAnneeId) params.set('anneeScolaireId', resolvedAnneeId);
     params.set('limit', '200');
     return params.toString();
-  }, [debouncedSearch, filters]);
+  }, [debouncedSearch, filters, resolvedAnneeId]);
 
   const fetchPaiements = useCallback(async () => {
     setLoading(true);
@@ -64,10 +94,11 @@ const Paiements = () => {
   const fetchRetards = useCallback(async () => {
     if (isCaissier) return;
     try {
-      const res = await get('/api/paiements/echeances-retard', { silent: true });
+      const qs = resolvedAnneeId ? `?anneeScolaireId=${resolvedAnneeId}` : '';
+      const res = await get(`/api/paiements/echeances-retard${qs}`, { silent: true });
       setRetards(res?.data || res || []);
     } catch { /* silent */ }
-  }, [get, isCaissier]);
+  }, [get, isCaissier, resolvedAnneeId]);
 
   useEffect(() => { fetchPaiements(); fetchRetards(); }, [fetchPaiements, fetchRetards]);
 
@@ -136,12 +167,23 @@ const Paiements = () => {
             <Button variant="secondary" icon={FileDown} onClick={() => openPdf(`/api/paiements/journal-pdf?${queryString}`, 'journal-caisse.pdf')}>
               Journal PDF
             </Button>
-            <Button icon={isCaissier ? Users : Plus} onClick={openEncaisser}>
-              {isCaissier ? 'Encaisser un élève' : 'Encaisser'}
-            </Button>
+            {isArchiveView ? (
+              <Badge variant="neutral">Lecture seule</Badge>
+            ) : (
+              <Button icon={isCaissier ? Users : Plus} onClick={openEncaisser}>
+                {isCaissier ? 'Encaisser un élève' : 'Encaisser'}
+              </Button>
+            )}
           </>
         }
       />
+
+      {yearOptions.length > 1 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <SegmentedControl value={yearScope} onChange={setYearScope} options={yearOptions} />
+          {isArchiveView && <Badge variant="neutral">Consultation archive</Badge>}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard label="Encaissements (filtre)" value={formatPrice(totalPeriode)} icon={Wallet} color="green" />
@@ -166,7 +208,9 @@ const Paiements = () => {
                   <span className="font-semibold" style={{ color: 'var(--color-danger)' }}>
                     {formatPrice(ret.montantAttendu - ret.montantPaye)}
                   </span>
-                  <Button size="sm" variant="secondary" icon={Mail} onClick={() => relancer(ret.id)}>Relancer</Button>
+                  {!isArchiveView && (
+                    <Button size="sm" variant="secondary" icon={Mail} onClick={() => relancer(ret.id)}>Relancer</Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -256,7 +300,7 @@ const Paiements = () => {
         emptyDescription={isCaissier
           ? 'Les encaissements de la période s’afficheront ici.'
           : 'Les encaissements apparaîtront ici. Cliquez sur Encaisser pour démarrer.'}
-        emptyAction={!isCaissier && <Button icon={Plus} size="sm" onClick={openEncaisser}>Encaisser</Button>}
+        emptyAction={!isCaissier && !isArchiveView && <Button icon={Plus} size="sm" onClick={openEncaisser}>Encaisser</Button>}
       />
 
       <Modal

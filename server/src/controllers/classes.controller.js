@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { resolveAnneeScolaireId } from '../utils/anneeScolaire.js';
 
 const log = createLogger('ClassesController');
 
@@ -11,6 +12,8 @@ export const getAll = async (req, res) => {
     const take = parseInt(limit);
     const skip = (parseInt(page) - 1) * take;
 
+    const resolvedAnneeId = await resolveAnneeScolaireId(tenantId, anneeScolaireId || null);
+
     const where = {};
     if (search) {
       where.OR = [
@@ -18,7 +21,7 @@ export const getAll = async (req, res) => {
         { niveau: { contains: search, mode: 'insensitive' } },
       ];
     }
-    if (anneeScolaireId) where.anneeScolaireId = anneeScolaireId;
+    if (resolvedAnneeId) where.anneeScolaireId = resolvedAnneeId;
     if (cycle) where.cycle = cycle;
 
     const orderBy = sortBy === 'nom'
@@ -29,7 +32,7 @@ export const getAll = async (req, res) => {
       prisma.classe.findMany({
         where: { tenantId, ...where },
         include: {
-          anneeScolaire: { select: { id: true, libelle: true, actif: true } },
+          anneeScolaire: { select: { id: true, libelle: true, actif: true, statut: true } },
           niveauOfficiel: { select: { id: true, code: true, libelle: true, cycle: true, ordre: true } },
           filiereOfficielle: { select: { id: true, code: true, libelle: true } },
           _count: {
@@ -61,6 +64,7 @@ export const getAll = async (req, res) => {
         total,
         totalPages: Math.ceil(total / take),
       },
+      anneeScolaireId: resolvedAnneeId,
     });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'Get all classes error');

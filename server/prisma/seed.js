@@ -317,17 +317,18 @@ async function main() {
   // ==================== ANNÉE SCOLAIRE ====================
   const anneeScolaire = await prisma.anneeScolaire.upsert({
     where: { tenantId_libelle: { tenantId: demoTenant.id, libelle: '2025-2026' } },
-    update: { actif: true, referentielVersionId: refActuel.id },
+    update: { actif: true, statut: 'active', referentielVersionId: refActuel.id },
     create: {
       tenantId: demoTenant.id,
       libelle: '2025-2026',
       dateDebut: new Date('2025-10-01'),
       dateFin: new Date('2026-07-15'),
       actif: true,
+      statut: 'active',
       referentielVersionId: refActuel.id,
     },
   });
-  console.log(`✓ Année scolaire : ${anneeScolaire.libelle}`);
+  console.log(`✓ Année scolaire : ${anneeScolaire.libelle} (active)`);
 
   await prisma.tenantConfig.update({
     where: { tenantId: demoTenant.id },
