@@ -21,13 +21,20 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     fileParallelism: false,
-    // Phase 0: suites d'intégration legacy désactivées (réécriture scolaire)
+    // Suites legacy (setup DB dédié / mocks auth) hors CI smoke
     exclude: [
       '**/node_modules/**',
       '**/src/tests/**',
       '**/src/controllers/auth.test.js',
     ],
-    include: ['src/middleware/tenantMiddleware.test.js'],
+    include: [
+      'src/middleware/tenantMiddleware.test.js',
+      'src/utils/prisma.tenantIsolation.test.js',
+      'src/utils/anneeActive.test.js',
+      'src/config/v1Modules.test.js',
+      'src/services/echeances.service.test.js',
+      'src/services/finance.smoke.test.js',
+    ],
     coverage: { reporter: ['text', 'lcov'] },
     env: {
       DATABASE_URL: DB_URL,

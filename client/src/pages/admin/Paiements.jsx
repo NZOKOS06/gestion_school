@@ -162,6 +162,7 @@ const Paiements = () => {
         subtitle={isCaissier
           ? 'Historique des encaissements — imprimez un reçu ou le journal du jour'
           : 'Encaissements et suivi des impayés'}
+        data-testid="page-paiements"
         actions={
           <>
             <Button variant="secondary" icon={FileDown} onClick={() => openPdf(`/api/paiements/journal-pdf?${queryString}`, 'journal-caisse.pdf')}>

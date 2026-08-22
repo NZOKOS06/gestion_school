@@ -8,6 +8,7 @@ import {
   listRetards,
   normalizeModePaiement,
   resteAPayer,
+  syncInscriptionSolde,
 } from '../services/echeances.service.js';
 import { formatMontant } from '../utils/formatters.js';
 import { loadSchoolPdfMeta } from '../services/pdf/schoolMeta.js';
@@ -368,9 +369,10 @@ export const create = async (req, res) => {
         where: { id: inscriptionId, tenantId },
       });
       if (!inscription) {
-        const err = new Error('INSCRIPTION_NOT_FOUND');
-        throw err;
+        throw new Error('INSCRIPTION_NOT_FOUND');
       }
+
+      let resolvedEcheanceId = echeanceId || null;
 
       if (echeanceId) {
         const ech = await tx.echeance.findFirst({
@@ -379,9 +381,16 @@ export const create = async (req, res) => {
         if (!ech) {
           throw new Error('ECHEANCE_NOT_FOUND');
         }
+        const resteEch = Math.max(0, Number(ech.montantAttendu) - Number(ech.montantPaye));
+        if (resteEch <= 0.01) throw new Error('SCOLARITE_SOLDEE');
+        if (amount > resteEch + 0.01) {
+          const err = new Error('MONTANT_SUPERIEUR_RESTE');
+          err.reste = resteEch;
+          throw err;
+        }
+      } else {
+        await assertMontantEncaissable(tx, tenantId, inscriptionId, amount);
       }
-
-      await assertMontantEncaissable(tx, tenantId, inscriptionId, amount);
 
       const lastPaiement = await tx.paiement.findFirst({
         where: { tenantId },
@@ -390,11 +399,18 @@ export const create = async (req, res) => {
       });
       const numeroRecu = (lastPaiement?.numeroRecu || 0) + 1;
 
+      if (echeanceId) {
+        await applyPaymentToEcheance(tx, echeanceId, amount);
+      } else {
+        const cascade = await applyPaymentCascade(tx, tenantId, inscriptionId, amount);
+        resolvedEcheanceId = cascade.allocations[0]?.echeanceId || null;
+      }
+
       const created = await tx.paiement.create({
         data: {
           tenantId,
           inscriptionId,
-          echeanceId: echeanceId || null,
+          echeanceId: resolvedEcheanceId,
           numeroRecu,
           montant: amount,
           typePaiement: typePaiement || 'scolarite',
@@ -405,13 +421,7 @@ export const create = async (req, res) => {
         },
       });
 
-      const newSolde = Math.max(0, Number(inscription.soldeScolarite) - amount);
-      await tx.inscription.update({
-        where: { id: inscriptionId },
-        data: { soldeScolarite: newSolde },
-      });
-
-      await applyPaymentToEcheance(tx, echeanceId, amount);
+      await syncInscriptionSolde(tx, tenantId, inscriptionId);
 
       return created;
     });
@@ -492,11 +502,7 @@ export const createBatch = async (req, res) => {
         },
       });
 
-      const newSolde = Math.max(0, Number(inscription.soldeScolarite) - amount);
-      await tx.inscription.update({
-        where: { id: inscriptionId },
-        data: { soldeScolarite: newSolde },
-      });
+      await syncInscriptionSolde(tx, tenantId, inscriptionId);
 
       return { paiement: created, allocations: cascade.allocations };
     });
@@ -709,13 +715,6 @@ export const remove = async (req, res) => {
       const existing = await tx.paiement.findFirst({ where: { id, tenantId } });
       if (!existing) throw new Error('NOT_FOUND');
 
-      await tx.inscription.update({
-        where: { id: existing.inscriptionId },
-        data: {
-          soldeScolarite: { increment: Number(existing.montant) },
-        },
-      });
-
       if (existing.echeanceId) {
         const ech = await tx.echeance.findUnique({ where: { id: existing.echeanceId } });
         if (ech) {
@@ -731,6 +730,7 @@ export const remove = async (req, res) => {
       }
 
       await tx.paiement.delete({ where: { id } });
+      await syncInscriptionSolde(tx, tenantId, existing.inscriptionId);
     });
 
     await logAudit(req, 'paiement_deleted', 'Paiement', id, {});

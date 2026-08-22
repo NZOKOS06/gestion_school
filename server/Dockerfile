@@ -1,6 +1,6 @@
 FROM node:20-alpine
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl wget
 
 WORKDIR /app
 
@@ -12,6 +12,7 @@ RUN npm ci
 RUN npx prisma generate
 
 COPY src ./src
+COPY scripts ./scripts
 COPY start.sh ./start.sh
 
 RUN chmod +x ./start.sh

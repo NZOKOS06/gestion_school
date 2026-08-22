@@ -6,8 +6,13 @@ import { prisma } from './prisma.js';
  */
 export async function getAnneeOperationnelle(tenantId) {
   if (!tenantId) return null;
+  const byStatut = await prisma.anneeScolaire.findFirst({
+    where: { tenantId, statut: 'active' },
+    orderBy: { dateDebut: 'desc' },
+  });
+  if (byStatut) return byStatut;
   return prisma.anneeScolaire.findFirst({
-    where: { tenantId, OR: [{ statut: 'active' }, { actif: true }] },
+    where: { tenantId, actif: true },
     orderBy: { dateDebut: 'desc' },
   });
 }

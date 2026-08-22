@@ -71,7 +71,7 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-8" data-testid="page-dashboard">
         <Skeleton height={28} width={220} />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -94,7 +94,7 @@ const Dashboard = () => {
   if (error || !data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Tableau de bord" subtitle="Vue d'ensemble de votre établissement" />
+        <PageHeader title="Tableau de bord" subtitle="Vue d'ensemble de votre établissement" data-testid="page-dashboard" />
         <EmptyState
           icon={AlertTriangle}
           title="Impossible de charger le tableau de bord"
@@ -124,6 +124,7 @@ const Dashboard = () => {
       <PageHeader
         title="Tableau de bord"
         subtitle="Vue d'ensemble de votre établissement"
+        data-testid="page-dashboard"
       />
 
       {alertes.length > 0 && (

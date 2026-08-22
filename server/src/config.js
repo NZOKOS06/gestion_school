@@ -8,11 +8,35 @@ for (const key of required) {
   }
 }
 
+const isProd = process.env.NODE_ENV === 'production';
+const weakFragments = [
+  'change-in-production',
+  'your-super-secret',
+  'ci-test-secret',
+  'not-for-production',
+];
+
+if (isProd) {
+  const jwt = process.env.JWT_SECRET || '';
+  const jwtRefresh = process.env.JWT_REFRESH_SECRET || '';
+  if (jwt.length < 32 || jwtRefresh.length < 32) {
+    throw new Error('JWT_SECRET / JWT_REFRESH_SECRET doivent faire au moins 32 caractères en production');
+  }
+  if (jwt === jwtRefresh) {
+    throw new Error('JWT_SECRET et JWT_REFRESH_SECRET doivent être distincts');
+  }
+  for (const frag of weakFragments) {
+    if (jwt.toLowerCase().includes(frag) || jwtRefresh.toLowerCase().includes(frag)) {
+      throw new Error(`Secrets JWT trop faibles pour la production (motif: ${frag})`);
+    }
+  }
+}
+
 const cloudinaryVars = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'];
 const missingCloudinary = cloudinaryVars.filter(k => !process.env[k]);
 if (missingCloudinary.length > 0) {
-  if (process.env.NODE_ENV === 'production') {
-    console.warn(`⚠️  ATTENTION — Variables Cloudinary manquantes : ${missingCloudinary.join(', ')}. Les uploads de fichiers seront désactivés.`);
+  if (isProd) {
+    console.warn(`⚠️  ATTENTION — Variables Cloudinary manquantes : ${missingCloudinary.join(', ')}. Les uploads d'images et PDF seront désactivés.`);
   } else {
     console.warn(`Variables Cloudinary manquantes : ${missingCloudinary.join(', ')}. Uploads désactivés en développement.`);
   }

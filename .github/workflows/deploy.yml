@@ -8,14 +8,99 @@ on:
         required: true
         type: choice
         options: [staging, production]
+      git_ref:
+        description: 'Commit SHA ou laisser vide (= SHA du workflow)'
+        required: false
+        default: ''
 
 jobs:
-  deploy:
+  preflight:
+    name: Preflight prod-ready
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy via SSH
-        run: echo "Déploiement sur ${{ inputs.environment }} — configurer SSH dans les secrets GitHub"
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Assert secrets strength
+        working-directory: server
+        env:
+          NODE_ENV: production
+          ASSERT_PROD_STRICT: 'true'
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          SUPER_ADMIN_PASSWORD: ${{ secrets.SUPER_ADMIN_PASSWORD }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+          ASSERT_PROD_SOFT: ${{ secrets.ASSERT_PROD_SOFT }}
+        run: node scripts/assert-prod-ready.js
+
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [preflight]
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      HEALTH_URL: ${{ secrets.HEALTH_URL }}
+      PUBLIC_HEALTH_URL: ${{ secrets.PUBLIC_HEALTH_URL }}
+      TARGET_SHA: ${{ inputs.git_ref != '' && inputs.git_ref || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier secrets SSH
+        run: |
+          missing=0
+          for v in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_PATH; do
+            if [ -z "${!v}" ]; then
+              echo "Secret manquant: $v"
+              missing=1
+            fi
+          done
+          if [ "$missing" = "1" ]; then
+            echo "::error::Configurer les secrets GitHub Environment (${{ inputs.environment }}): DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_PATH (+ JWT_*, DATABASE_URL, CLOUDINARY_*, SUPER_ADMIN_PASSWORD pour preflight)"
+            exit 1
+          fi
+
+      - name: Installer clé SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Déployer via SSH
+        run: |
+          HEALTH="${HEALTH_URL:-http://127.0.0.1:3000/health}"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p '$DEPLOY_PATH/scripts'"
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
+            scripts/deploy-remote.sh \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/scripts/deploy-remote.sh"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "chmod +x '$DEPLOY_PATH/scripts/deploy-remote.sh' && DEPLOY_PATH='$DEPLOY_PATH' HEALTH_URL='$HEALTH' '$DEPLOY_PATH/scripts/deploy-remote.sh' '$TARGET_SHA'"
+
+      - name: Healthcheck public (optionnel)
+        if: ${{ env.PUBLIC_HEALTH_URL != '' }}
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf "$PUBLIC_HEALTH_URL" >/dev/null; then
+              echo "Public health OK"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Public healthcheck failed"
+          exit 1

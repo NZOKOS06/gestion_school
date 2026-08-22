@@ -187,6 +187,19 @@ export async function resteAPayer(db, tenantId, inscriptionId) {
   );
 }
 
+/**
+ * Aligne inscription.soldeScolarite sur le reste dû calculé des échéances.
+ * Source de vérité = échéances, pas un compteur décrémenté.
+ */
+export async function syncInscriptionSolde(db, tenantId, inscriptionId) {
+  const reste = await resteAPayer(db, tenantId, inscriptionId);
+  await db.inscription.update({
+    where: { id: inscriptionId },
+    data: { soldeScolarite: reste },
+  });
+  return reste;
+}
+
 export async function applyPaymentToEcheance(tx, echeanceId, montant) {
   if (!echeanceId) return null;
   const echeance = await tx.echeance.findUnique({ where: { id: echeanceId } });

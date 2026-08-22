@@ -110,19 +110,19 @@ model TenantConfig {
   fraisInscriptionDefault Decimal @default(0.00) @db.Decimal(12, 2)
   fraisScolariteDefault   Decimal @default(0.00) @db.Decimal(12, 2)
 
-  // Modules SaaS activables/désactivables (16)
+  // Modules SaaS — défauts alignés gel V1 (voir server/src/config/v1Modules.js)
   moduleNotes         Boolean @default(true)
   moduleBulletins     Boolean @default(true)
-  modulePresences     Boolean @default(true)
+  modulePresences     Boolean @default(false)
   modulePaiements     Boolean @default(true)
-  moduleEmploiDuTemps Boolean @default(true)
-  moduleParents       Boolean @default(true)
-  moduleEleves        Boolean @default(false)
-  moduleSanctions     Boolean @default(true)
+  moduleEmploiDuTemps Boolean @default(false)
+  moduleParents       Boolean @default(false)
+  moduleEleves        Boolean @default(true)
+  moduleSanctions     Boolean @default(false)
   moduleBiblio        Boolean @default(false)
   moduleCantine       Boolean @default(false)
   moduleTransport     Boolean @default(false)
-  moduleCertificats   Boolean @default(true)
+  moduleCertificats   Boolean @default(false)
   moduleClasses       Boolean @default(true)
   moduleInscriptions  Boolean @default(true)
   modulePersonnel     Boolean @default(true)
@@ -310,7 +310,7 @@ model AnneeScolaire {
   libelle   String // ex: "2025-2026"
   dateDebut DateTime
   dateFin   DateTime
-  actif     Boolean  @default(false) // Une seule année est active à la fois par tenant (sync avec statut)
+  actif     Boolean  @default(false) // Une seule année active/tenant (index unique partiel SQL)
   statut    StatutAnneeScolaire @default(brouillon)
   referentielVersionId String?
   createdAt DateTime @default(now())

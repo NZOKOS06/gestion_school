@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { prisma } from '../utils/prisma.js';
-import { applyPaymentToEcheance, listByInscription } from './echeances.service.js';
+import { applyPaymentToEcheance, applyPaymentCascade, syncInscriptionSolde, listByInscription } from './echeances.service.js';
 import { buildRecuPdf } from './pdf/recu.pdf.js';
 import { loadSchoolPdfMeta } from './pdf/schoolMeta.js';
 import { uploadPdfBuffer, isCloudinaryConfigured } from '../utils/cloudinary.js';
@@ -97,6 +97,8 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
     });
     if (!inscription) throw new Error('INSCRIPTION_NOT_FOUND');
 
+    let resolvedEcheanceId = intent.echeanceId || null;
+
     if (intent.echeanceId) {
       const ech = await tx.echeance.findFirst({
         where: {
@@ -106,6 +108,15 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
         },
       });
       if (!ech) throw new Error('ECHEANCE_NOT_FOUND');
+      await applyPaymentToEcheance(tx, intent.echeanceId, intent.montant);
+    } else {
+      const cascade = await applyPaymentCascade(
+        tx,
+        intent.tenantId,
+        intent.inscriptionId,
+        intent.montant
+      );
+      resolvedEcheanceId = cascade.allocations[0]?.echeanceId || null;
     }
 
     const lastPaiement = await tx.paiement.findFirst({
@@ -119,7 +130,7 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
       data: {
         tenantId: intent.tenantId,
         inscriptionId: intent.inscriptionId,
-        echeanceId: intent.echeanceId,
+        echeanceId: resolvedEcheanceId,
         numeroRecu,
         montant: intent.montant,
         typePaiement: 'scolarite',
@@ -130,13 +141,7 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
       },
     });
 
-    const newSolde = Math.max(0, Number(inscription.soldeScolarite) - intent.montant);
-    await tx.inscription.update({
-      where: { id: intent.inscriptionId },
-      data: { soldeScolarite: newSolde },
-    });
-
-    await applyPaymentToEcheance(tx, intent.echeanceId, intent.montant);
+    await syncInscriptionSolde(tx, intent.tenantId, intent.inscriptionId);
     return created;
   });
 

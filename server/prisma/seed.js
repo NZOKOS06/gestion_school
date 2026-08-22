@@ -11,6 +11,18 @@ const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL || 'superadmin@gestscho
 const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin123!';
 
 async function main() {
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PROD_SEED !== 'true') {
+    throw new Error(
+      'Seed refusé en production. Utilisez ALLOW_PROD_SEED=true uniquement pour un bootstrap contrôlé, ou seed en staging.'
+    );
+  }
+  if (
+    process.env.NODE_ENV === 'production' &&
+    (!process.env.SUPER_ADMIN_PASSWORD || SUPER_ADMIN_PASSWORD === 'SuperAdmin123!')
+  ) {
+    throw new Error('SUPER_ADMIN_PASSWORD fort obligatoire pour un seed en production');
+  }
+
   console.log('🌱 Démarrage du seed...\n');
 
   // ==================== TENANT SYSTÈME (héberge le super admin) ====================

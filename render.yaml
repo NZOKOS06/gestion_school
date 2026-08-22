@@ -53,6 +53,14 @@ services:
         sync: false
       - key: LOG_LEVEL
         value: info
+      - key: RUN_SEED
+        value: "false"
+      - key: ALLOW_PROD_SEED
+        value: "false"
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
 
 # Base de données PostgreSQL
 databases:

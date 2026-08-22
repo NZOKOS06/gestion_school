@@ -6,6 +6,12 @@ import { logAudit } from '../utils/auditLogger.js';
 import { generateRandomPassword } from '../utils/password.js';
 import { sendStaffWelcomeEmail } from '../services/email.service.js';
 import { buildTenantUrl } from '../utils/tenantUrl.js';
+import {
+  CRITICAL_MODULES,
+  MODULES_BY_PLAN,
+  enforceModuleConstraints,
+  moduleFlagsForPlan,
+} from '../config/v1Modules.js';
 
 const VALID_CONFIG_FIELDS = new Set([
   'nomApp', 'nom', 'sloganApp', 'descriptionAbout', 'anneeCreation', 'rccm',
@@ -22,8 +28,9 @@ const VALID_CONFIG_FIELDS = new Set([
   'emailAlertes', 'dureeSessionMinutes', 'ipWhitelist', 'forcer2FA',
   'privacyPolicyUrl', 'termsOfServiceUrl', 'cookiePolicyUrl', 'cookieBannerText', 'cookieBannerEnabled', 'analyticsEnabled',
   'moduleEleves', 'moduleClasses', 'moduleNotes', 'moduleBulletins', 'modulePaiements',
-  'moduleEmploiDuTemps', 'moduleAbsences', 'moduleSanctions', 'moduleActualites', 'modulePersonnel',
-  'moduleRapports', 'moduleInscriptions', 'moduleParents'
+  'moduleEmploiDuTemps', 'modulePresences', 'moduleSanctions', 'moduleActualites', 'modulePersonnel',
+  'moduleRapports', 'moduleInscriptions', 'moduleParents', 'moduleCertificats',
+  'moduleBiblio', 'moduleCantine', 'moduleTransport',
 ]);
 
 const isValidUrl = (value) => {
@@ -131,7 +138,10 @@ export const createTenant = async (req, res) => {
       return res.status(409).json({ error: 'Ce slug est déjà utilisé' });
     }
 
-    const moduleDefaults = enforceModuleConstraints({}, plan);
+    const moduleDefaults = {
+      ...moduleFlagsForPlan(plan),
+      ...enforceModuleConstraints({}, plan),
+    };
     const tenant = await rawPrisma.tenant.create({
       data: {
         nom,
@@ -194,29 +204,6 @@ export const updateTenant = async (req, res) => {
     log.error({ err: error, id: req.params.id }, 'Update tenant error');
     res.status(500).json({ error: 'Internal server error' });
   }
-};
-
-const CRITICAL_MODULES = ['moduleEleves', 'moduleClasses', 'moduleInscriptions'];
-const MODULES_BY_PLAN = {
-  starter:    ['moduleEleves', 'moduleClasses', 'moduleInscriptions'],
-  basique:    ['moduleEleves', 'moduleClasses', 'moduleInscriptions', 'moduleNotes', 'modulePersonnel', 'modulePaiements'],
-  pro:        ['moduleEleves', 'moduleClasses', 'moduleInscriptions', 'moduleNotes', 'moduleBulletins', 'modulePaiements', 'moduleEmploiDuTemps', 'moduleAbsences', 'modulePersonnel', 'moduleRapports', 'moduleParents'],
-  enterprise: ['moduleEleves', 'moduleClasses', 'moduleInscriptions', 'moduleNotes', 'moduleBulletins', 'modulePaiements', 'moduleEmploiDuTemps', 'moduleAbsences', 'moduleSanctions', 'moduleActualites', 'modulePersonnel', 'moduleRapports', 'moduleParents']
-};
-
-const enforceModuleConstraints = (configData, tenantPlan) => {
-  // Modules critiques toujours actifs
-  for (const m of CRITICAL_MODULES) {
-    configData[m] = true;
-  }
-  // Modules non autorisés par le plan sont désactivés
-  const allowed = new Set(MODULES_BY_PLAN[tenantPlan] || MODULES_BY_PLAN.basique);
-  for (const m of VALID_CONFIG_FIELDS) {
-    if (m.startsWith('module') && !allowed.has(m)) {
-      configData[m] = false;
-    }
-  }
-  return configData;
 };
 
 export const updateTenantConfig = async (req, res) => {

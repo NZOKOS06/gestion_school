@@ -97,7 +97,7 @@ const CaissierDashboard = () => {
 
   if (loading) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-8" data-testid="page-caissier-dashboard">
         <Skeleton height={28} width={260} />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -117,7 +117,7 @@ const CaissierDashboard = () => {
   if (error || !kpis) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Tableau de bord" subtitle="Gestion financière de l'établissement" />
+        <PageHeader title="Tableau de bord" subtitle="Gestion financière de l'établissement" data-testid="page-caissier-dashboard" />
         <EmptyState icon={AlertTriangle} title="Impossible de charger" description={error || 'Erreur inconnue'}
           action={<Button size="sm" onClick={fetchAll}>Réessayer</Button>} />
       </div>
@@ -159,6 +159,7 @@ const CaissierDashboard = () => {
       <PageHeader
         title="Tableau de bord Gestionnaire"
         subtitle="Vue financière complète de l'établissement"
+        data-testid="page-caissier-dashboard"
         actions={
           isArchiveView ? (
             <Badge variant="neutral">Lecture seule</Badge>

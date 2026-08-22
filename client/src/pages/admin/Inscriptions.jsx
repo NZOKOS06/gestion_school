@@ -438,6 +438,7 @@ const Inscriptions = () => {
       <PageHeader
         title="Inscriptions / Réinscriptions"
         subtitle="L'inscription lie l'élève à une classe et ouvre le dossier financier"
+        data-testid="page-inscriptions"
         actions={
           <div className="flex items-center gap-2">
             {(canDecideFinAnnee || user?.role === 'secretaire') && (

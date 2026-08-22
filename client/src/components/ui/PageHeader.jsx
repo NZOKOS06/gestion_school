@@ -1,6 +1,7 @@
-const PageHeader = ({ title, subtitle, actions }) => {
+const PageHeader = ({ title, subtitle, actions, 'data-testid': testId }) => {
   return (
     <div
+      data-testid={testId}
       className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 pb-6 mb-8"
       style={{ borderBottom: '1px solid var(--border-subtle)' }}
     >

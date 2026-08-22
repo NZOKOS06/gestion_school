@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { syncEvenementRentree } from './calendrierScolaire.controller.js';
+import { ensureSingleActiveYear, syncActifFromStatut } from '../utils/anneeActive.js';
 
 const log = createLogger('AnneesScolairesController');
 
@@ -9,10 +10,6 @@ function addYears(date, years) {
   const d = new Date(date);
   d.setFullYear(d.getFullYear() + years);
   return d;
-}
-
-function syncActifFromStatut(statut) {
-  return statut === 'active';
 }
 
 export const getAll = async (req, res) => {
@@ -147,7 +144,18 @@ export const update = async (req, res) => {
       });
     }
 
-    const annee = await prisma.anneeScolaire.update({ where: { id }, data });
+    const becomingActive =
+      data.statut === 'active' || data.actif === true;
+
+    const annee = becomingActive
+      ? await prisma.$transaction(async (tx) => {
+          const { actif: _a, statut: _s, ...rest } = data;
+          if (Object.keys(rest).length > 0) {
+            await tx.anneeScolaire.update({ where: { id }, data: rest });
+          }
+          return ensureSingleActiveYear(tx, tenantId, id);
+        })
+      : await prisma.anneeScolaire.update({ where: { id }, data });
 
     if (data.dateDebut || data.libelle) {
       await syncEvenementRentree(tenantId, annee);
@@ -196,17 +204,9 @@ export const activate = async (req, res) => {
       return res.status(404).json({ error: 'Année scolaire non trouvée' });
     }
 
-    const annee = await prisma.$transaction(async (tx) => {
-      await tx.anneeScolaire.updateMany({
-        where: { tenantId, id: { not: id } },
-        data: { actif: false, statut: 'archivee' },
-      });
-
-      return tx.anneeScolaire.update({
-        where: { id },
-        data: { actif: true, statut: 'active' },
-      });
-    });
+    const annee = await prisma.$transaction(async (tx) =>
+      ensureSingleActiveYear(tx, tenantId, id)
+    );
 
     await logAudit(req, 'annee_activee', 'AnneeScolaire', id, { libelle: existing.libelle });
 

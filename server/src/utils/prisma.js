@@ -10,26 +10,58 @@ const rawPrisma = globalForPrisma._rawPrisma ?? new PrismaClient({
   errorFormat: 'minimal',
 });
 
+/**
+ * Modèles isolés par tenantId via extendedPrisma.
+ * Exclus volontairement :
+ * - Tenant (racine)
+ * - RefreshToken (pas de tenantId)
+ * - PasswordResetToken / EmailVerificationToken (lookup par token, tenantId optionnel)
+ * - BulletinDetail / ConseilParticipant / ExamenNote (enfants sans tenantId)
+ *
+ * rawPrisma contourne cette isolation — réservé à super-admin, auth bootstrap, jobs globaux.
+ */
 const TENANT_MODELS = new Set([
   'TenantConfig',
+  'TenantJourEcole',
+  'TenantIpWhitelist',
   'Staff',
   'User',
+  'CookieConsent',
   'AnneeScolaire',
+  'ReferentielVersion',
+  'NiveauOfficiel',
+  'FiliereOfficielle',
+  'PeriodeScolaire',
   'Classe',
   'Matiere',
+  'MatiereNiveauAnnee',
+  'MatiereClasseAnnee',
   'Eleve',
-  'Inscription',
   'EnseignantClasse',
   'EnseignantClasseQuittee',
+  'Inscription',
+  'Echeance',
   'Evaluation',
   'Note',
   'Bulletin',
-  'Paiement',
   'EmploiDuTemps',
   'Absence',
   'Sanction',
+  'Paiement',
+  'Depense',
+  'Certificat',
+  'Notification',
   'Actualite',
-  'CookieConsent'
+  'AuditLog',
+  'Salle',
+  'CalendrierScolaire',
+  'CahierDeTextes',
+  'ConseilDeClasse',
+  'HeureEnseignee',
+  'Message',
+  'ExamenSession',
+  'ExamenCandidature',
+  'ResultatExamen',
 ]);
 
 const shouldIsolate = (model) => TENANT_MODELS.has(model);
@@ -116,6 +148,21 @@ const extendedPrisma = rawPrisma.$extends({
         }
         return query(args);
       },
+      async count({ model, operation, args, query }) {
+        const tenantId = asyncLocalStorage.getStore()?.tenantId;
+        if (tenantId && shouldIsolate(model)) {
+          args.where = { ...args.where, tenantId };
+        }
+        return query(args);
+      },
+      async upsert({ model, operation, args, query }) {
+        const tenantId = asyncLocalStorage.getStore()?.tenantId;
+        if (tenantId && shouldIsolate(model)) {
+          if (args.create) args.create = { ...args.create, tenantId };
+          // Ne pas forcer tenantId sur where : certaines uniques ne le contiennent pas.
+        }
+        return query(args);
+      },
     },
   },
 });
@@ -125,4 +172,4 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Export extendedPrisma as the default 'prisma' so all imports get tenant isolation
-export { extendedPrisma as prisma, extendedPrisma, rawPrisma };
+export { extendedPrisma as prisma, extendedPrisma, rawPrisma, TENANT_MODELS };

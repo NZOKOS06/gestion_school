@@ -170,21 +170,15 @@ L'isolation des données est garantie par :
 
 ## Modules disponibles
 
-| Module | Défaut | Description |
-|--------|--------|-------------|
-| Élèves | ✅ ON | Dossiers et inscriptions élèves |
-| Classes | ✅ ON | Classes, niveaux et cycles |
-| Matières | ✅ ON | Matières et coefficients |
-| Notes & Bulletins | ✅ ON | Saisie des notes, génération de bulletins |
-| Emploi du temps | ✅ ON | Planification des cours |
-| Absences / Présences | ✅ ON | Appel et suivi des absences |
-| Paiements | ✅ ON | Scolarités et échéances |
-| Parents | ✅ ON | Portail parents |
-| Sanctions | configurable | Discipline |
-| Certificats | configurable | Attestations officielles |
-| Personnel | ✅ ON | Comptes et rôles |
-| Rapports | ✅ ON | Statistiques et analytics |
-| Bibliothèque / Cantine / Transport | ❌ OFF | Modules optionnels |
+| Module | Défaut V1 | Description |
+|--------|-----------|-------------|
+| Élèves / Classes / Inscriptions / Paiements | ✅ ON (critiques) | Cœur scolarisation + caisse |
+| Notes & Bulletins / Personnel / Rapports | ✅ ON (plan basique) | Pédagogie + pilotage V1 |
+| EDT / Absences / Parents | ❌ OFF (pro+) | Hors gel — activer après pilote |
+| Sanctions / Certificats / Actualités | ❌ OFF (enterprise) | Post-V1 |
+| Bibliothèque / Cantine / Transport | ❌ OFF | Optionnels |
+
+**Gel V1** : code `server/src/config/v1Modules.js`. DoD = utilisé 2 semaines par une école pilote avant d’ouvrir un module hors cœur.
 
 ---
 
@@ -256,6 +250,23 @@ DATABASE_URL=postgresql://...
 JWT_SECRET=chaine-aleatoire-min-32-chars
 JWT_REFRESH_SECRET=autre-chaine-differente
 ```
+
+### Go-live (production)
+
+1. JWT forts et distincts + Cloudinary (reçus/PDF) — `server/scripts/assert-prod-ready.js`
+2. `RUN_SEED=false` (pas de comptes démo au boot Docker)
+3. `SUPER_ADMIN_PASSWORD` ≠ `SuperAdmin123!`
+4. Backups Postgres quotidiens avec restore testé
+5. Deploy : Actions `Deploy GestSchool` + secrets d’environment `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_PATH` (+ secrets preflight)
+
+### Passage d’année
+
+1. Dupliquer l’année N → N+1 (brouillon)
+2. Réinscription lot (`/api/inscriptions/eligibles-reinscription` + `reinscription-lot`)
+3. Activer N+1 (`POST .../activate`) — une seule active ; les brouillons ne sont pas archivés
+4. Dry-run : `server/scripts/passage-annee-runbook.js` + `node scripts/test-passage-annee.js`
+
+Script distant : `scripts/deploy-remote.sh` (git checkout SHA → compose up → healthcheck).
 
 ---
 
