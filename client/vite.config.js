@@ -7,14 +7,42 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      selfDestroying: true,
+      // Cache navigateur actif (images CDN + uploads) — ne pas selfDestroying
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
-          // API : jamais mise en cache ni en file d'attente (évite les erreurs CORS et workbox)
+          // Config publique — avant NetworkOnly /api
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/config/'),
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'GestSchool-config-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 5 * 60,
+              },
+            },
+          },
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
             handler: 'NetworkOnly',
+          },
+          // Cloudinary CDN — CacheFirst longue durée
+          {
+            urlPattern: ({ url }) =>
+              url.hostname.includes('res.cloudinary.com') ||
+              url.hostname.includes('cloudinary.com'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'GestSchool-cdn-images',
+              expiration: {
+                maxEntries: 300,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
           },
           {
             urlPattern: ({ request }) =>
@@ -29,7 +57,6 @@ export default defineConfig({
               },
             },
           },
-          // Uploads en cache pour mode hors ligne
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/uploads/'),
             handler: 'CacheFirst',

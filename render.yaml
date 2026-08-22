@@ -1,14 +1,16 @@
-# Configuration Render — Infrastructure as Code
+# Configuration Render — API backend (DB externe : Neon Postgres)
 # https://render.com/docs/render-yaml-spec
+#
+# Neon : créer le projet sur console.neon.tech, copier les URLs pooled + direct.
+# Vercel : déployer client/ avec VITE_API_URL → URL Render de ce service.
 
 services:
-  # Backend API
   - type: web
     name: gestschool-api
     runtime: docker
     dockerfilePath: ./server/Dockerfile
     dockerContext: ./server
-    plan: free
+    plan: starter
     region: frankfurt
     branch: main
     healthCheckPath: /api/health
@@ -17,14 +19,16 @@ services:
         value: production
       - key: PORT
         value: 3000
+      # Neon — pooled (app) ; définir aussi DIRECT_DATABASE_URL (connexion directe, migrations)
       - key: DATABASE_URL
-        fromDatabase:
-          name: gestschool-db
-          property: connectionString
+        sync: false
+      - key: DIRECT_DATABASE_URL
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      # URL Vercel (ex. https://gestschool.vercel.app) — CORS + cookies
       - key: FRONTEND_URL
         sync: false
       - key: SENTRY_DSN
@@ -34,6 +38,9 @@ services:
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
+        sync: false
+      # Optionnel — Render Redis ou Upstash ; sans REDIS_URL → cache mémoire
+      - key: REDIS_URL
         sync: false
       - key: DOMAIN
         sync: false
@@ -61,11 +68,3 @@ services:
         sync: false
       - key: SUPER_ADMIN_PASSWORD
         sync: false
-
-# Base de données PostgreSQL
-databases:
-  - name: gestschool-db
-    plan: free
-    region: frankfurt
-    databaseName: gestschool
-    user: gestschool

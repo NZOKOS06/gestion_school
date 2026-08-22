@@ -1,4 +1,5 @@
 import { prisma } from '../utils/prisma.js';
+import { withCdnImages } from '../utils/httpCache.js';
 
 export const getActualites = async (req, res) => {
   try {
@@ -27,8 +28,9 @@ export const getActualites = async (req, res) => {
 
     const pages = Math.ceil(total / take) || 1;
 
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     res.json({
-      actualites: rows,
+      actualites: rows.map((row) => withCdnImages(row)),
       total,
       pages,
       pagination: { page: parseInt(page), limit: take, total, totalPages: pages }
@@ -44,10 +46,11 @@ export const getInfosEcole = async (req, res) => {
     const tenant = req.tenant;
     const config = tenant.config;
 
-    res.json({
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    res.json(withCdnImages({
       nom: tenant.nom,
       slug: tenant.slug,
-      config: {
+      config: withCdnImages({
         nomEcole: config?.nomEcole || tenant.nom,
         slogan: config?.sloganApp || null,
         logoUrl: config?.logoUrl || null,
@@ -61,8 +64,8 @@ export const getInfosEcole = async (req, res) => {
         horaireOuverture: config?.horaireOuverture || null,
         messageAccueil: config?.messageAccueil || null,
         devise: config?.devise || 'FCFA'
-      }
-    });
+      })
+    }));
   } catch (error) {
     console.error('[PublicController] getInfosEcole error:', error);
     res.status(500).json({ error: 'Internal server error' });

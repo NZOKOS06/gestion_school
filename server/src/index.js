@@ -22,6 +22,8 @@ import { verifySmtpConnection } from './services/email.service.js';
 import jwt from 'jsonwebtoken';
 import { config as appConfig } from './config.js';
 import { authenticate, requireRole } from './middleware/authMiddleware.js';
+import { initCache, getCacheBackend } from './utils/cache.js';
+import { cacheControlMiddleware } from './utils/httpCache.js';
 
 let dbConnected = false;
 
@@ -225,9 +227,17 @@ app.use(cookieParser());
 app.use(SentryExport.Handlers.requestHandler());
 app.use(SentryExport.Handlers.tracingHandler());
 app.use(requestLogger);
+app.use(cacheControlMiddleware);
 
-// Static files
-app.use('/uploads', express.static('uploads'));
+// Static files — Cache-Control long (CDN/browser) pour logos/uploads locaux
+app.use('/uploads', express.static('uploads', {
+  maxAge: '1d',
+  etag: true,
+  lastModified: true,
+  setHeaders(res) {
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  },
+}));
 
 // Documentation API
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
@@ -354,16 +364,25 @@ app.use((err, req, res, next) => {
 
 const PORT = config.port;
 
-async function verifyDatabaseConnection() {
-  try {
-    await prisma.$connect();
-    dbConnected = true;
-    logger.info('Database connection established successfully');
-  } catch (error) {
-    dbConnected = false;
-    logger.error({ err: error }, 'Database connection failed');
-    throw error;
+async function verifyDatabaseConnection(maxAttempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await prisma.$connect();
+      dbConnected = true;
+      logger.info({ attempt }, 'Database connection established successfully');
+      return;
+    } catch (error) {
+      lastError = error;
+      dbConnected = false;
+      logger.warn({ err: error, attempt, maxAttempts }, 'Database connection attempt failed');
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+      }
+    }
   }
+  logger.error({ err: lastError }, 'Database connection failed after 3 attempts');
+  throw lastError;
 }
 
 function getLocalIP() {
@@ -406,7 +425,9 @@ if (process.env.NODE_ENV !== 'test') httpServer.listen(PORT, '0.0.0.0', async ()
   };
 
   try {
-    await verifyDatabaseConnection();
+    const cacheInfo = await initCache();
+    logger.info({ backend: cacheInfo.backend || getCacheBackend() }, 'Cache layer ready');
+    await verifyDatabaseConnection(3);
     const cloudinaryOk = await verifyCloudinary();
     if (!cloudinaryOk) {
       logger.warn('⚠️  Cloudinary non configuré — les uploads d\'images et PDF seront rejetés. Vérifiez CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET dans le dashboard Render.');

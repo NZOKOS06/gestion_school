@@ -12,6 +12,16 @@ import {
   enforceModuleConstraints,
   moduleFlagsForPlan,
 } from '../config/v1Modules.js';
+import { cacheDel, CacheKeys } from '../utils/cache.js';
+
+async function invalidateTenantConfigCache(tenantId) {
+  if (!tenantId) return;
+  const tenant = await rawPrisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { slug: true },
+  });
+  if (tenant?.slug) await cacheDel(CacheKeys.tenantConfig(tenant.slug));
+}
 
 const VALID_CONFIG_FIELDS = new Set([
   'nomApp', 'nom', 'sloganApp', 'descriptionAbout', 'anneeCreation', 'rccm',
@@ -237,6 +247,7 @@ export const updateTenantConfig = async (req, res) => {
       include: { ipWhitelist: true }
     });
 
+    await invalidateTenantConfigCache(tenantId);
     res.json(config);
   } catch (error) {
     log.error({ err: error, id: req.params.id, body: req.body }, 'Update tenant config error');
@@ -248,6 +259,7 @@ export const deleteTenant = async (req, res) => {
   try {
     const tenant = await prisma.tenant.update({ where: { id: req.params.id }, data: { actif: false } });
 
+    await cacheDel(CacheKeys.tenantConfig(tenant.slug));
     // Enregistrer dans les logs d'audit
     await logAudit(req, 'tenant_deleted', 'Tenant', tenant.id, {
       nom: tenant.nom,
@@ -378,12 +390,13 @@ export const uploadLogo = async (req, res) => {
       }
       
       const logoUrl = req.file.path;
-      const config = await prisma.tenantConfig.upsert({
+      await prisma.tenantConfig.upsert({
         where: { tenantId: req.params.id },
         update: { logoUrl },
         create: { tenantId: req.params.id, logoUrl }
       });
-      
+
+      await invalidateTenantConfigCache(req.params.id);
       res.json({ logoUrl });
     });
   } catch (error) {
@@ -405,12 +418,13 @@ export const uploadBackgroundImage = async (req, res) => {
       }
       
       const backgroundImageUrl = req.file.path;
-      const config = await prisma.tenantConfig.upsert({
+      await prisma.tenantConfig.upsert({
         where: { tenantId: req.params.id },
         update: { backgroundImageUrl },
         create: { tenantId: req.params.id, backgroundImageUrl }
       });
-      
+
+      await invalidateTenantConfigCache(req.params.id);
       res.json({ backgroundImageUrl });
     });
   } catch (error) {
@@ -432,12 +446,13 @@ export const uploadHeroImage = async (req, res) => {
       }
       
       const heroImageUrl = req.file.path;
-      const config = await prisma.tenantConfig.upsert({
+      await prisma.tenantConfig.upsert({
         where: { tenantId: req.params.id },
         update: { heroImageUrl },
         create: { tenantId: req.params.id, heroImageUrl }
       });
-      
+
+      await invalidateTenantConfigCache(req.params.id);
       res.json({ heroImageUrl });
     });
   } catch (error) {
@@ -459,12 +474,13 @@ export const uploadFeaturesImage = async (req, res) => {
       }
       
       const featuresImageUrl = req.file.path;
-      const config = await prisma.tenantConfig.upsert({
+      await prisma.tenantConfig.upsert({
         where: { tenantId: req.params.id },
         update: { featuresImageUrl },
         create: { tenantId: req.params.id, featuresImageUrl }
       });
-      
+
+      await invalidateTenantConfigCache(req.params.id);
       res.json({ featuresImageUrl });
     });
   } catch (error) {
@@ -486,12 +502,13 @@ export const uploadAboutImage = async (req, res) => {
       }
 
       const aboutImageUrl = req.file.path;
-      const config = await prisma.tenantConfig.upsert({
+      await prisma.tenantConfig.upsert({
         where: { tenantId: req.params.id },
         update: { aboutImageUrl },
         create: { tenantId: req.params.id, aboutImageUrl }
       });
 
+      await invalidateTenantConfigCache(req.params.id);
       res.json({ aboutImageUrl });
     });
   } catch (error) {
@@ -513,12 +530,13 @@ export const uploadHeroVideo = async (req, res) => {
       }
 
       const heroVideoUrl = req.file.path;
-      const config = await prisma.tenantConfig.upsert({
+      await prisma.tenantConfig.upsert({
         where: { tenantId: req.params.id },
         update: { heroVideoUrl },
         create: { tenantId: req.params.id, heroVideoUrl }
       });
 
+      await invalidateTenantConfigCache(req.params.id);
       res.json({ heroVideoUrl });
     });
   } catch (error) {
@@ -540,12 +558,13 @@ export const uploadFeaturesVideo = async (req, res) => {
       }
 
       const featuresVideoUrl = req.file.path;
-      const config = await prisma.tenantConfig.upsert({
+      await prisma.tenantConfig.upsert({
         where: { tenantId: req.params.id },
         update: { featuresVideoUrl },
         create: { tenantId: req.params.id, featuresVideoUrl }
       });
 
+      await invalidateTenantConfigCache(req.params.id);
       res.json({ featuresVideoUrl });
     });
   } catch (error) {
@@ -567,12 +586,13 @@ export const uploadAboutVideo = async (req, res) => {
       }
 
       const aboutVideoUrl = req.file.path;
-      const config = await prisma.tenantConfig.upsert({
+      await prisma.tenantConfig.upsert({
         where: { tenantId: req.params.id },
         update: { aboutVideoUrl },
         create: { tenantId: req.params.id, aboutVideoUrl }
       });
 
+      await invalidateTenantConfigCache(req.params.id);
       res.json({ aboutVideoUrl });
     });
   } catch (error) {

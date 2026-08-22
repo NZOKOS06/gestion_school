@@ -2,9 +2,11 @@ import { prisma, rawPrisma } from '../utils/prisma.js';
 import { uploadLogo as cloudUploadLogo } from '../utils/cloudinary.js';
 import { createLogger } from '../utils/logger.js';
 import { derivePalette } from '../utils/themeEngine.js';
+import { cacheGet, cacheSet, cacheDel, CacheKeys } from '../utils/cache.js';
+import { withCdnImages } from '../utils/httpCache.js';
 
 const log = createLogger('ConfigController');
-
+const CONFIG_CACHE_TTL = 120;
 const SCHEMA_CONFIG_FIELDS = new Set([
   'nomEcole', 'slogan', 'logoUrl', 'faviconUrl', 'backgroundImageUrl', 'loaderUrl',
   'couleurPrimaire', 'couleurSecondaire', 'couleurTexte', 'couleurAlerte', 'couleurErreur', 'couleurSucces',
@@ -82,6 +84,13 @@ const sanitizeConfigBody = (body) => {
 export const getBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
+    const cacheKey = CacheKeys.tenantConfig(slug);
+
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.json(cached);
+    }
 
     const tenant = await rawPrisma.tenant.findFirst({
       where: { slug, actif: true },
@@ -113,7 +122,7 @@ export const getBySlug = async (req, res) => {
       periodesActives = anneeActive?.periodes || [];
     }
 
-    res.json({
+    const payload = withCdnImages({
       id: tenant.id,
       slug: tenant.slug,
       nom: tenant.nom,
@@ -128,7 +137,6 @@ export const getBySlug = async (req, res) => {
       anneeScolaireActive: anneeActive
         ? { id: anneeActive.id, libelle: anneeActive.libelle, referentielVersionId: anneeActive.referentielVersionId }
         : null,
-      // UI aliases
       nomApp: config.nomEcole || tenant.nom,
       moduleAbsences: config.modulePresences ?? true,
       moduleActualites: true,
@@ -163,6 +171,10 @@ export const getBySlug = async (req, res) => {
         actualites: true,
       },
     });
+
+    await cacheSet(cacheKey, payload, CONFIG_CACHE_TTL);
+    res.setHeader('X-Cache', 'MISS');
+    res.json(payload);
   } catch (error) {
     log.error({ err: error }, 'getBySlug error');
     res.status(500).json({ error: 'Internal server error' });
@@ -221,6 +233,7 @@ export const updateBySlug = async (req, res) => {
       include: { joursEcole: true, ipWhitelist: true },
     });
 
+    await cacheDel(CacheKeys.tenantConfig(slug));
     res.json(config);
   } catch (error) {
     log.error({ err: error, slug: req.params.slug, body: req.body }, 'updateBySlug error');
@@ -259,6 +272,7 @@ export const uploadLogoBySlug = async (req, res) => {
         create: { tenantId: tenant.id, logoUrl },
       });
 
+      await cacheDel(CacheKeys.tenantConfig(slug));
       res.json({ logoUrl });
     });
   } catch (error) {

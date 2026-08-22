@@ -92,7 +92,8 @@ const ROLE_REDIRECTIONS = {
   parent: '/parent/dashboard',
 };
 
-// Protected Route component
+// Garde UX côté navigateur uniquement — le contrôle d'accès réel est sur le serveur
+// (authenticate + requireRole + requireTenantMatch). Ne jamais se fier au seul front.
 const ProtectedRoute = ({ allowedRoles }) => {
   const { user, loading } = useAuth();
   const location = useLocation();

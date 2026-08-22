@@ -18,6 +18,20 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: gestschool-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+
   server:
     build:
       context: ./server
@@ -26,6 +40,7 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://gestschool:gestschool123@db:5432/gestschool?schema=public
+      REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
@@ -45,6 +60,8 @@ services:
       - "3000:3000"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - server_uploads:/app/uploads
@@ -68,4 +85,5 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   server_uploads:

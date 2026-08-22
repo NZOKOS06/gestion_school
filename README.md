@@ -14,7 +14,8 @@
 | Temps réel | Socket.IO 4 |
 | Auth | JWT dual-token (cookies HttpOnly + refresh rotation) |
 | Tests | Vitest (unitaire + intégration) + Playwright (E2E) |
-| Infra | Docker Compose, Nginx, Render |
+| Infra prod | Vercel (front), Render (API), Neon (Postgres), Cloudinary (médias) |
+| Infra local | Docker Compose, Nginx |
 
 ---
 
@@ -155,6 +156,17 @@ URL de l'école démo : http://localhost:5173/p/demo
 
 ## Architecture multi-tenant
 
+Chaque école = un `tenant` (slug / sous-domaine). Les routes API passent par `tenantMiddleware` + `authenticate` / `requireRole` / `requireTenantMatch` côté **serveur** (le `ProtectedRoute` React n’est qu’une UX).
+
+### Cache & performance (3 couches)
+
+1. **Redis** (`REDIS_URL`) — config publique (`/api/config/:slug`) et profils auth (TTL ~60–120 s). Sans Redis → cache mémoire process.
+2. **CDN Cloudinary** — URLs images réécrites avec `f_auto,q_auto,w_*` ; uploads locaux `/uploads` avec `Cache-Control` long.
+3. **Navigateur / PWA** — Service Worker CacheFirst sur images Cloudinary + uploads ; StaleWhileRevalidate sur la config publique. Axios : max **3** retries (réseau / 5xx / 429).
+
+Connexion Postgres au démarrage : **3** tentatives max.
+
+
 Chaque établissement accède à son espace via :
 
 - **Sous-domaine** (production) : `ecole.gestschool.com`
@@ -251,7 +263,82 @@ JWT_SECRET=chaine-aleatoire-min-32-chars
 JWT_REFRESH_SECRET=autre-chaine-differente
 ```
 
-### Go-live (production)
+### Go-live (production) — Render + Vercel + Neon + Cloudinary
+
+| Service | Rôle |
+|---------|------|
+| **Vercel** | Frontend React (`client/`) — CDN assets, PWA |
+| **Render** | API Node (`server/`) — Web Service Docker |
+| **Neon** | PostgreSQL managé — données multi-tenant |
+| **Cloudinary** | Images, logos, PDF (bulletins, reçus) — CDN médias |
+
+#### 1. Neon
+
+1. Créer un projet sur [neon.tech](https://neon.tech) (région proche de Render, ex. Frankfurt).
+2. Copier **Pooled connection** → `DATABASE_URL` sur Render.
+3. Copier **Direct connection** → `DIRECT_DATABASE_URL` sur Render (migrations au démarrage via `prisma migrate deploy`).
+4. Activer les backups automatiques Neon.
+
+#### 2. Render (API)
+
+1. New **Web Service** → repo GitHub, branche `main`, root `server/` ou Blueprint `render.yaml`.
+2. Variables d’environnement (minimum) :
+
+```bash
+DATABASE_URL=postgresql://...@ep-xxx-pooler....neon.tech/neondb?sslmode=require
+DIRECT_DATABASE_URL=postgresql://...@ep-xxx....neon.tech/neondb?sslmode=require
+JWT_SECRET=<32+ caractères aléatoires>
+JWT_REFRESH_SECRET=<autre chaîne ≥32 caractères>
+FRONTEND_URL=https://votre-app.vercel.app
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+RUN_SEED=false
+SUPER_ADMIN_EMAIL=...
+SUPER_ADMIN_PASSWORD=<mot de passe fort, ≠ SuperAdmin123!>
+```
+
+3. Optionnel : **Render Redis** ou [Upstash](https://upstash.com) → `REDIS_URL` (cache config/auth ; sinon cache mémoire).
+4. Health check : `/api/health`.
+
+#### 3. Vercel (frontend)
+
+1. Importer le repo, **Root Directory** = `client`.
+2. Variables :
+
+```bash
+VITE_API_URL=https://gestschool-api.onrender.com
+VITE_SOCKET_URL=https://gestschool-api.onrender.com
+VITE_DEFAULT_TENANT=demo
+```
+
+3. `vercel.json` gère déjà le SPA rewrite + cache long sur `/assets/`.
+
+#### 4. Cloudinary
+
+1. Compte [cloudinary.com](https://cloudinary.com) → Dashboard → API Keys.
+2. Les 3 variables sur Render ; les images passent par le CDN (`f_auto`, `q_auto` côté API).
+
+#### 5. CORS & cookies
+
+- `FRONTEND_URL` sur Render = URL exacte Vercel (sans slash final).
+- Les origines `*.vercel.app` sont déjà autorisées dans l’API.
+- Cookies JWT : `withCredentials: true` côté client (déjà en place).
+
+#### 6. Bootstrap initial
+
+- Ne pas laisser `RUN_SEED=true` en prod.
+- Créer le super-admin manuellement ou seed unique avec `ALLOW_PROD_SEED=true` puis remettre `false`.
+- Vérifier : `GET https://votre-api.onrender.com/api/health` → `cloudinaryConfigured: true`.
+
+#### Checklist
+
+1. JWT forts + Cloudinary — `server/scripts/assert-prod-ready.js` (exécuté au boot Docker)
+2. `RUN_SEED=false`
+3. Backups Neon + test de restore
+4. SMTP (Brevo/Gmail) pour emails staff/parents
+
+### Go-live (production) — VPS / Docker Compose
 
 1. JWT forts et distincts + Cloudinary (reçus/PDF) — `server/scripts/assert-prod-ready.js`
 2. `RUN_SEED=false` (pas de comptes démo au boot Docker)
