@@ -18,9 +18,9 @@ const resolveTenant = async (req) => {
     }
   }
 
-  // b) URL /p/:slug
-  if (!slug && req.path.startsWith('/p/')) {
-    const match = req.path.match(/\/p\/([^\/]+)/);
+  // b) URL /e/:slug ou /p/:slug (legacy)
+  if (!slug && (req.path.startsWith('/e/') || req.path.startsWith('/p/') || req.originalUrl?.includes('/e/') || req.originalUrl?.includes('/p/'))) {
+    const match = (req.originalUrl || req.path).match(/\/(?:e|p)\/([^\/\?]+)/);
     if (match) slug = match[1];
   }
 

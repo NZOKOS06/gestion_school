@@ -1,4 +1,4 @@
-import { prisma } from '../utils/prisma.js';
+import { prisma, rawPrisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { syncEvenementRentree } from './calendrierScolaire.controller.js';
@@ -15,8 +15,12 @@ function addYears(date, years) {
 export const getAll = async (req, res) => {
   try {
     const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant required' });
+    }
 
-    const annees = await prisma.anneeScolaire.findMany({
+    // rawPrisma : évite les effets de bord de l'isolation sur les includes (périodes, référentiel)
+    const annees = await rawPrisma.anneeScolaire.findMany({
       where: { tenantId },
       include: {
         periodes: { orderBy: { index: 'asc' } },
@@ -26,10 +30,22 @@ export const getAll = async (req, res) => {
       orderBy: { dateDebut: 'desc' },
     });
 
-    res.json({ data: annees });
+    const data = annees.map((a) => ({
+      ...a,
+      periodes: (a.periodes || []).map((p) => ({
+        ...p,
+        poids: p.poids != null ? Number(p.poids) : null,
+      })),
+    }));
+
+    res.json({ data });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'Get all anneesScolaires error');
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error?.message || String(error),
+      code: error?.code || undefined,
+    });
   }
 };
 

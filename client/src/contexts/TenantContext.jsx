@@ -31,7 +31,8 @@ export const TenantProvider = ({ children }) => {
       const parts = host.split('.');
       if (parts.length >= 3) return parts[0];
     }
-    const pathMatch = window.location.pathname.match(/^\/p\/([^/]+)/);
+    // Routes publiques : /e/:slug/... (actuel) et /p/:slug/... (legacy)
+    const pathMatch = window.location.pathname.match(/^\/(?:e|p)\/([^/]+)/);
     if (pathMatch) {
       localStorage.setItem('tenantSlug', pathMatch[1]);
       return pathMatch[1];

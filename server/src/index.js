@@ -329,6 +329,49 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+/** Diagnostic prod : compte tenants + tente config demo (sans secrets). */
+app.get('/api/health/bootstrap', async (req, res) => {
+  try {
+    const tenantCount = await rawPrisma.tenant.count();
+    const staffCount = await rawPrisma.staff.count();
+    const demo = await rawPrisma.tenant.findFirst({
+      where: { slug: 'demo' },
+      select: { id: true, actif: true, nom: true },
+    });
+    const system = await rawPrisma.tenant.findFirst({
+      where: { slug: 'system' },
+      select: { id: true, actif: true },
+    });
+    const superAdmin = system
+      ? await rawPrisma.staff.findFirst({
+          where: { tenantId: system.id, role: 'super_admin' },
+          select: { email: true, actif: true },
+        })
+      : null;
+    let anneeProbe = null;
+    if (demo) {
+      try {
+        const n = await rawPrisma.anneeScolaire.count({ where: { tenantId: demo.id } });
+        anneeProbe = { ok: true, count: n };
+      } catch (e) {
+        anneeProbe = { ok: false, message: e.message, code: e.code };
+      }
+    }
+    res.json({
+      tenantCount,
+      staffCount,
+      demo,
+      system: !!system,
+      superAdminEmail: superAdmin?.email || null,
+      superAdminActif: superAdmin?.actif ?? null,
+      anneeProbe,
+      tip: 'Super-admin : utilisez SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD définis sur Render (pas SuperAdmin123!).',
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message, code: e.code });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

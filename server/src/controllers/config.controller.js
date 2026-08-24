@@ -104,22 +104,38 @@ export const getBySlug = async (req, res) => {
       });
     }
 
-    const config = tenant.config || {};
+    const cfg = tenant.config;
+    const num = (v, fallback = 0) => (v == null ? fallback : Number(v));
 
     let periodesActives = [];
     let anneeActive = null;
-    if (config.anneeScolaireActiveId) {
-      anneeActive = await rawPrisma.anneeScolaire.findFirst({
-        where: { id: config.anneeScolaireActiveId, tenantId: tenant.id },
-        include: { periodes: { orderBy: { index: 'asc' } } },
-      });
-      periodesActives = anneeActive?.periodes || [];
-    } else {
-      anneeActive = await rawPrisma.anneeScolaire.findFirst({
-        where: { tenantId: tenant.id, actif: true },
-        include: { periodes: { orderBy: { index: 'asc' } } },
-      });
-      periodesActives = anneeActive?.periodes || [];
+    try {
+      if (cfg?.anneeScolaireActiveId) {
+        anneeActive = await rawPrisma.anneeScolaire.findFirst({
+          where: { id: cfg.anneeScolaireActiveId, tenantId: tenant.id },
+          include: { periodes: { orderBy: { index: 'asc' } } },
+        });
+      } else {
+        anneeActive = await rawPrisma.anneeScolaire.findFirst({
+          where: { tenantId: tenant.id, actif: true },
+          include: { periodes: { orderBy: { index: 'asc' } } },
+        });
+      }
+      periodesActives = (anneeActive?.periodes || []).map((p) => ({
+        id: p.id,
+        index: p.index,
+        libelle: p.libelle,
+        dateDebut: p.dateDebut,
+        dateFin: p.dateFin,
+        dateEvaluationDebut: p.dateEvaluationDebut,
+        dateEvaluationFin: p.dateEvaluationFin,
+        poids: p.poids != null ? Number(p.poids) : null,
+        concerneCycles: p.concerneCycles,
+      }));
+    } catch (anneeErr) {
+      log.warn({ err: anneeErr, slug }, 'getBySlug: année/périodes indisponibles');
+      anneeActive = null;
+      periodesActives = [];
     }
 
     const payload = withCdnImages({
@@ -129,55 +145,110 @@ export const getBySlug = async (req, res) => {
       numeroAutorisation: tenant.numeroAutorisation,
       modeMaintenance: tenant.modeMaintenance || false,
       customDomain: tenant.customDomain || null,
-      ...config,
-      joursEcole: config.joursEcole?.map(j => j.jour) || [],
-      ipWhitelist: config.ipWhitelist?.map(i => i.ip) || [],
-      conventionPeriode: config.conventionPeriode || 'trimestre',
+      nomEcole: cfg?.nomEcole || tenant.nom,
+      slogan: cfg?.slogan ?? null,
+      logoUrl: cfg?.logoUrl || null,
+      faviconUrl: cfg?.faviconUrl || cfg?.logoUrl || null,
+      backgroundImageUrl: cfg?.backgroundImageUrl || null,
+      loaderUrl: cfg?.loaderUrl || null,
+      couleurPrimaire: cfg?.couleurPrimaire || '#1e3a8a',
+      couleurSecondaire: cfg?.couleurSecondaire || '#0d9488',
+      couleurTexte: cfg?.couleurTexte || '#1f2937',
+      couleurAlerte: cfg?.couleurAlerte || '#f59e0b',
+      couleurErreur: cfg?.couleurErreur || '#ef4444',
+      couleurSucces: cfg?.couleurSucces || '#22c55e',
+      darkModeDefault: cfg?.darkModeDefault ?? false,
+      police: cfg?.police || 'Plus Jakarta Sans',
+      adresse: cfg?.adresse ?? null,
+      telephone: cfg?.telephone ?? null,
+      email: cfg?.email ?? null,
+      devise: cfg?.devise || 'FCFA',
+      messageAccueil: cfg?.messageAccueil ?? null,
+      anneeScolaireActiveId: cfg?.anneeScolaireActiveId ?? null,
+      notationSur: cfg?.notationSur ?? 20,
+      seuilReussite: num(cfg?.seuilReussite, 10),
+      nombrePeriodes: cfg?.nombrePeriodes ?? 3,
+      conventionPeriode: cfg?.conventionPeriode || 'trimestre',
+      heureDebut: cfg?.heureDebut || '08:00',
+      heureFin: cfg?.heureFin || '17:00',
+      fraisInscriptionDefault: num(cfg?.fraisInscriptionDefault, 0),
+      fraisScolariteDefault: num(cfg?.fraisScolariteDefault, 0),
+      moduleNotes: cfg?.moduleNotes ?? true,
+      moduleBulletins: cfg?.moduleBulletins ?? true,
+      modulePresences: cfg?.modulePresences ?? false,
+      modulePaiements: cfg?.modulePaiements ?? true,
+      moduleEmploiDuTemps: cfg?.moduleEmploiDuTemps ?? false,
+      moduleParents: cfg?.moduleParents ?? false,
+      moduleEleves: cfg?.moduleEleves ?? true,
+      moduleSanctions: cfg?.moduleSanctions ?? false,
+      moduleBiblio: cfg?.moduleBiblio ?? false,
+      moduleCantine: cfg?.moduleCantine ?? false,
+      moduleTransport: cfg?.moduleTransport ?? false,
+      moduleCertificats: cfg?.moduleCertificats ?? false,
+      moduleClasses: cfg?.moduleClasses ?? true,
+      moduleInscriptions: cfg?.moduleInscriptions ?? true,
+      modulePersonnel: cfg?.modulePersonnel ?? true,
+      moduleRapports: cfg?.moduleRapports ?? true,
+      dureeSessionMinutes: cfg?.dureeSessionMinutes ?? 480,
+      forcer2FA: cfg?.forcer2FA ?? false,
+      privacyPolicyUrl: cfg?.privacyPolicyUrl ?? null,
+      termsOfServiceUrl: cfg?.termsOfServiceUrl ?? null,
+      cookiePolicyUrl: cfg?.cookiePolicyUrl ?? null,
+      cookieBannerText: cfg?.cookieBannerText ?? null,
+      cookieBannerEnabled: cfg?.cookieBannerEnabled ?? true,
+      analyticsEnabled: cfg?.analyticsEnabled ?? false,
+      joursEcole: cfg?.joursEcole?.map((j) => j.jour) || [],
+      ipWhitelist: cfg?.ipWhitelist?.map((i) => i.ip) || [],
       periodesScolaires: periodesActives,
       anneeScolaireActive: anneeActive
         ? { id: anneeActive.id, libelle: anneeActive.libelle, referentielVersionId: anneeActive.referentielVersionId }
         : null,
-      nomApp: config.nomEcole || tenant.nom,
-      moduleAbsences: config.modulePresences ?? true,
+      nomApp: cfg?.nomEcole || tenant.nom,
+      moduleAbsences: cfg?.modulePresences ?? true,
       moduleActualites: true,
       moduleMatieres: true,
-      logoUrl: config.logoUrl || null,
-      backgroundImageUrl: config.backgroundImageUrl || null,
-      faviconUrl: config.faviconUrl || config.logoUrl || null,
       cssVariables: derivePalette({
-        couleurPrimaire: config.couleurPrimaire,
-        couleurSecondaire: config.couleurSecondaire,
-        couleurTexte: config.couleurTexte,
-        couleurAlerte: config.couleurAlerte,
-        couleurErreur: config.couleurErreur,
-        couleurSucces: config.couleurSucces,
-        police: config.police,
+        couleurPrimaire: cfg?.couleurPrimaire,
+        couleurSecondaire: cfg?.couleurSecondaire,
+        couleurTexte: cfg?.couleurTexte,
+        couleurAlerte: cfg?.couleurAlerte,
+        couleurErreur: cfg?.couleurErreur,
+        couleurSucces: cfg?.couleurSucces,
+        police: cfg?.police,
       }),
       modules: {
-        eleves: config.moduleEleves ?? true,
-        classes: config.moduleClasses ?? true,
-        notes: config.moduleNotes ?? true,
-        bulletins: config.moduleBulletins ?? true,
-        presences: config.modulePresences ?? true,
-        absences: config.modulePresences ?? true,
-        paiements: config.modulePaiements ?? true,
-        emploiDuTemps: config.moduleEmploiDuTemps ?? true,
-        parents: config.moduleParents ?? true,
-        sanctions: config.moduleSanctions ?? true,
-        certificats: config.moduleCertificats ?? true,
-        personnel: config.modulePersonnel ?? true,
-        rapports: config.moduleRapports ?? true,
-        inscriptions: config.moduleInscriptions ?? true,
+        eleves: cfg?.moduleEleves ?? true,
+        classes: cfg?.moduleClasses ?? true,
+        notes: cfg?.moduleNotes ?? true,
+        bulletins: cfg?.moduleBulletins ?? true,
+        presences: cfg?.modulePresences ?? true,
+        absences: cfg?.modulePresences ?? true,
+        paiements: cfg?.modulePaiements ?? true,
+        emploiDuTemps: cfg?.moduleEmploiDuTemps ?? true,
+        parents: cfg?.moduleParents ?? true,
+        sanctions: cfg?.moduleSanctions ?? true,
+        certificats: cfg?.moduleCertificats ?? true,
+        personnel: cfg?.modulePersonnel ?? true,
+        rapports: cfg?.moduleRapports ?? true,
+        inscriptions: cfg?.moduleInscriptions ?? true,
         actualites: true,
       },
     });
 
-    await cacheSet(cacheKey, payload, CONFIG_CACHE_TTL);
+    try {
+      await cacheSet(cacheKey, payload, CONFIG_CACHE_TTL);
+    } catch (cacheErr) {
+      log.warn({ err: cacheErr, slug }, 'getBySlug: cacheSet ignoré');
+    }
     res.setHeader('X-Cache', 'MISS');
     res.json(payload);
   } catch (error) {
-    log.error({ err: error }, 'getBySlug error');
-    res.status(500).json({ error: 'Internal server error' });
+    log.error({ err: error, slug: req.params.slug }, 'getBySlug error');
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error?.message || String(error),
+      code: error?.code || undefined,
+    });
   }
 };
 
