@@ -7,6 +7,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: [
+        'icons/favicon-32.png',
+        'icons/favicon-48.png',
+        'icons/apple-touch-icon.png',
+        'icons/icon-192.png',
+        'icons/icon-512.png',
+        'icons/icon-512-maskable.png',
+      ],
       // Cache navigateur actif (images CDN + uploads) — ne pas selfDestroying
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
@@ -77,14 +85,14 @@ export default defineConfig({
         name: 'GestSchool',
         short_name: 'GestSchool',
         description: 'Plateforme SaaS de gestion scolaire',
-        theme_color: '#16A34A',
-        background_color: '#0F1117',
+        theme_color: '#0B1220',
+        background_color: '#0B1220',
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       }
     })
