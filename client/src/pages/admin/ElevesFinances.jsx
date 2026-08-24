@@ -3,7 +3,7 @@ import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import {
   PageHeader, DataTable, Badge, Button, SearchInput,
-  Modal, Input, Select, FormField, FilterBar, Spinner, Card,
+  Modal, Input, Select, FormField, FilterBar, Spinner, Card, KpiCard, KpiGrid,
 } from '../../components/ui';
 import { Eye, Wallet, CheckCircle, AlertCircle, Clock, Printer, FileDown } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -176,13 +176,25 @@ const EleveDetailModal = ({ open, onClose, eleve, detail, loadingDetail, onPaid,
     }
     setPaying(true);
     try {
-      await post('/api/paiements/batch', {
+      const res = await post('/api/paiements/batch', {
         inscriptionId: inscriptionActuelle.id,
         montant: amount,
         modePaiement,
         motif: motif || undefined,
       });
-      toast.success(`${formatPrice(amount)} enregistré avec succès !`);
+      const recus = res?.recusPartages || [];
+      if (recus.length > 1) {
+        toast.success(`${formatPrice(amount)} → ${recus.length} reçus partagés générés`);
+        // Ouvre le premier reçu ; les autres restent imprimables depuis l'historique
+        if (recus[0]?.id) {
+          openPdf(`/api/paiements/${recus[0].id}/recu-pdf`, `recu-${recus[0].numeroRecu}.pdf`);
+        }
+      } else {
+        toast.success(`${formatPrice(amount)} enregistré avec succès !`);
+        if (recus[0]?.id) {
+          openPdf(`/api/paiements/${recus[0].id}/recu-pdf`, `recu-${recus[0].numeroRecu}.pdf`);
+        }
+      }
       setMontantSaisi('');
       setMotif('');
       onPaid();
@@ -231,22 +243,17 @@ const EleveDetailModal = ({ open, onClose, eleve, detail, loadingDetail, onPaid,
       ) : (
         <div className="space-y-5">
           {/* Résumé financier */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: 'Classe', value: inscriptionActuelle?.classe?.nom || '—' },
-              { label: 'Solde restant', value: formatPrice(solde), danger: solde > 0 },
-              { label: 'Total dû', value: formatPrice(totalDu) },
-              { label: 'Parent', value: detail.parent ? `${detail.parent.prenom} ${detail.parent.nom}` : '—' },
-            ].map((item) => (
-              <div key={item.label} className="rounded-xl p-3"
-                style={{ background: 'var(--surface-overlay)', border: '1px solid var(--border-subtle)' }}>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
-                <p className="text-sm font-bold" style={{ color: item.danger ? 'var(--color-danger)' : 'var(--text-primary)' }}>
-                  {item.value}
-                </p>
-              </div>
-            ))}
-          </div>
+          <KpiGrid cols={4}>
+            <KpiCard label="Classe" value={inscriptionActuelle?.classe?.nom || '—'} icon={Wallet} color="blue" />
+            <KpiCard label="Solde restant" value={formatPrice(solde)} icon={AlertCircle} color={solde > 0 ? 'red' : 'green'} />
+            <KpiCard label="Total dû" value={formatPrice(totalDu)} icon={CheckCircle} color="primary" />
+            <KpiCard
+              label="Parent"
+              value={detail.parent ? `${detail.parent.prenom} ${detail.parent.nom}` : '—'}
+              icon={Clock}
+              color="blue"
+            />
+          </KpiGrid>
 
           {/* Tabs */}
           <div className="flex gap-2 p-1 rounded-xl" style={{ background: 'var(--surface-overlay)' }}>

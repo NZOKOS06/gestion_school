@@ -17,13 +17,13 @@ const PublicNavbar = ({ config, links, loginLabel = 'Connexion', menuOuvert, set
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-[72px]">
-            <Link to="/" className="flex items-center gap-2.5 shrink-0">
+            <Link to="/" className="flex items-center gap-2.5 shrink-0 min-w-0">
               {config?.logoUrl ? (
-                <img src={config.logoUrl} alt={nomApp} className="h-9 w-auto" />
+                <img src={config.logoUrl} alt={nomApp} className="h-8 sm:h-9 w-auto shrink-0" />
               ) : (
-                <GraduationCap className="h-7 w-7" style={{ color: 'var(--color-primary)' }} />
+                <GraduationCap className="h-7 w-7 shrink-0" style={{ color: 'var(--color-primary)' }} />
               )}
-              <span className="text-xl font-semibold tracking-tight" style={{ color: 'var(--color-primary)' }}>
+              <span className="text-base sm:text-xl font-semibold tracking-tight truncate max-w-[140px] sm:max-w-none" style={{ color: 'var(--color-primary)' }}>
                 {nomApp}
               </span>
             </Link>
@@ -63,7 +63,7 @@ const PublicNavbar = ({ config, links, loginLabel = 'Connexion', menuOuvert, set
 
               <button
                 type="button"
-                className="md:hidden p-2 rounded-lg hover:bg-[var(--surface-hover)]"
+                className="md:hidden p-2 rounded-lg hover:bg-[var(--surface-hover)] min-h-[44px] min-w-[44px] flex items-center justify-center"
                 style={{ color: 'var(--text-secondary)' }}
                 onClick={() => setMenuOuvert(true)}
                 aria-label="Ouvrir le menu"

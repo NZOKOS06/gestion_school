@@ -13,6 +13,7 @@ import {
   KeyRound,
   Search,
   AlignJustify,
+  MoreHorizontal,
 } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -23,8 +24,11 @@ import { useDensity } from '../../contexts/DensityContext';
 import CommandPalette from '../CommandPalette';
 import { buildBreadcrumbs, ROLE_DISPLAY_LABELS } from './navConfig';
 
+const BOTTOM_NAV_SLOTS = 4;
+
 /**
  * Unified app shell for admin / enseignant / parent / caissier.
+ * Mobile (< lg): bottom nav + drawer. Desktop: fixed sidebar.
  */
 const AppShell = ({
   navGroups,
@@ -62,6 +66,14 @@ const AppShell = ({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Close drawer on route change (mobile) — évite focus piégé + aria-hidden
+  useEffect(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setSidebarOpen(false);
+  }, [pathname]);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -88,7 +100,16 @@ const AppShell = ({
       .filter((g) => g.items.length > 0);
   }, [navGroups, isModuleActive, user?.role, t]);
 
+  const flatItems = useMemo(() => menuItems.flatMap((g) => g.items), [menuItems]);
+
+  const bottomNavItems = useMemo(() => {
+    const primary = flatItems.filter((i) => i.primary);
+    const pool = primary.length ? primary : flatItems;
+    return pool.slice(0, BOTTOM_NAV_SLOTS);
+  }, [flatItems]);
+
   const ariane = buildBreadcrumbs(pathname, routeLabels, homePath, homeLabel);
+  const currentCrumb = ariane[ariane.length - 1];
   const nomApp = config?.nomApp || 'GestSchool';
   const initials = `${user?.prenom?.[0] || ''}${user?.nom?.[0] || ''}`;
   const roleLabel = ROLE_DISPLAY_LABELS[user?.role] || user?.role || '';
@@ -104,6 +125,11 @@ const AppShell = ({
       }))
     );
   }, [commandPages, menuItems]);
+
+  const isNavActive = (path) => {
+    if (path === homePath || path === '/caissier') return pathname === path;
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
 
   const sidebarContent = (
     <div className="h-full flex flex-col" style={{ background: 'var(--surface-raised)' }}>
@@ -152,7 +178,7 @@ const AppShell = ({
                   to={item.path}
                   end={item.path === homePath || item.path === '/caissier'}
                   onClick={() => setSidebarOpen(false)}
-                  className="flex items-center gap-3 px-3 h-10 rounded-lg text-sm font-medium transition-all relative"
+                  className="flex items-center gap-3 px-3 h-11 rounded-lg text-sm font-medium transition-all relative"
                   style={({ isActive }) =>
                     isActive
                       ? {
@@ -207,7 +233,7 @@ const AppShell = ({
           <button
             type="button"
             onClick={handleLogout}
-            className="p-1.5 rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--color-danger)_10%,transparent)]"
+            className="p-2 rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--color-danger)_10%,transparent)]"
             title="Déconnexion"
             style={{ color: 'var(--text-muted)' }}
           >
@@ -218,16 +244,24 @@ const AppShell = ({
     </div>
   );
 
+  const compactPad = density === 'compact';
+
   return (
-    <div data-theme="admin" className="min-h-screen flex" style={{ background: 'var(--surface-base)' }}>
+    <div
+      data-theme="admin"
+      className="min-h-screen flex"
+      style={{ background: 'var(--surface-base)', '--sidebar-w': `${sidebarWidth}px` }}
+    >
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 lg:hidden"
           style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}
           onClick={() => setSidebarOpen(false)}
+          aria-hidden
         />
       )}
 
+      {/* Desktop sidebar */}
       <aside
         className="fixed inset-y-0 left-0 z-50 hidden lg:flex flex-col"
         style={{
@@ -240,21 +274,30 @@ const AppShell = ({
         {sidebarContent}
       </aside>
 
+      {/* Mobile drawer */}
       <aside
-        className="fixed inset-y-0 left-0 z-50 flex flex-col lg:hidden transition-transform duration-300"
+        className="fixed inset-y-0 left-0 z-50 flex flex-col lg:hidden transition-transform duration-300 ease-out"
         style={{
           width: sidebarWidth,
+          maxWidth: '88vw',
           borderRight: '1px solid var(--border-subtle)',
           background: 'var(--surface-raised)',
-          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-105%)',
+          pointerEvents: sidebarOpen ? 'auto' : 'none',
         }}
+        aria-hidden={!sidebarOpen}
+        inert={sidebarOpen ? undefined : ''}
       >
-        <div className="flex items-center justify-end p-3">
+        <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+          <span className="text-xs font-semibold uppercase tracking-wider px-2" style={{ color: 'var(--text-muted)' }}>
+            Menu
+          </span>
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="p-1.5 rounded-md"
+            className="p-2 rounded-md min-h-[44px] min-w-[44px] flex items-center justify-center"
             style={{ color: 'var(--text-muted)', background: 'var(--surface-hover)' }}
+            aria-label="Fermer le menu"
           >
             <X className="h-4 w-4" />
           </button>
@@ -262,31 +305,39 @@ const AppShell = ({
         {sidebarContent}
       </aside>
 
-      <div
-        id="app-shell-main"
-        className="flex-1 min-w-0 flex flex-col"
-        style={{ marginLeft: undefined }}
-      >
+      <div id="app-shell-main" className="flex-1 min-w-0 flex flex-col lg:ml-[var(--sidebar-w)]">
         <header
-          className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6"
+          className="sticky top-0 z-30 flex items-center justify-between gap-2 px-3 sm:px-6"
           style={{
-            height: 64,
+            height: 56,
             background: 'var(--surface-raised)',
             borderBottom: '1px solid var(--border-subtle)',
             boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+            paddingTop: 'env(safe-area-inset-top)',
           }}
         >
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {/* Desktop: no hamburger. Mobile: menu opens full nav (Plus also does) */}
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg"
+              className="lg:hidden p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
               style={{ color: 'var(--text-secondary)', background: 'var(--surface-hover)' }}
+              aria-label="Ouvrir le menu"
             >
               <Menu className="h-5 w-5" />
             </button>
 
-            <nav className="flex items-center gap-1 text-sm truncate">
+            {/* Mobile: page title only */}
+            <h1
+              className="lg:hidden text-[15px] font-semibold truncate"
+              style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}
+            >
+              {currentCrumb?.label || homeLabel}
+            </h1>
+
+            {/* Desktop breadcrumbs */}
+            <nav className="hidden lg:flex items-center gap-1 text-sm truncate">
               {ariane.map((crumb, i) => (
                 <span key={`${crumb.label}-${i}`} className="flex items-center gap-1">
                   {i > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-muted)' }} />}
@@ -307,28 +358,30 @@ const AppShell = ({
             </nav>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {showDate && (
               <span className="hidden md:inline text-xs font-medium capitalize" style={{ color: 'var(--text-muted)' }}>
                 {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </span>
             )}
 
+            {/* Search: icon on mobile, full on sm+ */}
             <button
               type="button"
               onClick={() => setCmdOpen(true)}
-              className="hidden sm:inline-flex items-center gap-2 h-8 px-2.5 rounded-lg text-xs"
+              className="inline-flex items-center justify-center gap-2 h-10 w-10 sm:h-8 sm:w-auto sm:px-2.5 rounded-lg text-xs min-h-[44px] sm:min-h-0"
               style={{
                 color: 'var(--text-muted)',
                 background: 'var(--surface-hover)',
                 border: '1px solid var(--border-subtle)',
               }}
               title="Recherche (Ctrl+K)"
+              aria-label="Rechercher"
             >
-              <Search className="h-3.5 w-3.5" />
-              <span>Rechercher…</span>
+              <Search className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline">Rechercher…</span>
               <kbd
-                className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono"
+                className="hidden sm:inline ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono"
                 style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}
               >
                 ⌘K
@@ -347,18 +400,21 @@ const AppShell = ({
               </button>
             )}
 
-            <ThemeToggle />
+            <div className="hidden sm:block">
+              <ThemeToggle />
+            </div>
 
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setNotifOpen((prev) => !prev)}
-                className="relative p-2 rounded-lg"
+                className="relative p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
                 style={{ color: 'var(--text-secondary)', background: 'var(--surface-hover)' }}
+                aria-label="Notifications"
               >
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--color-danger)] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[var(--color-danger)] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -380,7 +436,7 @@ const AppShell = ({
               trigger={
                 <button
                   type="button"
-                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition-opacity hover:opacity-80"
+                  className="h-9 w-9 sm:h-8 sm:w-8 rounded-full flex items-center justify-center text-xs font-bold transition-opacity hover:opacity-80"
                   style={{ background: 'var(--color-primary)', color: 'var(--color-primary-fg)' }}
                   title={`${user?.prenom} ${user?.nom}`}
                 >
@@ -402,6 +458,9 @@ const AppShell = ({
               <DropdownItem icon={KeyRound} onSelect={() => navigate('/changer-mot-de-passe')}>
                 {t('change_password') !== 'change_password' ? t('change_password') : 'Mot de passe'}
               </DropdownItem>
+              <div className="sm:hidden px-1 py-1">
+                <ThemeToggle />
+              </div>
               <DropdownSeparator />
               <DropdownItem icon={LogOut} danger onSelect={handleLogout}>
                 {t('logout') !== 'logout' ? t('logout') : 'Déconnexion'}
@@ -411,23 +470,67 @@ const AppShell = ({
         </header>
 
         <main
-          className="flex-1 overflow-y-auto"
+          className="flex-1 overflow-y-auto px-3 sm:px-5 lg:px-8"
           style={{
-            padding: density === 'compact' ? '1.25rem' : contentPadding,
+            paddingTop: compactPad ? '0.875rem' : '1.25rem',
+            paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
             maxWidth: contentMaxWidth,
             width: '100%',
           }}
         >
           <PageTransition />
         </main>
+
+        {/* Mobile bottom navigation */}
+        <nav
+          className="lg:hidden fixed bottom-0 inset-x-0 z-40"
+          style={{
+            background: 'var(--surface-raised)',
+            borderTop: '1px solid var(--border-subtle)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            boxShadow: '0 -4px 20px rgba(0,0,0,0.06)',
+          }}
+          aria-label="Navigation principale"
+        >
+          <div className="flex items-stretch justify-around h-14 max-w-lg mx-auto">
+            {bottomNavItems.map((item) => {
+              const active = isNavActive(item.path);
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  end={item.path === homePath || item.path === '/caissier'}
+                  className="flex-1 flex flex-col items-center justify-center gap-0.5 min-w-0 px-1"
+                  style={{ color: active ? 'var(--color-primary)' : 'var(--text-muted)' }}
+                >
+                  <Icon className="h-5 w-5 shrink-0" strokeWidth={active ? 2.25 : 1.75} />
+                  <span className="text-[10px] font-medium truncate max-w-full leading-tight">
+                    {item.label}
+                  </span>
+                </NavLink>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 min-w-0 px-1"
+              style={{ color: sidebarOpen ? 'var(--color-primary)' : 'var(--text-muted)' }}
+              aria-label="Plus de menus"
+            >
+              <MoreHorizontal className="h-5 w-5" strokeWidth={sidebarOpen ? 2.25 : 1.75} />
+              <span className="text-[10px] font-medium">Plus</span>
+            </button>
+          </div>
+        </nav>
       </div>
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} pages={palettePages} />
 
       <style>{`
         @media (min-width: 1024px) {
-          #app-shell-main {
-            margin-left: ${sidebarWidth}px;
+          #app-shell-main main {
+            padding: ${compactPad ? '1.25rem' : contentPadding} !important;
           }
         }
       `}</style>

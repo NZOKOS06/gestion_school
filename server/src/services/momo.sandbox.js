@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { prisma } from '../utils/prisma.js';
-import { applyPaymentToEcheance, applyPaymentCascade, syncInscriptionSolde, listByInscription } from './echeances.service.js';
+import { applyPaymentToEcheance, applyPaymentCascade, syncInscriptionSolde } from './echeances.service.js';
 import { buildRecuPdf } from './pdf/recu.pdf.js';
 import { loadSchoolPdfMeta } from './pdf/schoolMeta.js';
 import { uploadPdfBuffer, isCloudinaryConfigured } from '../utils/cloudinary.js';
@@ -73,6 +73,7 @@ async function resolveRecuParId(tenantId) {
 
 /**
  * Confirm sandbox payment → ACID paiement like caisse.
+ * Un montant multi-mois génère autant de reçus partagés que d'allocations.
  */
 export async function confirmSandboxPayment(reference, { tenantSlug = null } = {}) {
   const intent = getPending(reference);
@@ -91,13 +92,13 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
     throw err;
   }
 
-  const paiement = await prisma.$transaction(async (tx) => {
+  const { created } = await prisma.$transaction(async (tx) => {
     const inscription = await tx.inscription.findFirst({
       where: { id: intent.inscriptionId, tenantId: intent.tenantId },
     });
     if (!inscription) throw new Error('INSCRIPTION_NOT_FOUND');
 
-    let resolvedEcheanceId = intent.echeanceId || null;
+    let allocations = [];
 
     if (intent.echeanceId) {
       const ech = await tx.echeance.findFirst({
@@ -109,6 +110,12 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
       });
       if (!ech) throw new Error('ECHEANCE_NOT_FOUND');
       await applyPaymentToEcheance(tx, intent.echeanceId, intent.montant);
+      allocations = [{
+        echeanceId: intent.echeanceId,
+        libelle: ech.libelle,
+        montant: intent.montant,
+        dateEcheance: ech.dateEcheance,
+      }];
     } else {
       const cascade = await applyPaymentCascade(
         tx,
@@ -116,7 +123,14 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
         intent.inscriptionId,
         intent.montant
       );
-      resolvedEcheanceId = cascade.allocations[0]?.echeanceId || null;
+      allocations = cascade.allocations?.length
+        ? cascade.allocations
+        : [{
+          echeanceId: null,
+          libelle: intent.motif || 'Paiement Mobile Money',
+          montant: intent.montant,
+          dateEcheance: null,
+        }];
     }
 
     const lastPaiement = await tx.paiement.findFirst({
@@ -124,94 +138,132 @@ export async function confirmSandboxPayment(reference, { tenantSlug = null } = {
       orderBy: { numeroRecu: 'desc' },
       select: { numeroRecu: true },
     });
-    const numeroRecu = (lastPaiement?.numeroRecu || 0) + 1;
+    let nextNumero = (lastPaiement?.numeroRecu || 0) + 1;
+    const rows = [];
 
-    const created = await tx.paiement.create({
-      data: {
-        tenantId: intent.tenantId,
-        inscriptionId: intent.inscriptionId,
-        echeanceId: resolvedEcheanceId,
-        numeroRecu,
-        montant: intent.montant,
-        typePaiement: 'scolarite',
-        modePaiement: 'mobile_money',
-        reference: intent.reference,
-        motif: intent.motif,
-        recuParId,
-      },
-    });
+    for (const alloc of allocations) {
+      const isAvance = Boolean(alloc.avance) || /^avance/i.test(String(alloc.libelle || ''));
+      const row = await tx.paiement.create({
+        data: {
+          tenantId: intent.tenantId,
+          inscriptionId: intent.inscriptionId,
+          echeanceId: alloc.echeanceId || null,
+          numeroRecu: nextNumero,
+          montant: Number(alloc.montant),
+          typePaiement: isAvance ? 'autre' : 'scolarite',
+          modePaiement: 'mobile_money',
+          reference: intent.reference,
+          motif: isAvance
+            ? (alloc.libelle || 'Avance sur scolarité')
+            : (intent.motif || alloc.libelle || null),
+          recuParId,
+        },
+      });
+      rows.push({ paiement: row, allocation: alloc });
+      nextNumero += 1;
+    }
 
     await syncInscriptionSolde(tx, intent.tenantId, intent.inscriptionId);
-    return created;
+    return { created: rows };
   });
 
   intent.status = 'confirmed';
   pending.delete(reference);
 
-  // PDF optional
+  const primary = created[0]?.paiement;
+  if (!primary) throw new Error('PAIEMENT_NOT_CREATED');
+
+  const results = [];
   try {
-    const full = await prisma.paiement.findFirst({
-      where: { id: paiement.id },
-      include: {
-        inscription: {
-          include: {
-            eleve: {
-              select: {
-                prenom: true,
-                nom: true,
-                matricule: true,
-                parentId: true,
-                parent: { select: { id: true, prenom: true, nom: true } },
+    for (const item of created) {
+      const full = await prisma.paiement.findFirst({
+        where: { id: item.paiement.id },
+        include: {
+          inscription: {
+            include: {
+              eleve: {
+                select: {
+                  prenom: true,
+                  nom: true,
+                  matricule: true,
+                  parentId: true,
+                  parent: { select: { id: true, prenom: true, nom: true } },
+                },
               },
+              classe: { select: { nom: true } },
+              anneeScolaire: { select: { libelle: true } },
             },
-            classe: { select: { nom: true } },
-            anneeScolaire: { select: { libelle: true } },
           },
+          recuPar: { select: { prenom: true, nom: true } },
+          echeance: true,
         },
-        recuPar: { select: { prenom: true, nom: true } },
-      },
-    });
-    const meta = await loadSchoolPdfMeta(intent.tenantId);
-    const echeances = full.inscriptionId || full.inscription?.id
-      ? await listByInscription(intent.tenantId, full.inscriptionId || full.inscription.id)
-      : [];
-    const buffer = await buildRecuPdf({
-      ...meta,
-      numeroRecu: full.numeroRecu,
-      datePaiement: full.datePaiement,
-      montant: full.montant,
-      typePaiement: full.typePaiement,
-      modePaiement: full.modePaiement,
-      reference: full.reference,
-      motif: full.motif,
-      eleve: `${full.inscription.eleve.prenom} ${full.inscription.eleve.nom}`,
-      matricule: full.inscription.eleve.matricule,
-      classe: full.inscription.classe?.nom,
-      anneeScolaire: full.inscription.anneeScolaire?.libelle,
-      recuPar: full.recuPar ? `${full.recuPar.prenom} ${full.recuPar.nom}` : 'Mobile Money',
-      parent: full.inscription.eleve.parent
-        ? `${full.inscription.eleve.parent.prenom} ${full.inscription.eleve.parent.nom}`
-        : null,
-      echeances,
-    });
-    if (isCloudinaryConfigured()) {
-      try {
-        const pdfUrl = await uploadPdfBuffer(buffer, {
-          folder: 'gestschool/recus',
-          publicId: `recu-momo-${paiement.numeroRecu}`,
-        });
-        if (pdfUrl) {
-          await prisma.paiement.update({ where: { id: paiement.id }, data: { pdfUrl } });
-          full.pdfUrl = pdfUrl;
+      });
+      const meta = await loadSchoolPdfMeta(intent.tenantId);
+      const buffer = await buildRecuPdf({
+        ...meta,
+        numeroRecu: full.numeroRecu,
+        datePaiement: full.datePaiement,
+        montant: full.montant,
+        typePaiement: full.typePaiement,
+        modePaiement: full.modePaiement,
+        reference: full.reference,
+        motif: full.motif,
+        libelle: item.allocation?.libelle || full.echeance?.libelle || full.motif,
+        periode: item.allocation?.libelle || full.echeance?.libelle,
+        dateEcheance: item.allocation?.dateEcheance || full.echeance?.dateEcheance,
+        eleve: `${full.inscription.eleve.prenom} ${full.inscription.eleve.nom}`,
+        matricule: full.inscription.eleve.matricule,
+        classe: full.inscription.classe?.nom,
+        anneeScolaire: full.inscription.anneeScolaire?.libelle,
+        recuPar: full.recuPar ? `${full.recuPar.prenom} ${full.recuPar.nom}` : 'Mobile Money',
+        parent: full.inscription.eleve.parent
+          ? `${full.inscription.eleve.parent.prenom} ${full.inscription.eleve.parent.nom}`
+          : null,
+      });
+      if (isCloudinaryConfigured()) {
+        try {
+          const pdfUrl = await uploadPdfBuffer(buffer, {
+            folder: 'gestschool/recus',
+            publicId: `recu-momo-${full.numeroRecu}`,
+          });
+          if (pdfUrl) {
+            await prisma.paiement.update({ where: { id: full.id }, data: { pdfUrl } });
+            full.pdfUrl = pdfUrl;
+          }
+        } catch (upErr) {
+          log.warn({ err: upErr }, 'MoMo recu upload failed');
         }
-      } catch (upErr) {
-        log.warn({ err: upErr }, 'MoMo recu upload failed');
       }
+      results.push(full);
     }
-    await broadcastPaiement(tenantSlug, intent.tenantId, full);
-    return full;
+
+    if (results[0]) {
+      await broadcastPaiement(tenantSlug, intent.tenantId, results[0]);
+    }
+
+    return {
+      ...results[0],
+      paiements: results,
+      recusPartages: results.map((p) => ({
+        id: p.id,
+        numeroRecu: p.numeroRecu,
+        montant: Number(p.montant),
+        motif: p.motif,
+        pdfUrl: p.pdfUrl || null,
+      })),
+    };
   } catch (err) {
     log.warn({ err }, 'MoMo post-confirm extras failed');
-    return paiement;
+    return {
+      ...primary,
+      paiements: created.map((c) => c.paiement),
+      recusPartages: created.map((c) => ({
+        id: c.paiement.id,
+        numeroRecu: c.paiement.numeroRecu,
+        montant: Number(c.paiement.montant),
+        motif: c.paiement.motif,
+        pdfUrl: null,
+      })),
+    };
   }
 }

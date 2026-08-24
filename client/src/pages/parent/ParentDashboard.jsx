@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
-import { PageHeader, Card, KpiCard, Badge, Skeleton, EmptyState, Button } from '../../components/ui';
+import { PageHeader, Card, KpiCard, KpiGrid, Badge, Skeleton, EmptyState, Button } from '../../components/ui';
 import { Users, FileText, Wallet, CalendarX } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -31,16 +31,16 @@ const ParentDashboard = () => {
 
   if (loading) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8">
         <Skeleton height={28} width={220} />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <KpiGrid cols={4}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-xl p-5" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
+            <div key={i} className="rounded-xl p-3.5 sm:p-5" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
               <Skeleton height={12} width={96} className="mb-3" />
-              <Skeleton height={32} width={140} />
+              <Skeleton height={32} width={80} />
             </div>
           ))}
-        </div>
+        </KpiGrid>
       </div>
     );
   }
@@ -66,15 +66,17 @@ const ParentDashboard = () => {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <PageHeader
         title={`Bonjour ${user?.prenom || ''}`}
         subtitle="Suivez la scolarité de vos enfants"
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        {stats.map((stat, i) => <KpiCard key={i} {...stat} />)}
-      </div>
+      <KpiGrid cols={4}>
+        {stats.map((stat, i) => (
+          <KpiCard key={i} {...stat} />
+        ))}
+      </KpiGrid>
 
       {data.enfants?.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -85,35 +87,35 @@ const ParentDashboard = () => {
                   style={{ background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)', color: 'var(--color-primary)' }}>
                   {enfant.prenom?.[0]}{enfant.nom?.[0]}
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{enfant.prenom} {enfant.nom}</h3>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{enfant.classeNom} · {enfant.matricule}</p>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{enfant.prenom} {enfant.nom}</h3>
+                  <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{enfant.classeNom} · {enfant.matricule}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
                 <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Moyenne</p>
-                  <p className="font-bold" style={{ color: 'var(--color-primary)' }}>{enfant.moyenneGenerale ? Number(enfant.moyenneGenerale).toFixed(2) : '—'}</p>
+                  <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Moyenne</p>
+                  <p className="font-bold text-sm sm:text-base" style={{ color: 'var(--color-primary)' }}>{enfant.moyenneGenerale ? Number(enfant.moyenneGenerale).toFixed(2) : '—'}</p>
                 </div>
                 <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Rang</p>
-                  <p className="font-bold" style={{ color: 'var(--text-primary)' }}>{enfant.rang ? `${enfant.rang}e` : '—'}</p>
+                  <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Rang</p>
+                  <p className="font-bold text-sm sm:text-base" style={{ color: 'var(--text-primary)' }}>{enfant.rang ? `${enfant.rang}e` : '—'}</p>
                 </div>
                 <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Absences</p>
-                  <p className="font-bold" style={{ color: enfant.nbAbsencesNonJustifiees > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                  <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Absences</p>
+                  <p className="font-bold text-sm sm:text-base" style={{ color: enfant.nbAbsencesNonJustifiees > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
                     {enfant.nbAbsencesNonJustifiees ?? 0}
                   </p>
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
                 <Link to="/parent/bulletins" className="flex-1">
-                  <span className="block text-center text-xs font-medium py-2 rounded-md" style={{ background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', color: 'var(--color-primary)' }}>
+                  <span className="block text-center text-xs font-medium py-2.5 rounded-md min-h-[40px]" style={{ background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', color: 'var(--color-primary)' }}>
                     Voir bulletins
                   </span>
                 </Link>
                 <Link to="/parent/facturation" className="flex-1">
-                  <span className="block text-center text-xs font-medium py-2 rounded-md" style={{ background: 'var(--surface-overlay)', color: 'var(--text-secondary)' }}>
+                  <span className="block text-center text-xs font-medium py-2.5 rounded-md min-h-[40px]" style={{ background: 'var(--surface-overlay)', color: 'var(--text-secondary)' }}>
                     Facturation
                   </span>
                 </Link>
@@ -129,7 +131,7 @@ const ParentDashboard = () => {
             {data.notifications.slice(0, 5).map((notif) => (
               <div key={notif.id} className="flex items-start gap-3 p-3 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
                 <div className="h-2 w-2 rounded-full mt-1.5 shrink-0" style={{ background: notif.lu ? 'var(--text-muted)' : 'var(--color-primary)' }} />
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{notif.titre}</p>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{notif.message}</p>
                 </div>

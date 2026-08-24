@@ -168,20 +168,20 @@ const Home = () => {
             </div>
 
             <h1
-              className="text-4xl md:text-6xl font-bold tracking-tight mb-6"
+              className="text-3xl sm:text-4xl md:text-6xl font-bold tracking-tight mb-4 sm:mb-6 px-1"
               style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}
             >
               {nomApp}
             </h1>
 
-            <p className="text-lg md:text-xl mb-8 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8 leading-relaxed max-w-2xl mx-auto px-1" style={{ color: 'var(--text-secondary)' }}>
               {slogan}
             </p>
 
-            <div className="flex flex-wrap gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 justify-center items-stretch sm:items-center px-4 sm:px-0">
               <Link
                 to={loginLink}
-                className="inline-flex items-center gap-2 px-8 py-3.5 text-sm font-semibold text-white rounded-full shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 text-sm font-semibold text-white rounded-full shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 min-h-[48px]"
                 style={{ background: 'var(--color-primary)' }}
               >
                 {t('login') || 'Connexion'}
@@ -189,7 +189,7 @@ const Home = () => {
               </Link>
               <a
                 href="#features"
-                className="inline-flex items-center px-8 py-3.5 text-sm font-semibold rounded-full border-2 transition-all hover:shadow-md hover:-translate-y-0.5"
+                className="inline-flex items-center justify-center px-8 py-3.5 text-sm font-semibold rounded-full border-2 transition-all hover:shadow-md hover:-translate-y-0.5 min-h-[48px]"
                 style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
               >
                 Découvrir
@@ -198,7 +198,7 @@ const Home = () => {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-20 max-w-4xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mt-12 sm:mt-20 max-w-4xl mx-auto">
             {stats.map((stat) => (
               <div key={stat.label} className="text-center">
                 <p className="text-3xl md:text-4xl font-bold" style={{ color: 'var(--color-primary)' }}>

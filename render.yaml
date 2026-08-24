@@ -19,10 +19,8 @@ services:
         value: production
       - key: PORT
         value: 3000
-      # Neon — pooled (app) ; définir aussi DIRECT_DATABASE_URL (connexion directe, migrations)
+      # Neon — DATABASE_URL (pooled pour l’API ; URL directe recommandée pour migrate)
       - key: DATABASE_URL
-        sync: false
-      - key: DIRECT_DATABASE_URL
         sync: false
       - key: JWT_SECRET
         generateValue: true

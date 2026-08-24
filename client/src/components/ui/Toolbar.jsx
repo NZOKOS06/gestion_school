@@ -6,13 +6,16 @@ const Toolbar = ({ children, className = '' }) => (
 
 const FilterBar = ({ children, className = '' }) => (
   <div
-    className={`flex flex-nowrap items-center gap-2 mb-4 p-3 rounded-lg overflow-x-auto ${className}`}
+    className={`flex flex-nowrap items-center gap-2 mb-4 p-2.5 sm:p-3 rounded-lg overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] ${className}`}
     style={{
       background: 'var(--surface-overlay)',
       border: '1px solid var(--border-subtle)',
     }}
   >
-    {children}
+    {/* Force touch targets + no shrink on filter chips/inputs */}
+    <div className="flex flex-nowrap items-center gap-2 min-h-[44px] [&>*]:shrink-0">
+      {children}
+    </div>
   </div>
 );
 

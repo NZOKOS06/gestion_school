@@ -483,6 +483,7 @@ const Inscriptions = () => {
           {
             key: 'eleve',
             label: 'Élève',
+            primary: true,
             render: (_, row) => (
               <div>
                 <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
@@ -491,15 +492,18 @@ const Inscriptions = () => {
                 <p className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{row.eleveMatricule || row.eleve?.matricule}</p>
               </div>
             ),
+            mobileRender: (_, row) => `${row.elevePrenom || row.eleve?.prenom || ''} ${row.eleveNom || row.eleve?.nom || ''}`.trim(),
           },
           {
             key: 'classe',
             label: 'Classe',
+            secondary: true,
             render: (_, row) => <span style={{ color: 'var(--text-secondary)' }}>{row.classeNom || row.classe?.nom}</span>,
           },
           {
             key: 'anneeScolaire',
             label: 'Année',
+            hideOnMobile: true,
             render: (_, row) => <span style={{ color: 'var(--text-muted)' }}>{row.anneeScolaireLibelle || row.anneeScolaire?.libelle}</span>,
           },
           {
@@ -514,11 +518,13 @@ const Inscriptions = () => {
           {
             key: 'statut',
             label: 'Statut',
+            badge: true,
             render: (val) => <Badge variant={STATUT_VARIANT[val] || 'neutral'}>{STATUT_LABEL[val] || val}</Badge>,
           },
           {
             key: 'decisionFinAnnee',
             label: 'Décision fin d\'année',
+            hideOnMobile: true,
             render: (val) => {
               if (!val) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
               const d = DECISION_LABEL[val] || { label: val, variant: 'neutral' };
@@ -528,12 +534,13 @@ const Inscriptions = () => {
           {
             key: 'actions',
             label: 'Actions',
+            actions: true,
             render: (_, row) => (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
                 {canDecideFinAnnee && row.statut === 'validee' && (
                   <button
                     onClick={() => openDecision(row)}
-                    className="px-2 py-1 rounded-md text-xs font-medium"
+                    className="px-2 py-1.5 rounded-md text-xs font-medium min-h-[36px]"
                     style={{ background: 'var(--surface-overlay)', color: 'var(--color-primary)', border: '1px solid var(--border-subtle)' }}
                     title="Décision fin d'année"
                   >
@@ -541,17 +548,17 @@ const Inscriptions = () => {
                   </button>
                 )}
                 {row.statut === 'en_attente' && (
-                  <button onClick={() => validateInscription(row)} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Valider l'inscription">
+                  <button onClick={() => validateInscription(row)} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Valider l'inscription">
                     <Check className="h-4 w-4" style={{ color: 'var(--color-success)' }} />
                   </button>
                 )}
                 {row.statut !== 'suspendue' && row.statut !== 'annulee' && row.statut === 'validee' && (
-                  <button onClick={() => changeStatut(row, 'suspendue')} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Suspendre">
+                  <button onClick={() => changeStatut(row, 'suspendue')} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Suspendre">
                     <Pause className="h-4 w-4" style={{ color: 'var(--color-warning)' }} />
                   </button>
                 )}
                 {row.statut !== 'annulee' && (
-                  <button onClick={() => changeStatut(row, 'annulee')} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Annuler">
+                  <button onClick={() => changeStatut(row, 'annulee')} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Annuler">
                     <X className="h-4 w-4" style={{ color: 'var(--color-danger)' }} />
                   </button>
                 )}

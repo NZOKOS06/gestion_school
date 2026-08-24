@@ -66,20 +66,34 @@ function reponseEncaissementRefuse(res, error) {
   return null;
 }
 
-async function recuPdfPayload(full, tenantId, req) {
+async function recuPdfPayload(full, tenantId, req, allocation = null) {
   const meta = await schoolPdfMeta(tenantId, req);
-  const echeances = (full.inscriptionId || full.inscription?.id)
-    ? await listByInscription(tenantId, full.inscriptionId || full.inscription.id)
-    : [];
+  const echeance = allocation
+    ? null
+    : full.echeance;
+  const libelle = allocation?.libelle
+    || echeance?.libelle
+    || full.motif
+    || null;
+  const montant = allocation?.montant != null
+    ? Number(allocation.montant)
+    : Number(full.montant);
+  const isAvance = Boolean(allocation?.avance) || /^avance/i.test(String(libelle || ''));
+
   return {
     ...meta,
     numeroRecu: full.numeroRecu,
     datePaiement: full.datePaiement,
-    montant: full.montant,
-    typePaiement: full.typePaiement,
+    montant,
+    typePaiement: isAvance ? 'autre' : (full.typePaiement || 'scolarite'),
     modePaiement: full.modePaiement,
     reference: full.reference,
-    motif: full.motif,
+    motif: isAvance
+      ? 'Avance sur scolarité'
+      : (full.motif || null),
+    libelle,
+    periode: libelle,
+    dateEcheance: allocation?.dateEcheance || echeance?.dateEcheance || null,
     eleve: `${full.inscription.eleve.prenom} ${full.inscription.eleve.nom}`,
     matricule: full.inscription.eleve.matricule,
     classe: full.inscription.classe?.nom,
@@ -88,7 +102,6 @@ async function recuPdfPayload(full, tenantId, req) {
     parent: full.inscription.eleve.parent
       ? `${full.inscription.eleve.parent.prenom} ${full.inscription.eleve.parent.nom}`
       : null,
-    echeances,
   };
 }
 
@@ -118,11 +131,11 @@ async function loadPaiementFull(id, tenantId) {
   });
 }
 
-async function attachRecuPdf(paiement, tenantId, req) {
+async function attachRecuPdf(paiement, tenantId, req, allocation = null) {
   try {
     const full = await loadPaiementFull(paiement.id, tenantId);
     if (!full) return null;
-    const buffer = await buildRecuPdf(await recuPdfPayload(full, tenantId, req));
+    const buffer = await buildRecuPdf(await recuPdfPayload(full, tenantId, req, allocation));
 
     let pdfUrl = null;
     if (isCloudinaryConfigured()) {
@@ -144,6 +157,92 @@ async function attachRecuPdf(paiement, tenantId, req) {
     log.warn({ err: pdfErr }, 'PDF recu generation failed');
     return null;
   }
+}
+
+/**
+ * Un encaissement qui couvre N mois (ou une avance) produit N reçus partagés.
+ * Chaque allocation cascade → 1 Paiement + 1 PDF.
+ */
+async function createSplitPaiements(tx, {
+  tenantId,
+  inscriptionId,
+  amount,
+  typePaiement,
+  mode,
+  reference,
+  motif,
+  recuParId,
+  echeanceId = null,
+}) {
+  let allocations = [];
+
+  if (echeanceId) {
+    const ech = await tx.echeance.findFirst({
+      where: { id: echeanceId, tenantId, inscriptionId },
+    });
+    if (!ech) throw new Error('ECHEANCE_NOT_FOUND');
+    const resteEch = Math.max(0, Number(ech.montantAttendu) - Number(ech.montantPaye));
+    if (resteEch <= 0.01) throw new Error('SCOLARITE_SOLDEE');
+    if (amount > resteEch + 0.01) {
+      const err = new Error('MONTANT_SUPERIEUR_RESTE');
+      err.reste = resteEch;
+      throw err;
+    }
+    await applyPaymentToEcheance(tx, echeanceId, amount);
+    allocations = [{
+      echeanceId,
+      libelle: ech.libelle,
+      montant: amount,
+      dateEcheance: ech.dateEcheance,
+      statut: Number(ech.montantPaye) + amount >= Number(ech.montantAttendu) - 0.01 ? 'payee' : 'en_attente',
+    }];
+  } else {
+    await assertMontantEncaissable(tx, tenantId, inscriptionId, amount);
+    const cascade = await applyPaymentCascade(tx, tenantId, inscriptionId, amount);
+    allocations = cascade.allocations || [];
+    if (!allocations.length) {
+      allocations = [{
+        echeanceId: null,
+        libelle: motif || 'Paiement scolarité',
+        montant: amount,
+        dateEcheance: null,
+        statut: 'payee',
+      }];
+    }
+  }
+
+  const lastPaiement = await tx.paiement.findFirst({
+    where: { tenantId },
+    orderBy: { numeroRecu: 'desc' },
+    select: { numeroRecu: true },
+  });
+  let nextNumero = (lastPaiement?.numeroRecu || 0) + 1;
+
+  const created = [];
+  for (const alloc of allocations) {
+    const isAvance = Boolean(alloc.avance) || /^avance/i.test(String(alloc.libelle || ''));
+    const row = await tx.paiement.create({
+      data: {
+        tenantId,
+        inscriptionId,
+        echeanceId: alloc.echeanceId || null,
+        numeroRecu: nextNumero,
+        montant: Number(alloc.montant),
+        typePaiement: isAvance ? 'autre' : (typePaiement || 'scolarite'),
+        modePaiement: mode,
+        reference: reference || null,
+        motif: isAvance
+          ? (alloc.libelle || 'Avance sur scolarité')
+          : (motif || alloc.libelle || null),
+        recuParId,
+      },
+    });
+    created.push({ paiement: row, allocation: alloc });
+    nextNumero += 1;
+  }
+
+  await syncInscriptionSolde(tx, tenantId, inscriptionId);
+  return { created, allocations };
 }
 
 export const getAll = async (req, res) => {
@@ -364,84 +463,62 @@ export const create = async (req, res) => {
 
     const mode = normalizeModePaiement(modePaiement);
 
-    const paiement = await prisma.$transaction(async (tx) => {
+    const { created, allocations } = await prisma.$transaction(async (tx) => {
       const inscription = await tx.inscription.findFirst({
         where: { id: inscriptionId, tenantId },
       });
-      if (!inscription) {
-        throw new Error('INSCRIPTION_NOT_FOUND');
-      }
+      if (!inscription) throw new Error('INSCRIPTION_NOT_FOUND');
 
-      let resolvedEcheanceId = echeanceId || null;
-
-      if (echeanceId) {
-        const ech = await tx.echeance.findFirst({
-          where: { id: echeanceId, tenantId, inscriptionId },
-        });
-        if (!ech) {
-          throw new Error('ECHEANCE_NOT_FOUND');
-        }
-        const resteEch = Math.max(0, Number(ech.montantAttendu) - Number(ech.montantPaye));
-        if (resteEch <= 0.01) throw new Error('SCOLARITE_SOLDEE');
-        if (amount > resteEch + 0.01) {
-          const err = new Error('MONTANT_SUPERIEUR_RESTE');
-          err.reste = resteEch;
-          throw err;
-        }
-      } else {
-        await assertMontantEncaissable(tx, tenantId, inscriptionId, amount);
-      }
-
-      const lastPaiement = await tx.paiement.findFirst({
-        where: { tenantId },
-        orderBy: { numeroRecu: 'desc' },
-        select: { numeroRecu: true },
+      return createSplitPaiements(tx, {
+        tenantId,
+        inscriptionId,
+        amount,
+        typePaiement,
+        mode,
+        reference,
+        motif,
+        recuParId: req.user.id,
+        echeanceId: echeanceId || null,
       });
-      const numeroRecu = (lastPaiement?.numeroRecu || 0) + 1;
-
-      if (echeanceId) {
-        await applyPaymentToEcheance(tx, echeanceId, amount);
-      } else {
-        const cascade = await applyPaymentCascade(tx, tenantId, inscriptionId, amount);
-        resolvedEcheanceId = cascade.allocations[0]?.echeanceId || null;
-      }
-
-      const created = await tx.paiement.create({
-        data: {
-          tenantId,
-          inscriptionId,
-          echeanceId: resolvedEcheanceId,
-          numeroRecu,
-          montant: amount,
-          typePaiement: typePaiement || 'scolarite',
-          modePaiement: mode,
-          reference: reference || null,
-          motif: motif || null,
-          recuParId: req.user.id,
-        },
-      });
-
-      await syncInscriptionSolde(tx, tenantId, inscriptionId);
-
-      return created;
     });
 
-    await attachRecuPdf(paiement, tenantId, req);
+    for (const item of created) {
+      await attachRecuPdf(item.paiement, tenantId, req, item.allocation);
+    }
 
-    const result = await loadPaiementFull(paiement.id, tenantId);
+    const results = [];
+    for (const item of created) {
+      const full = await loadPaiementFull(item.paiement.id, tenantId);
+      if (full) results.push(full);
+    }
 
-    await logAudit(req, 'paiement_created', 'Paiement', paiement.id, {
+    const primary = results[0] || null;
+
+    await logAudit(req, 'paiement_created', 'Paiement', primary?.id || created[0]?.paiement?.id, {
       montant: amount,
       modePaiement: mode,
       inscriptionId,
       echeanceId: echeanceId || null,
+      recus: created.map((c) => c.paiement.numeroRecu),
+      allocations,
     });
 
     try {
-      await broadcastPaiement(req.tenant?.slug, tenantId, result);
+      if (primary) await broadcastPaiement(req.tenant?.slug, tenantId, primary);
     } catch { /* optional */ }
 
-    res.status(201).json(result);
+    res.status(201).json({
+      ...(primary || {}),
+      paiements: results,
+      allocations,
+      recusPartages: results.map((p) => ({
+        id: p.id,
+        numeroRecu: p.numeroRecu,
+        montant: Number(p.montant),
+        motif: p.motif,
+        pdfUrl: p.pdfUrl || `/api/paiements/${p.id}/recu-pdf`,
+      })),
+    });
   } catch (error) {
     if (error.message === 'INSCRIPTION_NOT_FOUND') {
       return res.status(404).json({ error: 'Inscription non trouvée' });
@@ -467,61 +544,60 @@ export const createBatch = async (req, res) => {
 
     const mode = normalizeModePaiement(modePaiement);
 
-    const { paiement, allocations } = await prisma.$transaction(async (tx) => {
+    const { created, allocations } = await prisma.$transaction(async (tx) => {
       const inscription = await tx.inscription.findFirst({
         where: { id: inscriptionId, tenantId },
       });
       if (!inscription) throw new Error('INSCRIPTION_NOT_FOUND');
 
-      await assertMontantEncaissable(tx, tenantId, inscriptionId, amount);
-
-      const lastPaiement = await tx.paiement.findFirst({
-        where: { tenantId },
-        orderBy: { numeroRecu: 'desc' },
-        select: { numeroRecu: true },
+      return createSplitPaiements(tx, {
+        tenantId,
+        inscriptionId,
+        amount,
+        typePaiement,
+        mode,
+        reference,
+        motif,
+        recuParId: req.user.id,
+        echeanceId: null,
       });
-      const numeroRecu = (lastPaiement?.numeroRecu || 0) + 1;
-
-      const cascade = await applyPaymentCascade(tx, tenantId, inscriptionId, amount);
-      const firstEcheanceId = cascade.allocations[0]?.echeanceId || null;
-
-      const created = await tx.paiement.create({
-        data: {
-          tenantId,
-          inscriptionId,
-          echeanceId: firstEcheanceId,
-          numeroRecu,
-          montant: amount,
-          typePaiement: typePaiement || 'scolarite',
-          modePaiement: mode,
-          reference: reference || null,
-          motif: motif || (cascade.allocations.length
-            ? `Répartition: ${cascade.allocations.map((a) => a.libelle).join(', ')}`
-            : null),
-          recuParId: req.user.id,
-        },
-      });
-
-      await syncInscriptionSolde(tx, tenantId, inscriptionId);
-
-      return { paiement: created, allocations: cascade.allocations };
     });
 
-    await attachRecuPdf(paiement, tenantId, req);
-    const result = await loadPaiementFull(paiement.id, tenantId);
+    for (const item of created) {
+      await attachRecuPdf(item.paiement, tenantId, req, item.allocation);
+    }
 
-    await logAudit(req, 'paiement_encaisse', 'Paiement', paiement.id, {
+    const results = [];
+    for (const item of created) {
+      const full = await loadPaiementFull(item.paiement.id, tenantId);
+      if (full) results.push(full);
+    }
+    const primary = results[0] || null;
+
+    await logAudit(req, 'paiement_encaisse', 'Paiement', primary?.id || created[0]?.paiement?.id, {
       montant: amount,
       modePaiement: mode,
       inscriptionId,
       allocations,
+      recus: created.map((c) => c.paiement.numeroRecu),
     });
 
     try {
-      await broadcastPaiement(req.tenant?.slug, tenantId, result);
+      if (primary) await broadcastPaiement(req.tenant?.slug, tenantId, primary);
     } catch { /* optional */ }
 
-    res.status(201).json({ ...result, allocations });
+    res.status(201).json({
+      ...(primary || {}),
+      paiements: results,
+      allocations,
+      recusPartages: results.map((p) => ({
+        id: p.id,
+        numeroRecu: p.numeroRecu,
+        montant: Number(p.montant),
+        motif: p.motif,
+        pdfUrl: p.pdfUrl || `/api/paiements/${p.id}/recu-pdf`,
+      })),
+    });
   } catch (error) {
     if (error.message === 'INSCRIPTION_NOT_FOUND') {
       return res.status(404).json({ error: 'Inscription non trouvée' });

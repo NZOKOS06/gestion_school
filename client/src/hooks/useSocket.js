@@ -80,7 +80,10 @@ export const useSocket = () => {
     });
 
     return () => {
-      socket.disconnect();
+      // Strict Mode remount: fermer sans bruit si la connexion n'est pas encore établie
+      socket.removeAllListeners();
+      if (socket.connected) socket.disconnect();
+      else socket.close();
     };
   }, [user, slug]);
 

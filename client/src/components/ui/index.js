@@ -1,6 +1,7 @@
 export { default as Button } from './Button';
 export { default as Card } from './Card';
 export { default as KpiCard } from './KpiCard';
+export { default as KpiGrid } from './KpiGrid';
 export { default as DataTable } from './DataTable';
 export { default as Modal } from './Modal';
 export { default as Badge } from './Badge';

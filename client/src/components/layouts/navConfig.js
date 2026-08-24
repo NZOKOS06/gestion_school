@@ -54,7 +54,7 @@ export const ADMIN_NAV = [
   {
     groupKey: 'pilotage',
     items: [
-      { path: '/admin/dashboard', icon: LayoutDashboard, labelKey: 'dashboard', roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
+      { path: '/admin/dashboard', icon: LayoutDashboard, labelKey: 'dashboard', primary: true, roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
       { path: '/admin/calendrier', icon: CalendarRange, labelKey: 'calendrier_scolaire', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/annees-scolaires', icon: CalendarDays, labelKey: 'annees_scolaires', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
     ],
@@ -63,9 +63,9 @@ export const ADMIN_NAV = [
     groupKey: 'vie_scolaire',
     label: 'Vie Scolaire',
     items: [
-      { path: '/admin/eleves', icon: GraduationCap, labelKey: 'eleves', roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
+      { path: '/admin/eleves', icon: GraduationCap, labelKey: 'eleves', primary: true, roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
       { path: '/admin/classes', icon: School, labelKey: 'classes', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
-      { path: '/admin/inscriptions', icon: ClipboardList, labelKey: 'inscriptions', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
+      { path: '/admin/inscriptions', icon: ClipboardList, labelKey: 'inscriptions', primary: true, roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/matieres', icon: BookOpen, labelKey: 'matieres', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/enseignants', icon: UserRound, labelKey: 'enseignants', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/emploi-du-temps', icon: CalendarDays, labelKey: 'emploi_du_temps', roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
@@ -88,7 +88,7 @@ export const ADMIN_NAV = [
   {
     groupKey: 'finances',
     items: [
-      { path: '/admin/paiements', icon: Wallet, labelKey: 'paiements', module: 'paiements', roles: ['directeur'] },
+      { path: '/admin/paiements', icon: Wallet, labelKey: 'paiements', module: 'paiements', primary: true, roles: ['directeur'] },
     ],
   },
   {
@@ -101,7 +101,7 @@ export const ADMIN_NAV = [
   {
     groupKey: 'communication',
     items: [
-      { path: '/admin/messagerie', icon: Mail, labelKey: 'messagerie', roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
+      { path: '/admin/messagerie', icon: Mail, labelKey: 'messagerie', primary: true, roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
     ],
   },
   {
@@ -127,13 +127,13 @@ export const ENSEIGNANT_NAV = [
   {
     groupKey: 'espace_enseignant',
     items: [
-      { path: '/enseignant/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
-      { path: '/enseignant/mes-classes', icon: School, labelKey: 'mes_classes' },
-      { path: '/enseignant/saisie-notes', icon: ClipboardEdit, labelKey: 'saisie_notes' },
-      { path: '/enseignant/appel', icon: CalendarCheck, labelKey: 'faire_appel' },
+      { path: '/enseignant/dashboard', icon: LayoutDashboard, labelKey: 'dashboard', primary: true },
+      { path: '/enseignant/mes-classes', icon: School, labelKey: 'mes_classes', primary: true },
+      { path: '/enseignant/saisie-notes', icon: ClipboardEdit, labelKey: 'saisie_notes', primary: true },
+      { path: '/enseignant/appel', icon: CalendarCheck, labelKey: 'faire_appel', primary: true },
       { path: '/enseignant/mon-emploi', icon: CalendarDays, labelKey: 'mon_emploi' },
       { path: '/enseignant/cahier-de-textes', icon: NotebookPen, labelKey: 'cahier_de_textes' },
-      { path: '/enseignant/messagerie', icon: Mail, labelKey: 'messagerie' },
+      { path: '/enseignant/messagerie', icon: Mail, labelKey: 'messagerie', primary: true },
     ],
   },
 ];
@@ -152,13 +152,13 @@ export const PARENT_NAV = [
   {
     groupKey: 'espace_parent',
     items: [
-      { path: '/parent/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
-      { path: '/parent/mes-enfants', icon: Users, labelKey: 'mes_enfants' },
-      { path: '/parent/bulletins', icon: FileText, labelKey: 'bulletins' },
+      { path: '/parent/dashboard', icon: LayoutDashboard, labelKey: 'dashboard', primary: true },
+      { path: '/parent/mes-enfants', icon: Users, labelKey: 'mes_enfants', primary: true },
+      { path: '/parent/bulletins', icon: FileText, labelKey: 'bulletins', primary: true },
       { path: '/parent/absences', icon: CalendarX, labelKey: 'absences' },
       { path: '/parent/sanctions', icon: Gavel, labelKey: 'sanctions' },
-      { path: '/parent/facturation', icon: Wallet, labelKey: 'facturation' },
-      { path: '/parent/messagerie', icon: Mail, labelKey: 'messagerie' },
+      { path: '/parent/facturation', icon: Wallet, labelKey: 'facturation', primary: true },
+      { path: '/parent/messagerie', icon: Mail, labelKey: 'messagerie', primary: true },
     ],
   },
 ];
@@ -177,11 +177,11 @@ export const CAISSIER_NAV = [
   {
     groupKey: 'espace_gestionnaire',
     items: [
-      { path: '/caissier', icon: LayoutDashboard, labelKey: 'dashboard' },
-      { path: '/caissier/eleves', icon: GraduationCap, labelKey: 'eleves_finances' },
-      { path: '/caissier/historique', icon: Wallet, labelKey: 'caisse' },
-      { path: '/caissier/depenses', icon: TrendingDown, labelKey: 'depenses' },
-      { path: '/caissier/rapports', icon: BarChart3, labelKey: 'rapports' },
+      { path: '/caissier', icon: LayoutDashboard, labelKey: 'dashboard', primary: true },
+      { path: '/caissier/eleves', icon: GraduationCap, labelKey: 'eleves_finances', primary: true },
+      { path: '/caissier/historique', icon: Wallet, labelKey: 'caisse', primary: true },
+      { path: '/caissier/depenses', icon: TrendingDown, labelKey: 'depenses', primary: true },
+      { path: '/caissier/rapports', icon: BarChart3, labelKey: 'rapports', primary: true },
     ],
   },
 ];

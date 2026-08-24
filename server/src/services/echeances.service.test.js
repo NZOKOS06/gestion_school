@@ -118,11 +118,24 @@ describe('resteAPayer / cascade / syncInscriptionSolde', () => {
     expect(Number(db.state.inscription.soldeScolarite)).toBe(40000);
   });
 
-  it('invariant : après paiement partiel, solde === resteAPayer', async () => {
-    const db = fakeDb(base, { id: 'ins-1', soldeScolarite: 50000 });
-    await applyPaymentCascade(db, 't1', 'ins-1', 17500.5);
-    const reste = await syncInscriptionSolde(db, 't1', 'ins-1');
-    expect(reste).toBe(await resteAPayer(db, 't1', 'ins-1'));
-    expect(reste).toBeCloseTo(32499.5, 2);
+  it('applyPaymentCascade isole l’avance sur une allocation dédiée', async () => {
+    const db = fakeDb([
+      {
+        id: 'e1',
+        tenantId: 't1',
+        inscriptionId: 'ins-1',
+        libelle: 'Octobre 2025',
+        montantAttendu: 10000,
+        montantPaye: 0,
+        dateEcheance: new Date('2025-10-05'),
+        statut: 'en_attente',
+      },
+    ]);
+    const { allocations } = await applyPaymentCascade(db, 't1', 'ins-1', 15000);
+    expect(allocations).toHaveLength(2);
+    expect(allocations[0].montant).toBe(10000);
+    expect(allocations[1].avance).toBe(5000);
+    expect(allocations[1].libelle).toMatch(/^Avance/);
+    expect(Number(db.state.echeances[0].montantPaye)).toBe(15000);
   });
 });

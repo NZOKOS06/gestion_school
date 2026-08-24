@@ -9,6 +9,7 @@ import {
   Modal,
   Badge,
   KpiCard,
+  KpiGrid,
 } from '../../components/ui';
 import { GraduationCap, Plus, Pencil, Link2, Trash2, Users } from 'lucide-react';
 
@@ -214,11 +215,11 @@ const Enseignants = () => {
         actions={<Button icon={Plus} onClick={openCreate}>Nouvel enseignant</Button>}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <KpiCard label="Enseignants" value={stats.total} icon={GraduationCap} />
-        <KpiCard label="Actifs" value={stats.actifs} icon={Users} />
-        <KpiCard label="Affectations" value={stats.affectations} icon={Link2} />
-      </div>
+      <KpiGrid cols={3}>
+        <KpiCard label="Enseignants" value={stats.total} icon={GraduationCap} color="primary" />
+        <KpiCard label="Actifs" value={stats.actifs} icon={Users} color="green" />
+        <KpiCard label="Affectations" value={stats.affectations} icon={Link2} color="blue" />
+      </KpiGrid>
 
       <div className="flex flex-wrap gap-3 items-center max-w-sm">
         <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nom, prénom, email…" />
@@ -232,6 +233,7 @@ const Enseignants = () => {
           {
             key: 'nom',
             label: 'Enseignant',
+            primary: true,
             render: (_, row) => (
               <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
                 {row.prenom} {row.nom}
@@ -241,21 +243,25 @@ const Enseignants = () => {
           {
             key: 'email',
             label: 'Contact',
+            secondary: true,
             render: (_, row) => (
               <div className="text-sm">
                 <div style={{ color: 'var(--text-secondary)' }}>{row.email || '—'}</div>
                 <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.telephone || ''}</div>
               </div>
             ),
+            mobileRender: (_, row) => [row.email, row.telephone].filter(Boolean).join(' · ') || '—',
           },
           {
             key: 'typeContrat',
             label: 'Contrat',
+            badge: true,
             render: (v) => <Badge variant="neutral">{v || 'titulaire'}</Badge>,
           },
           {
             key: 'enseignantClasses',
             label: 'Classes / matières',
+            hideOnMobile: true,
             render: (affs) => {
               if (!affs?.length) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
               const uniqueClasses = [...new Map(affs.map((a) => [a.classeId, a.classe?.nom])).entries()];
@@ -272,11 +278,13 @@ const Enseignants = () => {
           {
             key: 'actif',
             label: 'Statut',
+            hideOnMobile: true,
             render: (v) => (v !== false ? <Badge variant="success" dot>Actif</Badge> : <Badge variant="neutral">Inactif</Badge>),
           },
           {
             key: 'actions',
             label: 'Actions',
+            actions: true,
             render: (_, row) => (
               <div className="flex items-center gap-1">
                 <button onClick={() => openAssign(row)} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Affecter">

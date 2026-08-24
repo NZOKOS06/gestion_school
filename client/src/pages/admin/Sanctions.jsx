@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
-import { PageHeader, DataTable, Badge, Button, Modal, QuickSearchSelect } from '../../components/ui';
+import { PageHeader, DataTable, Badge, Button, Modal, QuickSearchSelect, SegmentedControl } from '../../components/ui';
 import { Gavel, Plus } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const TYPE_VARIANT = {
   avertissement: 'warning',
@@ -26,19 +27,53 @@ const Sanctions = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [eleves, setEleves] = useState([]);
   const [form, setForm] = useState({ eleveId: '', type: 'avertissement', motif: '', dureeJours: '' });
+  const [annees, setAnnees] = useState([]);
+  const [yearScope, setYearScope] = useState('active');
+
+  const anneeActive = useMemo(
+    () => annees.find((a) => a.actif || a.statut === 'active'),
+    [annees],
+  );
+  const anneePrev = useMemo(
+    () => annees
+      .filter((a) => a.statut === 'archivee' || (!a.actif && a.id !== anneeActive?.id))
+      .sort((a, b) => new Date(b.dateFin || 0) - new Date(a.dateFin || 0))[0],
+    [annees, anneeActive],
+  );
+  const resolvedAnneeId = yearScope === 'archive' ? anneePrev?.id : anneeActive?.id;
+  const isArchiveView = yearScope === 'archive';
+  const yearOptions = useMemo(() => {
+    const opts = [{ value: 'active', label: anneeActive?.libelle || 'Année en cours' }];
+    if (anneePrev) opts.push({ value: 'archive', label: anneePrev.libelle || 'Année précédente' });
+    return opts;
+  }, [anneeActive, anneePrev]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await get('/api/annees-scolaires', { silent: true });
+        setAnnees(res?.data || res || []);
+      } catch { /* silent */ }
+    })();
+  }, [get]);
 
   const fetchSanctions = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await get('/api/sanctions');
+      const qs = resolvedAnneeId ? `?anneeScolaireId=${resolvedAnneeId}` : '';
+      const res = await get(`/api/sanctions${qs}`);
       setSanctions(res?.data || res || []);
     } catch { /* silent */ }
     setLoading(false);
-  }, [get]);
+  }, [get, resolvedAnneeId]);
 
   useEffect(() => { fetchSanctions(); }, [fetchSanctions]);
 
   const openCreate = async () => {
+    if (isArchiveView) {
+      toast.error('Impossible d’ajouter une sanction sur une année archivée');
+      return;
+    }
     try {
       const res = await get('/api/eleves?limit=500', { silent: true });
       setEleves(res?.data || res || []);
@@ -53,6 +88,7 @@ const Sanctions = () => {
         eleveId: form.eleveId,
         type: form.type,
         motif: form.motif,
+        anneeScolaireId: resolvedAnneeId || undefined,
       };
       if (form.dureeJours) payload.dureeJours = parseInt(form.dureeJours, 10);
       await post('/api/sanctions', payload);
@@ -77,15 +113,25 @@ const Sanctions = () => {
     <div className="space-y-6">
       <PageHeader
         title="Sanctions"
-        subtitle="Suivi disciplinaire des élèves"
-        actions={<Button icon={Plus} onClick={openCreate}>Nouvelle sanction</Button>}
+        subtitle={isArchiveView
+          ? `Archive — ${anneePrev?.libelle || 'année précédente'}`
+          : 'Suivi disciplinaire de l’année en cours'}
+        actions={!isArchiveView ? <Button icon={Plus} onClick={openCreate}>Nouvelle sanction</Button> : null}
       />
+
+      {yearOptions.length > 1 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <SegmentedControl value={yearScope} onChange={setYearScope} options={yearOptions} />
+          {isArchiveView && <Badge variant="neutral">Consultation archive</Badge>}
+        </div>
+      )}
 
       <DataTable
         columns={[
           {
             key: 'eleve',
             label: 'Élève',
+            primary: true,
             render: (_, row) => (
               <div>
                 <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
@@ -94,31 +140,39 @@ const Sanctions = () => {
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.classeNom || row.eleve?.classe?.nom}</p>
               </div>
             ),
+            mobileRender: (_, row) => `${row.elevePrenom || row.eleve?.prenom || ''} ${row.eleveNom || row.eleve?.nom || ''}`.trim(),
           },
           {
             key: 'type',
             label: 'Type',
+            badge: true,
             render: (val) => <Badge variant={TYPE_VARIANT[val] || 'neutral'}>{TYPE_LABEL[val] || val}</Badge>,
           },
           {
             key: 'motif',
             label: 'Motif',
+            secondary: true,
             render: (val) => <span style={{ color: 'var(--text-secondary)' }}>{val}</span>,
-          },
-          {
-            key: 'dureeJours',
-            label: 'Durée',
-            render: (val) => val ? <span style={{ color: 'var(--text-secondary)' }}>{val} jour(s)</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>,
           },
           {
             key: 'dateSanction',
             label: 'Date',
-            render: (val) => <span style={{ color: 'var(--text-muted)' }}>{new Date(val).toLocaleDateString('fr-FR')}</span>,
+            render: (val) => (
+              <span style={{ color: 'var(--text-muted)' }}>
+                {val ? new Date(val).toLocaleDateString('fr-FR') : '—'}
+              </span>
+            ),
+          },
+          {
+            key: 'dureeJours',
+            label: 'Durée',
+            hideOnMobile: true,
+            render: (val) => (val ? `${val} j` : '—'),
           },
         ]}
         data={sanctions}
         loading={loading}
-        emptyMessage="Aucune sanction"
+        emptyMessage={isArchiveView ? 'Aucune sanction archivée' : 'Aucune sanction cette année'}
       />
 
       <Modal

@@ -6,6 +6,15 @@ import Checkbox from './Checkbox';
 
 const SKELETON_ROWS = 5;
 
+/**
+ * columns API (mobile cards):
+ * - primary: titre de la carte
+ * - secondary: sous-titre / méta
+ * - badge: rendu badge (souvent à droite du titre)
+ * - hideOnMobile: exclu des lignes secondaires
+ * - mobileRender(value, row): override rendu mobile
+ * - actions: colonne d'actions (boutons) en bas de carte
+ */
 const DataTable = ({
   columns,
   data,
@@ -100,8 +109,102 @@ const DataTable = ({
     return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
   };
 
+  const renderCell = (col, row) => {
+    if (col.mobileRender) return col.mobileRender(row[col.key], row);
+    if (col.render) return col.render(row[col.key], row);
+    return row[col.key];
+  };
+
   const headerCell = 'text-left py-2.5 px-4 text-[11px] font-semibold uppercase tracking-wider';
   const dataCell = 'py-3.5 px-4 text-sm';
+
+  const MobileCard = ({ row, rowIndex }) => {
+    const key = rowKey(row, rowIndex);
+    const selected = selectedKeys.includes(key);
+    const primaryCol = columns.find((c) => c.primary) || columns.find((c) => !c.actions && !c.hideOnMobile);
+    const secondaryCol = columns.find((c) => c.secondary);
+    const badgeCols = columns.filter((c) => c.badge);
+    const actionCols = columns.filter((c) => c.actions);
+    const metaCols = columns.filter(
+      (c) =>
+        !c.primary &&
+        !c.secondary &&
+        !c.badge &&
+        !c.actions &&
+        !c.hideOnMobile &&
+        c !== primaryCol
+    ).slice(0, 3);
+
+    return (
+      <div
+        key={key}
+        className="p-4 active:bg-[var(--surface-hover)] transition-colors"
+        onClick={() => onRowClick?.(row)}
+        style={{
+          cursor: onRowClick ? 'pointer' : 'default',
+          background: selected ? 'var(--surface-brand-soft)' : undefined,
+        }}
+      >
+        <div className="flex items-start gap-3">
+          {selectable && (
+            <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
+              <Checkbox checked={selected} onCheckedChange={() => toggleRow(key)} />
+            </div>
+          )}
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                {primaryCol && (
+                  <p className="text-[15px] font-semibold leading-snug truncate" style={{ color: 'var(--text-primary)' }}>
+                    {renderCell(primaryCol, row)}
+                  </p>
+                )}
+                {secondaryCol && (
+                  <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-secondary)' }}>
+                    {renderCell(secondaryCol, row)}
+                  </p>
+                )}
+              </div>
+              {badgeCols.length > 0 && (
+                <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {badgeCols.map((col) => (
+                    <span key={col.key}>{renderCell(col, row)}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {metaCols.length > 0 && (
+              <div className="grid grid-cols-1 gap-1.5 pt-1">
+                {metaCols.map((col) => (
+                  <div key={col.key} className="flex justify-between gap-3 text-[13px]">
+                    <span className="shrink-0" style={{ color: 'var(--text-muted)' }}>{col.label}</span>
+                    <span className="text-right font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                      {renderCell(col, row)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {actionCols.length > 0 && (
+              <div
+                className="flex flex-wrap items-center gap-2 pt-2"
+                style={{ borderTop: '1px solid var(--border-subtle)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {actionCols.map((col) => (
+                  <div key={col.key} className="flex flex-wrap gap-2">
+                    {renderCell(col, row)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -215,26 +318,7 @@ const DataTable = ({
               </div>
             ))
           ) : pageData?.length > 0 ? (
-            pageData.map((row, i) => {
-              const key = rowKey(row, i);
-              return (
-                <div
-                  key={key}
-                  className="p-4 space-y-2"
-                  onClick={() => onRowClick?.(row)}
-                  style={{ cursor: onRowClick ? 'pointer' : 'default' }}
-                >
-                  {columns.slice(0, 4).map((col) => (
-                    <div key={col.key} className="flex justify-between gap-3 text-sm">
-                      <span style={{ color: 'var(--text-muted)' }}>{col.label}</span>
-                      <span className="text-right font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {col.render ? col.render(row[col.key], row) : row[col.key]}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              );
-            })
+            pageData.map((row, i) => <MobileCard key={rowKey(row, i)} row={row} rowIndex={i} />)
           ) : (
             <EmptyState title={emptyMessage} description={emptyDescription} action={emptyAction} />
           )}
@@ -244,12 +328,12 @@ const DataTable = ({
       {/* Pagination */}
       {(pagination || sorted.length > pageSize) && !loading && sorted.length > 0 && (
         <div
-          className="flex items-center justify-between px-4 py-3"
+          className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3"
           style={{ borderTop: '1px solid var(--border-subtle)' }}
         >
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
             Page {pagination?.page ?? page} / {totalPages}
-            {pagination?.total != null && ` · ${pagination.total} éléments`}
+            {pagination?.total != null && ` · ${pagination.total}`}
           </p>
           <div className="flex items-center gap-1">
             <button
@@ -259,8 +343,9 @@ const DataTable = ({
                 if (pagination?.onPageChange) pagination.onPageChange((pagination.page ?? page) - 1);
                 else setPage((p) => Math.max(1, p - 1));
               }}
-              className="p-1.5 rounded-md disabled:opacity-40 hover:bg-[var(--surface-hover)]"
+              className="p-2 rounded-md disabled:opacity-40 hover:bg-[var(--surface-hover)] min-h-[44px] min-w-[44px] flex items-center justify-center"
               style={{ color: 'var(--text-secondary)' }}
+              aria-label="Page précédente"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -271,8 +356,9 @@ const DataTable = ({
                 if (pagination?.onPageChange) pagination.onPageChange((pagination.page ?? page) + 1);
                 else setPage((p) => Math.min(totalPages, p + 1));
               }}
-              className="p-1.5 rounded-md disabled:opacity-40 hover:bg-[var(--surface-hover)]"
+              className="p-2 rounded-md disabled:opacity-40 hover:bg-[var(--surface-hover)] min-h-[44px] min-w-[44px] flex items-center justify-center"
               style={{ color: 'var(--text-secondary)' }}
+              aria-label="Page suivante"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
-import { PageHeader, Card, DataTable, Badge, Button } from '../../components/ui';
+import { PageHeader, Card, DataTable, Badge, Button, KpiCard, KpiGrid } from '../../components/ui';
 import { Wallet, FileDown, AlertCircle, CheckCircle, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { openPdf } from '../../utils/pdf';
@@ -92,41 +92,11 @@ const FacturationParent = () => {
         </select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--color-danger) 12%, transparent)' }}>
-              <AlertCircle className="h-5 w-5" style={{ color: 'var(--color-danger)' }} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Reste à payer</p>
-              <p className="text-xl font-bold" style={{ color: 'var(--color-danger)' }}>{formatPrice(totalDu)}</p>
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--color-success) 12%, transparent)' }}>
-              <CheckCircle className="h-5 w-5" style={{ color: 'var(--color-success)' }} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Total payé</p>
-              <p className="text-xl font-bold" style={{ color: 'var(--color-success)' }}>{formatPrice(totalPaye)}</p>
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)' }}>
-              <Wallet className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Total facturé</p>
-              <p className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{formatPrice(totalDu + totalPaye)}</p>
-            </div>
-          </div>
-        </Card>
-      </div>
+      <KpiGrid cols={3}>
+        <KpiCard label="Reste à payer" value={formatPrice(totalDu)} icon={AlertCircle} color="red" />
+        <KpiCard label="Total payé" value={formatPrice(totalPaye)} icon={CheckCircle} color="green" />
+        <KpiCard label="Total facturé" value={formatPrice(totalDu + totalPaye)} icon={Wallet} color="primary" />
+      </KpiGrid>
 
       <Card title="Échéances">
         <DataTable

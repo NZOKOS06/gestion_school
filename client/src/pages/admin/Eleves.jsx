@@ -303,11 +303,13 @@ const Eleves = () => {
           {
             key: 'matricule',
             label: 'Matricule',
+            secondary: true,
             render: (val) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{val}</span>,
           },
           {
             key: 'nom',
             label: 'Nom',
+            primary: true,
             render: (_, row) => (
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
@@ -316,12 +318,13 @@ const Eleves = () => {
                 </div>
                 <div>
                   <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{row.prenom} {row.nom}</p>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <p className="text-xs md:block hidden" style={{ color: 'var(--text-muted)' }}>
                     {new Date(row.dateNaissance).toLocaleDateString('fr-FR')} · {row.sexe === 'M' ? 'Garçon' : 'Fille'}
                   </p>
                 </div>
               </div>
             ),
+            mobileRender: (_, row) => `${row.prenom} ${row.nom}`,
           },
           {
             key: 'classe',
@@ -340,6 +343,7 @@ const Eleves = () => {
           {
             key: 'inscription',
             label: 'Scolarité',
+            badge: true,
             render: (_, row) => {
               const insc = row.inscriptions?.[0];
               if (!insc) return <Badge variant="warning">Non inscrit</Badge>;
@@ -351,30 +355,32 @@ const Eleves = () => {
           {
             key: 'actif',
             label: 'Fiche',
+            hideOnMobile: true,
             render: (val) => val ? <Badge variant="success" dot>Actif</Badge> : <Badge variant="neutral">Inactif</Badge>,
           },
           {
             key: 'actions',
             label: 'Actions',
+            actions: true,
             render: (_, row) => (
               <div className="flex items-center gap-1">
                 {!row.inscriptions?.length && (
                   <button
                     onClick={(e) => { e.stopPropagation(); goInscrire(row.id); }}
-                    className="px-2 py-1 rounded-md text-xs font-medium"
+                    className="px-2 py-1.5 rounded-md text-xs font-medium min-h-[36px]"
                     style={{ background: 'var(--surface-overlay)', color: 'var(--color-primary)', border: '1px solid var(--border-subtle)' }}
                     title="Inscrire pour l'année active"
                   >
                     Inscrire
                   </button>
                 )}
-                <button onClick={(e) => { e.stopPropagation(); openDetail(row); }} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Voir fiche">
+                <button onClick={(e) => { e.stopPropagation(); openDetail(row); }} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Voir fiche">
                   <Eye className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); openEdit(row); }} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title="Modifier">
+                <button onClick={(e) => { e.stopPropagation(); openEdit(row); }} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Modifier">
                   <Pencil className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); toggleActif(row); }} className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]" title={row.actif ? 'Désactiver' : 'Activer'}>
+                <button onClick={(e) => { e.stopPropagation(); toggleActif(row); }} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title={row.actif ? 'Désactiver' : 'Activer'}>
                   {row.actif ? <Ban className="h-4 w-4" style={{ color: 'var(--color-danger)' }} /> : <Check className="h-4 w-4" style={{ color: 'var(--color-success)' }} />}
                 </button>
               </div>

@@ -8,6 +8,7 @@ export async function loadSchoolPdfMeta(tenantId, req) {
   const adresse = config?.adresse || null;
   return {
     nomEcole: config?.nomEcole || req?.tenant?.nom || tenant?.nom || 'GestSchool',
+    slogan: config?.slogan || null,
     adresse,
     telephone: config?.telephone || null,
     email: config?.email || null,

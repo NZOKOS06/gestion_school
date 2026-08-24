@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ==================== MODÈLES CORE ====================
@@ -330,6 +329,8 @@ model AnneeScolaire {
   periodes     PeriodeScolaire[]
   examenSessions ExamenSession[]
   matieresNiveauAnnee MatiereNiveauAnnee[]
+  depenses     Depense[]
+  sanctions    Sanction[]
 
   @@unique([tenantId, libelle])
   @@index([tenantId])
@@ -806,23 +807,26 @@ model Absence {
 }
 
 model Sanction {
-  id           String       @id @default(uuid())
-  tenantId     String
-  eleveId      String
-  type         TypeSanction
-  motif        String
-  dureeJours   Int? // Durée en jours en cas d'exclusion
-  dateSanction DateTime     @default(now())
-  validee      Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id              String       @id @default(uuid())
+  tenantId        String
+  eleveId         String
+  anneeScolaireId String?
+  type            TypeSanction
+  motif           String
+  dureeJours      Int? // Durée en jours en cas d'exclusion
+  dateSanction    DateTime     @default(now())
+  validee         Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  eleve  Eleve  @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve         Eleve          @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  anneeScolaire AnneeScolaire? @relation(fields: [anneeScolaireId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([eleveId])
   @@index([type])
+  @@index([anneeScolaireId])
 }
 
 model Paiement {
@@ -855,23 +859,26 @@ model Paiement {
 }
 
 model Depense {
-  id          String   @id @default(uuid())
-  tenantId    String
-  categorie   String
-  montant     Decimal  @db.Decimal(12, 2)
-  motif       String
-  reference   String?
-  dateDepense DateTime @default(now())
-  saisieParId String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(uuid())
+  tenantId        String
+  anneeScolaireId String?
+  categorie       String
+  montant         Decimal  @db.Decimal(12, 2)
+  motif           String
+  reference       String?
+  dateDepense     DateTime @default(now())
+  saisieParId     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  saisiePar Staff  @relation("DepenseSaisiePar", fields: [saisieParId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  saisiePar     Staff          @relation("DepenseSaisiePar", fields: [saisieParId], references: [id])
+  anneeScolaire AnneeScolaire? @relation(fields: [anneeScolaireId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([dateDepense])
   @@index([categorie])
+  @@index([anneeScolaireId])
 }
 
 model Certificat {

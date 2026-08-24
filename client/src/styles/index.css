@@ -447,3 +447,19 @@ html.dark [data-theme="admin"] {
 [data-theme="admin"] tbody tr {
   border-color: var(--border-subtle);
 }
+
+/* Hide scrollbars on KPI snap rows (still scrollable) */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch-friendly bottom padding helper when bottom nav is present */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

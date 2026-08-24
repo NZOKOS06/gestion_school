@@ -4,6 +4,7 @@ import { useAxios } from '../../hooks/useAxios';
 import {
   PageHeader,
   KpiCard,
+  KpiGrid,
   SearchInput,
   Button,
   DataTable,
@@ -315,7 +316,7 @@ const PersonnelMgmt = () => {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <KpiGrid cols={4}>
         <KpiCard label="Total staff" value={stats.total} icon={Users} color="primary" />
         <KpiCard label="Actifs" value={stats.actifs} icon={UserCheck} color="green" />
         <KpiCard label="Inactifs" value={stats.inactifs} icon={UserX} color="red" />
@@ -325,7 +326,7 @@ const PersonnelMgmt = () => {
           icon={AlertTriangle}
           color="orange"
         />
-      </div>
+      </KpiGrid>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1">

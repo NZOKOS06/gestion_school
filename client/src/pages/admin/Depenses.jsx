@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import {
   PageHeader, DataTable, Badge, Button, Modal,
-  Input, Select, FormField, FilterBar, Card,
+  Input, Select, FormField, FilterBar, Card, SegmentedControl, KpiCard, KpiGrid,
 } from '../../components/ui';
 import { TrendingDown, Plus, Pencil, Trash2, BarChart3, FileDown } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,7 +17,7 @@ const CATEGORIES = [
   'Communication', 'Transport', 'Alimentation (cantine)', 'Frais bancaires', 'Autre',
 ];
 
-const PIE_COLORS = ['var(--color-primary)', 'var(--color-danger)', 'var(--color-warning)', 'var(--color-success)', 'var(--chart-5)'];
+const PIE_COLORS = ['#2563eb', '#ef4444', '#f59e0b', '#22c55e', '#8b5cf6'];
 
 const EMPTY_FORM = { categorie: '', montant: '', motif: '', reference: '', dateDepense: '' };
 
@@ -33,35 +33,74 @@ const Depenses = () => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [annees, setAnnees] = useState([]);
+  const [yearScope, setYearScope] = useState('active');
+
+  const anneeActive = useMemo(
+    () => annees.find((a) => a.actif || a.statut === 'active'),
+    [annees],
+  );
+  const anneePrev = useMemo(
+    () => annees
+      .filter((a) => a.statut === 'archivee' || (!a.actif && a.id !== anneeActive?.id))
+      .sort((a, b) => new Date(b.dateFin || 0) - new Date(a.dateFin || 0))[0],
+    [annees, anneeActive],
+  );
+  const resolvedAnneeId = yearScope === 'archive' ? anneePrev?.id : anneeActive?.id;
+  const isArchiveView = yearScope === 'archive';
+  const yearOptions = useMemo(() => {
+    const opts = [{ value: 'active', label: anneeActive?.libelle || 'Année en cours' }];
+    if (anneePrev) opts.push({ value: 'archive', label: anneePrev.libelle || 'Année précédente' });
+    return opts;
+  }, [anneeActive, anneePrev]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await get('/api/annees-scolaires', { silent: true });
+        setAnnees(res?.data || res || []);
+      } catch { /* silent */ }
+    })();
+  }, [get]);
 
   const fetchDepenses = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (filters.categorie) params.set('categorie', filters.categorie);
+      if (resolvedAnneeId) params.set('anneeScolaireId', resolvedAnneeId);
       params.set('limit', '200');
       const res = await get(`/api/depenses?${params.toString()}`);
       setDepenses(res?.data || res || []);
     } catch { /* silent */ }
     setLoading(false);
-  }, [filters, get]);
+  }, [filters, get, resolvedAnneeId]);
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await get('/api/depenses/stats', { silent: true });
+      const qs = resolvedAnneeId ? `?anneeScolaireId=${resolvedAnneeId}` : '';
+      const res = await get(`/api/depenses/stats${qs}`, { silent: true });
       setStats(res);
     } catch { /* silent */ }
-  }, [get]);
+  }, [get, resolvedAnneeId]);
 
   useEffect(() => { fetchDepenses(); fetchStats(); }, [fetchDepenses, fetchStats]);
 
   const openCreate = () => {
+    if (isArchiveView) {
+      toast.error('Impossible d’ajouter une dépense sur une année archivée');
+      return;
+    }
     setEditing(null);
     setForm({ ...EMPTY_FORM, dateDepense: new Date().toISOString().slice(0, 10) });
     setModalOpen(true);
   };
 
   const openEdit = (dep) => {
+    if (isArchiveView) {
+      toast.error('Consultation archive — modification désactivée');
+      return;
+    }
     setEditing(dep);
     setForm({
       categorie: dep.categorie || '',
@@ -88,6 +127,7 @@ const Depenses = () => {
         motif: form.motif,
         reference: form.reference || undefined,
         dateDepense: form.dateDepense || undefined,
+        anneeScolaireId: resolvedAnneeId || undefined,
       };
       if (editing) {
         await put(`/api/depenses/${editing.id}`, payload);
@@ -105,7 +145,7 @@ const Depenses = () => {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || isArchiveView) return;
     try {
       await del(`/api/depenses/${deleteId}`);
       toast.success('Dépense supprimée');
@@ -121,45 +161,41 @@ const Depenses = () => {
     <div className="space-y-6">
       <PageHeader
         title="Dépenses"
-        subtitle="Suivi des sorties de caisse et charges de l'établissement"
+        subtitle={isArchiveView
+          ? `Archive — ${anneePrev?.libelle || 'année précédente'}`
+          : 'Suivi des sorties de caisse de l’année en cours'}
         actions={
           <>
             <Button variant="secondary" icon={FileDown} onClick={() => {
               const params = new URLSearchParams();
               if (filters.categorie) params.set('categorie', filters.categorie);
+              if (resolvedAnneeId) params.set('anneeScolaireId', resolvedAnneeId);
               openPdf(`/api/depenses/export-pdf?${params.toString()}`, 'depenses.pdf');
-            }}>
-              Export PDF
-            </Button>
-            <Button icon={Plus} onClick={openCreate}>Nouvelle dépense</Button>
+            }}>Export PDF</Button>
+            {!isArchiveView && (
+              <Button icon={Plus} onClick={openCreate}>Nouvelle dépense</Button>
+            )}
           </>
         }
       />
 
+      {yearOptions.length > 1 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <SegmentedControl value={yearScope} onChange={setYearScope} options={yearOptions} />
+          {isArchiveView && <Badge variant="neutral">Consultation archive</Badge>}
+        </div>
+      )}
+
       {/* KPI + Pie */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {/* Stats cards */}
-          <div className="grid grid-cols-1 gap-4 md:col-span-2">
-            {[
-              { label: 'Dépenses ce mois', value: formatPrice(stats.totalMois), icon: TrendingDown, color: 'var(--color-danger)' },
-              { label: 'Dépenses cette année', value: formatPrice(stats.totalAnnee), icon: BarChart3, color: 'var(--color-warning)' },
-            ].map((item) => (
-              <div key={item.label} className="rounded-xl p-5 flex items-center gap-4"
-                style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
-                <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: `color-mix(in srgb, ${item.color} 15%, transparent)` }}>
-                  <item.icon className="h-6 w-6" style={{ color: item.color }} />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
-                  <p className="text-2xl font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>{item.value}</p>
-                </div>
-              </div>
-            ))}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
+          <div className="lg:col-span-2">
+            <KpiGrid cols={2}>
+              <KpiCard label="Dépenses ce mois" value={formatPrice(stats.totalMois)} icon={TrendingDown} color="red" />
+              <KpiCard label="Dépenses année scolaire" value={formatPrice(stats.totalAnnee)} icon={BarChart3} color="orange" />
+            </KpiGrid>
           </div>
 
-          {/* Pie par catégorie */}
           {pieData.length > 0 && (
             <Card title="Par catégorie (ce mois)">
               <div style={{ height: 180 }}>

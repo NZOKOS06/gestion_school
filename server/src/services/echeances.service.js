@@ -246,6 +246,7 @@ export async function applyPaymentCascade(tx, tenantId, inscriptionId, montant) 
       echeanceId: ech.id,
       libelle: ech.libelle,
       montant: toPay,
+      dateEcheance: ech.dateEcheance,
       statut,
     });
     remaining -= toPay;
@@ -262,19 +263,16 @@ export async function applyPaymentCascade(tx, tenantId, inscriptionId, montant) 
       },
     });
     const existing = allocations.find((a) => a.echeanceId === last.id);
-    if (existing) {
-      existing.montant += remaining;
-      existing.avance = remaining;
-      existing.statut = 'payee';
-    } else {
-      allocations.push({
-        echeanceId: last.id,
-        libelle: last.libelle,
-        montant: remaining,
-        avance: remaining,
-        statut: 'payee',
-      });
-    }
+    if (existing) existing.statut = 'payee';
+    // Avance = reçu distinct (ne pas fusionner avec le mois soldé)
+    allocations.push({
+      echeanceId: last.id,
+      libelle: `Avance — ${last.libelle}`,
+      montant: remaining,
+      avance: remaining,
+      dateEcheance: last.dateEcheance,
+      statut: 'payee',
+    });
     remaining = 0;
   }
 

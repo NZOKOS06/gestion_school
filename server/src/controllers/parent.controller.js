@@ -368,8 +368,14 @@ export const getEnfantSanctions = async (req, res) => {
     const eleve = await assertParentOwnsEleve(req, res, req.params.id);
     if (!eleve) return;
 
+    const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
+    const anneeId = await resolveAnneeScolaireId(req.tenantId, req.query.anneeScolaireId || null);
+
+    const where = { tenantId: req.tenantId, eleveId: eleve.id };
+    if (anneeId) where.anneeScolaireId = anneeId;
+
     const sanctions = await prisma.sanction.findMany({
-      where: { tenantId: req.tenantId, eleveId: eleve.id },
+      where,
       orderBy: { dateSanction: 'desc' },
     });
 
@@ -380,6 +386,7 @@ export const getEnfantSanctions = async (req, res) => {
         type: s.type,
         motif: s.motif,
         dureeJours: s.dureeJours,
+        anneeScolaireId: s.anneeScolaireId,
       }))
     );
   } catch (error) {

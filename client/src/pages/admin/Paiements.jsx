@@ -5,7 +5,7 @@ import { useTenant } from '../../contexts/TenantContext';
 import { useDebounce } from '../../hooks/useDebounce';
 import {
   PageHeader, DataTable, Badge, Button, Modal, Card, Input, Select,
-  FormField, FilterBar, SearchInput, KpiCard, SegmentedControl,
+  FormField, FilterBar, SearchInput, KpiCard, KpiGrid, SegmentedControl,
 } from '../../components/ui';
 import { Wallet, Plus, Printer, Mail, AlertCircle, FileDown, Users } from 'lucide-react';
 import { openPdf } from '../../utils/pdf';
@@ -133,11 +133,19 @@ const Paiements = () => {
         reference: form.reference || undefined,
         motif: form.motif || undefined,
       };
-      await post('/api/paiements', payload);
+      // Sans échéance ciblée : cascade → reçus partagés (1 par mois / avance)
+      const endpoint = form.echeanceId ? '/api/paiements' : '/api/paiements/batch';
+      const res = await post(endpoint, payload);
+      const recus = res?.recusPartages || (res?.id ? [{ id: res.id, numeroRecu: res.numeroRecu }] : []);
       setEncaisserOpen(false);
       setForm({ inscriptionId: '', echeanceId: '', montant: '', modePaiement: 'especes', reference: '', motif: '' });
       fetchPaiements();
       fetchRetards();
+      if (recus.length > 1 && recus[0]?.id) {
+        openPdf(`/api/paiements/${recus[0].id}/recu-pdf`, `recu-${recus[0].numeroRecu}.pdf`);
+      } else if (recus[0]?.id) {
+        openPdf(`/api/paiements/${recus[0].id}/recu-pdf`, `recu-${recus[0].numeroRecu}.pdf`);
+      }
     } catch { /* silent */ }
   };
 
@@ -186,11 +194,11 @@ const Paiements = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <KpiGrid cols={3}>
         <KpiCard label="Encaissements (filtre)" value={formatPrice(totalPeriode)} icon={Wallet} color="green" />
         <KpiCard label="Nombre" value={String(paiements.length)} icon={Printer} color="primary" />
         <KpiCard label="Caisse du jour" value={formatPrice(totalJour)} icon={Wallet} color="blue" subtitle={new Date().toLocaleDateString('fr-FR')} />
-      </div>
+      </KpiGrid>
 
       {!isCaissier && retards.length > 0 && (
         <Card title="Échéances en retard" icon={AlertCircle}>
@@ -249,11 +257,13 @@ const Paiements = () => {
             key: 'numeroRecu',
             label: 'Reçu',
             sortable: true,
+            secondary: true,
             render: (val) => <span className="font-mono text-xs font-semibold" style={{ color: 'var(--color-primary)' }}>#{val}</span>,
           },
           {
             key: 'eleve',
             label: 'Élève',
+            primary: true,
             render: (_, row) => (
               <div>
                 <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
@@ -262,6 +272,7 @@ const Paiements = () => {
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.classeNom || ''}</p>
               </div>
             ),
+            mobileRender: (_, row) => `${row.elevePrenom || row.eleve?.prenom || ''} ${row.eleveNom || row.eleve?.nom || ''}`.trim(),
           },
           {
             key: 'montant',
@@ -272,6 +283,7 @@ const Paiements = () => {
           {
             key: 'modePaiement',
             label: 'Mode',
+            badge: true,
             render: (val) => <Badge variant="info">{MODE_LABELS[val] || val}</Badge>,
           },
           {
@@ -283,14 +295,17 @@ const Paiements = () => {
           {
             key: 'actions',
             label: 'Reçu',
+            actions: true,
             render: (_, row) => (
               <button
                 type="button"
                 onClick={() => openPdf(`/api/paiements/${row.id}/recu-pdf`, `recu-${row.numeroRecu}.pdf`)}
-                className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]"
+                className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center gap-1.5 text-xs font-medium"
                 title="Imprimer reçu"
+                style={{ color: 'var(--text-secondary)' }}
               >
-                <Printer className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                <Printer className="h-4 w-4" />
+                <span className="md:hidden">PDF</span>
               </button>
             ),
           },

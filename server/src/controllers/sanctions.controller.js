@@ -2,17 +2,29 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { broadcastSanction } from '../utils/notifications.js';
+import { resolveAnneeScolaireId, getAnneeOperationnelle } from '../utils/anneeScolaire.js';
 
 const log = createLogger('SanctionsController');
 
 export const getAll = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { page = 1, limit = 20, eleveId, type, sortBy = 'createdAt', order = 'desc' } = req.query;
+    const {
+      page = 1,
+      limit = 20,
+      eleveId,
+      type,
+      anneeScolaireId,
+      sortBy = 'createdAt',
+      order = 'desc',
+    } = req.query;
     const take = parseInt(limit);
     const skip = (parseInt(page) - 1) * take;
 
+    const resolvedAnneeId = await resolveAnneeScolaireId(tenantId, anneeScolaireId || null);
+
     const where = { tenantId };
+    if (resolvedAnneeId) where.anneeScolaireId = resolvedAnneeId;
     if (eleveId) where.eleveId = eleveId;
     if (type) where.type = type;
 
@@ -34,6 +46,7 @@ export const getAll = async (req, res) => {
 
     res.json({
       data: rows,
+      anneeScolaireId: resolvedAnneeId,
       pagination: {
         page: parseInt(page),
         limit: take,
@@ -50,19 +63,25 @@ export const getAll = async (req, res) => {
 export const create = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { eleveId, type, motif, dureeJours } = req.body;
+    const { eleveId, type, motif, dureeJours, anneeScolaireId } = req.body;
+
+    const resolvedAnneeId =
+      (await resolveAnneeScolaireId(tenantId, anneeScolaireId || null)) ||
+      (await getAnneeOperationnelle(tenantId))?.id ||
+      null;
 
     const sanction = await prisma.sanction.create({
       data: {
         tenantId,
         eleveId,
+        anneeScolaireId: resolvedAnneeId,
         type,
         motif,
         dureeJours: dureeJours ? parseInt(dureeJours, 10) : null,
       },
     });
 
-    await logAudit(req, 'sanction_created', 'Sanction', sanction.id, { eleveId, type });
+    await logAudit(req, 'sanction_created', 'Sanction', sanction.id, { eleveId, type, anneeScolaireId: resolvedAnneeId });
 
     try {
       await broadcastSanction(req.tenant?.slug, tenantId, sanction);

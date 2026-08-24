@@ -19,6 +19,7 @@ import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
 import Button from '../../components/ui/Button';
 import KpiCard from '../../components/ui/KpiCard';
+import KpiGrid from '../../components/ui/KpiGrid';
 import Modal from '../../components/ui/Modal';
 import SearchInput from '../../components/ui/SearchInput';
 import Badge from '../../components/ui/Badge';
@@ -960,7 +961,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Select mobile */}
           <select
-            className="md:hidden w-full py-2.5 px-3 text-sm font-medium rounded-lg mb-2"
+            className="md:hidden w-full py-3 px-3 text-sm font-medium rounded-lg my-2 min-h-[44px]"
             value={activeTab}
             onChange={(e) => {
               if (e.target.value === 'creation') resetCreateWizard();
@@ -1022,7 +1023,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
           <div className="space-y-8">
             {/* KPI Cards */}
             {stats && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <KpiGrid cols={6}>
                 <KpiCard
                   label="Total établissements"
                   value={stats?.totalTenants ?? stats?.total_tenants ?? 0}

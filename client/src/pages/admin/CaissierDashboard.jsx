@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { Wallet, TrendingDown, AlertTriangle, TrendingUp, Users, ArrowUpRight, Printer } from 'lucide-react';
-import { KpiCard, Card, DataTable, PageHeader, Badge, Skeleton, EmptyState, Button, SegmentedControl } from '../../components/ui';
+import { KpiCard, KpiGrid, Card, DataTable, PageHeader, Badge, Skeleton, EmptyState, Button, SegmentedControl } from '../../components/ui';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -10,7 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { openPdf } from '../../utils/pdf';
 
-const PIE_COLORS = ['var(--color-primary)', 'var(--color-success)', 'var(--color-warning)', 'var(--color-danger)', 'var(--chart-5)'];
+const PIE_COLORS = ['#2563eb', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 const CaissierDashboard = () => {
   const { formatPrice } = useTenant();
@@ -65,7 +65,7 @@ const CaissierDashboard = () => {
         get(`/api/dashboard/evolution?periode=30${yearAmp}`, { silent: true }),
         get(`/api/paiements/echeances-retard${yearParam}`, { silent: true }),
         get(`/api/paiements?limit=5${yearAmp}`, { silent: true }),
-        get('/api/depenses/stats', { silent: true }),
+        get(`/api/depenses/stats${yearParam}`, { silent: true }),
       ]);
 
       if (kpiRes.status === 'fulfilled') setKpis(kpiRes.value);
@@ -99,17 +99,17 @@ const CaissierDashboard = () => {
     return (
       <div className="space-y-8" data-testid="page-caissier-dashboard">
         <Skeleton height={28} width={260} />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <KpiGrid cols={4}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-xl p-5" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
+            <div key={i} className="rounded-xl p-3.5 sm:p-5" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
               <div className="space-y-3">
-                <Skeleton height={12} width={96} />
-                <Skeleton height={32} width={140} />
-                <Skeleton height={12} width={80} />
+                <Skeleton height={12} width={72} />
+                <Skeleton height={28} width={96} />
+                <Skeleton height={12} width={64} />
               </div>
             </div>
           ))}
-        </div>
+        </KpiGrid>
       </div>
     );
   }
@@ -179,9 +179,9 @@ const CaissierDashboard = () => {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <KpiGrid cols={4}>
         {stats.map((stat, i) => <KpiCard key={i} {...stat} />)}
-      </div>
+      </KpiGrid>
 
       {/* Graphiques */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

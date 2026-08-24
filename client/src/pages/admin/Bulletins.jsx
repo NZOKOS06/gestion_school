@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import axiosInstance from '../../utils/axios';
 import {
-  PageHeader, DataTable, Badge, Button, Card, KpiCard, Modal,
+  PageHeader, DataTable, Badge, Button, Card, KpiCard, KpiGrid, Modal,
 } from '../../components/ui';
 import {
   Calculator, FileDown, CheckCircle, Eye, Printer, Users,
@@ -330,13 +330,13 @@ const Bulletins = () => {
       </Card>
 
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <KpiGrid cols={5}>
           <KpiCard label="Effectif noté" value={stats.total} icon={Users} color="blue" />
           <KpiCard label="Admis" value={stats.admis} icon={UserCheck} color="green" />
           <KpiCard label="Échoués" value={stats.echec} icon={UserX} color="red" />
           <KpiCard label="% admission" value={`${stats.tauxAdmission}%`} icon={Percent} color="primary" />
           <KpiCard label="Moyenne" value={Number(stats.moyenneClasse || 0).toFixed(2)} icon={TrendingUp} color="orange" />
-        </div>
+        </KpiGrid>
       )}
 
       {!selectedClasse && stats?.top5?.length > 0 && (

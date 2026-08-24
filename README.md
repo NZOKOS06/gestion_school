@@ -275,8 +275,8 @@ JWT_REFRESH_SECRET=autre-chaine-differente
 #### 1. Neon
 
 1. Créer un projet sur [neon.tech](https://neon.tech) (région proche de Render, ex. Frankfurt).
-2. Copier **Pooled connection** → `DATABASE_URL` sur Render.
-3. Copier **Direct connection** → `DIRECT_DATABASE_URL` sur Render (migrations au démarrage via `prisma migrate deploy`).
+2. Copier **Pooled connection** → `DATABASE_URL` sur Render (API).
+3. Pour `prisma migrate deploy` au boot : utiliser l’URL **directe** Neon dans `DATABASE_URL` le temps des migrations, ou un job one-off avec l’URL directe (sans `-pooler`).
 4. Activer les backups automatiques Neon.
 
 #### 2. Render (API)
@@ -286,7 +286,6 @@ JWT_REFRESH_SECRET=autre-chaine-differente
 
 ```bash
 DATABASE_URL=postgresql://...@ep-xxx-pooler....neon.tech/neondb?sslmode=require
-DIRECT_DATABASE_URL=postgresql://...@ep-xxx....neon.tech/neondb?sslmode=require
 JWT_SECRET=<32+ caractères aléatoires>
 JWT_REFRESH_SECRET=<autre chaîne ≥32 caractères>
 FRONTEND_URL=https://votre-app.vercel.app

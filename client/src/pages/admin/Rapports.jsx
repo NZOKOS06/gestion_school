@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
-import { Button, Card, KpiCard, DataTable, PageHeader, SegmentedControl, Badge } from '../../components/ui';
+import { Button, Card, KpiCard, KpiGrid, DataTable, PageHeader, SegmentedControl, Badge } from '../../components/ui';
 
 const PERIODES = [
   { label: '7 jours', value: '7j' },
@@ -446,13 +446,13 @@ const Rapports = () => {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+      <KpiGrid cols={kpiCards.length || 4}>
         {loading && !data
           ? Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
                 className="rounded-xl p-5 skeleton"
-                style={{ height: 140, background: 'var(--surface-raised)' }}
+                style={{ height: 120, background: 'var(--surface-raised)' }}
               />
             ))
           : kpiCards.map((kpi) => (
@@ -466,7 +466,7 @@ const Rapports = () => {
                 trend={kpi.trend}
               />
             ))}
-      </div>
+      </KpiGrid>
 
       {/* Graphique paiements par jour */}
       <Card title="Scolarités perçues par jour" icon={BarChart3}>
@@ -532,7 +532,7 @@ const Rapports = () => {
         >
           Répartition des paiements
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <KpiGrid cols={4}>
           {(data?.repartition_paiement || MODES_PAIEMENT_KEYS()).map((p) => {
             const Icon = MODE_ICONS[p.mode];
             const pct = totalPaiements > 0 ? ((p.montant / totalPaiements) * 100).toFixed(1) : '0.0';
@@ -574,7 +574,7 @@ const Rapports = () => {
               </div>
             );
           })}
-        </div>
+        </KpiGrid>
       </div>
     </div>
   );
