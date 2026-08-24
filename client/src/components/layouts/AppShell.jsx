@@ -66,13 +66,21 @@ const AppShell = ({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Close drawer on route change (mobile) — évite focus piégé + aria-hidden
+  // Close drawer on route change (mobile) — blur avant aria-hidden
   useEffect(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) {
+      active.blur();
+    }
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  const closeSidebar = () => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     setSidebarOpen(false);
-  }, [pathname]);
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -177,7 +185,7 @@ const AppShell = ({
                   key={item.path}
                   to={item.path}
                   end={item.path === homePath || item.path === '/caissier'}
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={closeSidebar}
                   className="flex items-center gap-3 px-3 h-11 rounded-lg text-sm font-medium transition-all relative"
                   style={({ isActive }) =>
                     isActive
@@ -256,7 +264,7 @@ const AppShell = ({
         <div
           className="fixed inset-0 z-40 lg:hidden"
           style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}
-          onClick={() => setSidebarOpen(false)}
+          onClick={closeSidebar}
           aria-hidden
         />
       )}
@@ -294,7 +302,7 @@ const AppShell = ({
           </span>
           <button
             type="button"
-            onClick={() => setSidebarOpen(false)}
+            onClick={closeSidebar}
             className="p-2 rounded-md min-h-[44px] min-w-[44px] flex items-center justify-center"
             style={{ color: 'var(--text-muted)', background: 'var(--surface-hover)' }}
             aria-label="Fermer le menu"

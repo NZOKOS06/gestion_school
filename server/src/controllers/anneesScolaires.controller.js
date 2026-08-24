@@ -19,24 +19,98 @@ export const getAll = async (req, res) => {
       return res.status(400).json({ error: 'Tenant required' });
     }
 
-    // rawPrisma : évite les effets de bord de l'isolation sur les includes (périodes, référentiel)
+    // Requête minimale d'abord (évite un 500 si un include est incompatible en prod)
     const annees = await rawPrisma.anneeScolaire.findMany({
       where: { tenantId },
-      include: {
-        periodes: { orderBy: { index: 'asc' } },
-        referentielVersion: { select: { id: true, code: true, libelle: true, actif: true } },
-        _count: { select: { classes: true, inscriptions: true } },
-      },
       orderBy: { dateDebut: 'desc' },
     });
 
-    const data = annees.map((a) => ({
-      ...a,
-      periodes: (a.periodes || []).map((p) => ({
-        ...p,
-        poids: p.poids != null ? Number(p.poids) : null,
-      })),
-    }));
+    const data = [];
+    for (const a of annees) {
+      let periodes = [];
+      let referentielVersion = null;
+      let counts = { classes: 0, inscriptions: 0 };
+      try {
+        periodes = await rawPrisma.periodeScolaire.findMany({
+          where: { anneeScolaireId: a.id, tenantId },
+          orderBy: { index: 'asc' },
+          select: {
+            id: true,
+            tenantId: true,
+            anneeScolaireId: true,
+            index: true,
+            libelle: true,
+            dateDebut: true,
+            dateFin: true,
+            dateEvaluationDebut: true,
+            dateEvaluationFin: true,
+            poids: true,
+            concerneCycles: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+        periodes = periodes.map((p) => ({
+          ...p,
+          poids: p.poids != null ? Number(p.poids) : null,
+        }));
+      } catch (e) {
+        // Schéma partiel (migration en retard) : retry sans concerneCycles
+        try {
+          periodes = await rawPrisma.periodeScolaire.findMany({
+            where: { anneeScolaireId: a.id, tenantId },
+            orderBy: { index: 'asc' },
+            select: {
+              id: true,
+              tenantId: true,
+              anneeScolaireId: true,
+              index: true,
+              libelle: true,
+              dateDebut: true,
+              dateFin: true,
+              dateEvaluationDebut: true,
+              dateEvaluationFin: true,
+              poids: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          });
+          periodes = periodes.map((p) => ({
+            ...p,
+            poids: p.poids != null ? Number(p.poids) : null,
+            concerneCycles: null,
+          }));
+        } catch (e2) {
+          log.warn({ err: e2, anneeId: a.id }, 'periodes indisponibles');
+          periodes = [];
+        }
+      }
+      try {
+        if (a.referentielVersionId) {
+          referentielVersion = await rawPrisma.referentielVersion.findFirst({
+            where: { id: a.referentielVersionId },
+            select: { id: true, code: true, libelle: true, actif: true },
+          });
+        }
+      } catch (e) {
+        log.warn({ err: e, anneeId: a.id }, 'referentielVersion indisponible');
+      }
+      try {
+        const [classes, inscriptions] = await Promise.all([
+          rawPrisma.classe.count({ where: { anneeScolaireId: a.id, tenantId } }),
+          rawPrisma.inscription.count({ where: { anneeScolaireId: a.id, tenantId } }),
+        ]);
+        counts = { classes, inscriptions };
+      } catch (e) {
+        log.warn({ err: e, anneeId: a.id }, 'counts indisponibles');
+      }
+      data.push({
+        ...a,
+        periodes,
+        referentielVersion,
+        _count: counts,
+      });
+    }
 
     res.json({ data });
   } catch (error) {

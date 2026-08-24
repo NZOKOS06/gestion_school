@@ -111,10 +111,18 @@ const Inscriptions = () => {
       try {
         const [cl, cfg] = await Promise.all([
           get('/api/classes?limit=200', { silent: true }),
-          get('/api/config', { silent: true }),
+          get('/api/config/demo', { silent: true }).catch(() => null),
         ]);
         setFilterClasses(cl?.data || cl || []);
-        setFraisInscriptionDefault(Number(cfg?.fraisInscriptionDefault ?? cfg?.config?.fraisInscriptionDefault ?? 0));
+        // Prefer tenant slug from storage when available
+        const slug = localStorage.getItem('tenantSlug') || 'demo';
+        let configPayload = cfg;
+        if (slug && slug !== 'demo') {
+          try {
+            configPayload = await get(`/api/config/${slug}`, { silent: true });
+          } catch { /* keep demo cfg */ }
+        }
+        setFraisInscriptionDefault(Number(configPayload?.fraisInscriptionDefault ?? configPayload?.config?.fraisInscriptionDefault ?? 0));
       } catch { /* silent */ }
     })();
   }, [get]);
@@ -125,7 +133,7 @@ const Inscriptions = () => {
       get('/api/classes?limit=200', { silent: true }),
       get('/api/annees-scolaires', { silent: true }),
       get('/api/parents?limit=500', { silent: true }),
-      get('/api/config', { silent: true }),
+      get(`/api/config/${localStorage.getItem('tenantSlug') || 'demo'}`, { silent: true }),
     ]);
     const val = (i) => (results[i].status === 'fulfilled' ? results[i].value : null);
     const elevesList = val(0)?.data || val(0) || [];

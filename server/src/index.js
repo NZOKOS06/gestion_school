@@ -352,7 +352,41 @@ app.get('/api/health/bootstrap', async (req, res) => {
     if (demo) {
       try {
         const n = await rawPrisma.anneeScolaire.count({ where: { tenantId: demo.id } });
-        anneeProbe = { ok: true, count: n };
+        const sample = await rawPrisma.anneeScolaire.findFirst({
+          where: { tenantId: demo.id },
+          select: { id: true, libelle: true, actif: true, statut: true },
+        });
+        let periodesProbe = null;
+        try {
+          const withPer = await rawPrisma.anneeScolaire.findFirst({
+            where: { tenantId: demo.id },
+            include: { periodes: { take: 1 } },
+          });
+          periodesProbe = { ok: true, periodes: withPer?.periodes?.length ?? 0 };
+        } catch (e) {
+          periodesProbe = { ok: false, message: e.message, code: e.code };
+        }
+        let refProbe = null;
+        try {
+          const withRef = await rawPrisma.anneeScolaire.findFirst({
+            where: { tenantId: demo.id },
+            include: { referentielVersion: { select: { id: true, code: true } } },
+          });
+          refProbe = { ok: true, hasRef: !!withRef?.referentielVersion };
+        } catch (e) {
+          refProbe = { ok: false, message: e.message, code: e.code };
+        }
+        let countProbe = null;
+        try {
+          await rawPrisma.anneeScolaire.findFirst({
+            where: { tenantId: demo.id },
+            include: { _count: { select: { classes: true, inscriptions: true } } },
+          });
+          countProbe = { ok: true };
+        } catch (e) {
+          countProbe = { ok: false, message: e.message, code: e.code };
+        }
+        anneeProbe = { ok: true, count: n, sample, periodesProbe, refProbe, countProbe };
       } catch (e) {
         anneeProbe = { ok: false, message: e.message, code: e.code };
       }

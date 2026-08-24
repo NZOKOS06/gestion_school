@@ -113,25 +113,68 @@ export const getBySlug = async (req, res) => {
       if (cfg?.anneeScolaireActiveId) {
         anneeActive = await rawPrisma.anneeScolaire.findFirst({
           where: { id: cfg.anneeScolaireActiveId, tenantId: tenant.id },
-          include: { periodes: { orderBy: { index: 'asc' } } },
         });
       } else {
         anneeActive = await rawPrisma.anneeScolaire.findFirst({
           where: { tenantId: tenant.id, actif: true },
-          include: { periodes: { orderBy: { index: 'asc' } } },
         });
       }
-      periodesActives = (anneeActive?.periodes || []).map((p) => ({
-        id: p.id,
-        index: p.index,
-        libelle: p.libelle,
-        dateDebut: p.dateDebut,
-        dateFin: p.dateFin,
-        dateEvaluationDebut: p.dateEvaluationDebut,
-        dateEvaluationFin: p.dateEvaluationFin,
-        poids: p.poids != null ? Number(p.poids) : null,
-        concerneCycles: p.concerneCycles,
-      }));
+      if (anneeActive) {
+        try {
+          const rawPeriodes = await rawPrisma.periodeScolaire.findMany({
+            where: { anneeScolaireId: anneeActive.id, tenantId: tenant.id },
+            orderBy: { index: 'asc' },
+            select: {
+              id: true,
+              index: true,
+              libelle: true,
+              dateDebut: true,
+              dateFin: true,
+              dateEvaluationDebut: true,
+              dateEvaluationFin: true,
+              poids: true,
+              concerneCycles: true,
+            },
+          });
+          periodesActives = rawPeriodes.map((p) => ({
+            id: p.id,
+            index: p.index,
+            libelle: p.libelle,
+            dateDebut: p.dateDebut,
+            dateFin: p.dateFin,
+            dateEvaluationDebut: p.dateEvaluationDebut,
+            dateEvaluationFin: p.dateEvaluationFin,
+            poids: p.poids != null ? Number(p.poids) : null,
+            concerneCycles: p.concerneCycles,
+          }));
+        } catch {
+          const rawPeriodes = await rawPrisma.periodeScolaire.findMany({
+            where: { anneeScolaireId: anneeActive.id, tenantId: tenant.id },
+            orderBy: { index: 'asc' },
+            select: {
+              id: true,
+              index: true,
+              libelle: true,
+              dateDebut: true,
+              dateFin: true,
+              dateEvaluationDebut: true,
+              dateEvaluationFin: true,
+              poids: true,
+            },
+          });
+          periodesActives = rawPeriodes.map((p) => ({
+            id: p.id,
+            index: p.index,
+            libelle: p.libelle,
+            dateDebut: p.dateDebut,
+            dateFin: p.dateFin,
+            dateEvaluationDebut: p.dateEvaluationDebut,
+            dateEvaluationFin: p.dateEvaluationFin,
+            poids: p.poids != null ? Number(p.poids) : null,
+            concerneCycles: null,
+          }));
+        }
+      }
     } catch (anneeErr) {
       log.warn({ err: anneeErr, slug }, 'getBySlug: année/périodes indisponibles');
       anneeActive = null;
