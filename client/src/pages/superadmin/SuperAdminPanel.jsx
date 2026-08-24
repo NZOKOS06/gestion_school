@@ -1066,7 +1066,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
                   color="primary"
                   delay={500}
                 />
-              </div>
+              </KpiGrid>
             )}
 
             {/* Tableau des établissements — desktop */}
