@@ -62,9 +62,9 @@ LICENSE*
 
 # Autres
 Makefile
-scripts
 tools
 setup.*
+# scripts/ est REQUIS (assert-prod-ready.js appelé par start.sh)
 
 # Debug
 *.tgz
