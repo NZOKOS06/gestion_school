@@ -58,10 +58,12 @@ services:
         sync: false
       - key: LOG_LEVEL
         value: info
+      # Laisser false : le boot seed automatiquement SI la base est vide (bootstrap-if-empty)
       - key: RUN_SEED
         value: "false"
       - key: ALLOW_PROD_SEED
         value: "false"
+      # Obligatoires pour le 1er boot (base vide) — password ≥12, ≠ SuperAdmin123!
       - key: SUPER_ADMIN_EMAIL
         sync: false
       - key: SUPER_ADMIN_PASSWORD
