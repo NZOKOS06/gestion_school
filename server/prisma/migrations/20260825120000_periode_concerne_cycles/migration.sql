@@ -1,2 +1,2 @@
-﻿-- AlterTable PeriodeScolaire: cycles concernés (préscolaire/primaire vs collège/lycée)
+-- AlterTable PeriodeScolaire: cycles concernes (prescolaire/primaire vs college/lycee)
 ALTER TABLE "PeriodeScolaire" ADD COLUMN IF NOT EXISTS "concerneCycles" JSONB;

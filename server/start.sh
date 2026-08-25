@@ -2,6 +2,8 @@
 set -e
 
 echo "[GestSchool] Migration base de données..."
+# Si une migration a échoué (ex. BOM UTF-8), la marquer rolled-back puis réappliquer
+npx prisma migrate resolve --rolled-back "20260825120000_periode_concerne_cycles" >/dev/null 2>&1 || true
 npx prisma migrate deploy
 
 # Jamais de seed automatique si des données existent déjà.
