@@ -399,7 +399,7 @@ app.get('/api/health/bootstrap', async (req, res) => {
       superAdminEmail: superAdmin?.email || null,
       superAdminActif: superAdmin?.actif ?? null,
       anneeProbe,
-      tip: 'Super-admin : utilisez SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD définis sur Render (pas SuperAdmin123!).',
+      tip: 'Super-admin : email = SUPER_ADMIN_EMAIL (voir superAdminEmail ci-dessus), mot de passe = SUPER_ADMIN_PASSWORD sur Render. Connexion via https://…vercel.app/login (pas besoin de /e/demo).',
     });
   } catch (e) {
     res.status(500).json({ error: e.message, code: e.code });

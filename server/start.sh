@@ -6,6 +6,9 @@ echo "[GestSchool] Migration base de données..."
 npx prisma migrate resolve --rolled-back "20260825120000_periode_concerne_cycles" >/dev/null 2>&1 || true
 npx prisma migrate deploy
 
+echo "[GestSchool] Sync super-admin (email/mot de passe Render)..."
+node scripts/sync-super-admin.js
+
 # Jamais de seed automatique si des données existent déjà.
 # - RUN_SEED=true + ALLOW_PROD_SEED=true : force un seed (bootstrap contrôlé)
 # - sinon : seed uniquement si la base est vide

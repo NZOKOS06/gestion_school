@@ -48,38 +48,34 @@ export const login = async (req, res) => {
       return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
 
-    // 1. Chercher le staff par email dans le tenant courant (isolation multi-tenant)
-    //    Si pas de tenant (domaine unique sans sous-domaine), chercher cross-tenant.
-    //    Si plusieurs comptes avec le même email existent, on refuse pour éviter l'ambiguïté.
-    let user = null;
-    if (tenantId) {
-      user = await rawPrisma.staff.findFirst({
-        where: { email, tenantId },
-        include: { tenant: { include: { config: true } } }
-      });
-    } else {
-      const staffMatches = await rawPrisma.staff.findMany({
-        where: { email },
-        include: { tenant: { include: { config: true } } }
-      });
-      if (staffMatches.length === 1) {
-        user = staffMatches[0];
-      } else if (staffMatches.length > 1) {
-        log.warn({ email, count: staffMatches.length }, 'Multiple staff accounts found for email without tenant');
-        return res.status(400).json({
-          error: 'Plusieurs comptes trouvés. Précisez l\'école (tenant).',
-          tenants: staffMatches.map(s => ({ id: s.tenantId, slug: s.tenant.slug, nom: s.tenant.nom }))
-        });
-      }
-      // Si length === 0, user reste null
-    }
+    // 1. Super-admin d'abord (indépendant du slug école / header X-Tenant-Slug)
+    let user = await rawPrisma.staff.findFirst({
+      where: { email, role: 'super_admin' },
+      include: { tenant: { include: { config: true } } }
+    });
 
-    // Si pas trouvé, essayer cross-tenant pour super_admin
+    // 2. Sinon staff du tenant courant, ou cross-tenant si pas de tenant
     if (!user) {
-      user = await rawPrisma.staff.findFirst({
-        where: { email, role: 'super_admin' },
-        include: { tenant: { include: { config: true } } }
-      });
+      if (tenantId) {
+        user = await rawPrisma.staff.findFirst({
+          where: { email, tenantId },
+          include: { tenant: { include: { config: true } } }
+        });
+      } else {
+        const staffMatches = await rawPrisma.staff.findMany({
+          where: { email },
+          include: { tenant: { include: { config: true } } }
+        });
+        if (staffMatches.length === 1) {
+          user = staffMatches[0];
+        } else if (staffMatches.length > 1) {
+          log.warn({ email, count: staffMatches.length }, 'Multiple staff accounts found for email without tenant');
+          return res.status(400).json({
+            error: 'Plusieurs comptes trouvés. Précisez l\'école (tenant).',
+            tenants: staffMatches.map(s => ({ id: s.tenantId, slug: s.tenant.slug, nom: s.tenant.nom }))
+          });
+        }
+      }
     }
 
     let role = null;
