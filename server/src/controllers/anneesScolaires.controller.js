@@ -270,14 +270,40 @@ export const remove = async (req, res) => {
       return res.status(404).json({ error: 'Année scolaire non trouvée' });
     }
 
-    await prisma.anneeScolaire.update({
-      where: { id },
-      data: { actif: false, statut: 'archivee' },
+    if (existing.statut === 'active' || existing.actif) {
+      return res.status(400).json({
+        error: 'Impossible de supprimer l\'année active. Activez une autre année d\'abord.',
+      });
+    }
+
+    const [classes, inscriptions] = await Promise.all([
+      prisma.classe.count({ where: { anneeScolaireId: id, tenantId } }),
+      prisma.inscription.count({ where: { anneeScolaireId: id, tenantId } }),
+    ]);
+
+    if (classes > 0 || inscriptions > 0) {
+      await prisma.anneeScolaire.update({
+        where: { id },
+        data: { actif: false, statut: 'archivee' },
+      });
+      await logAudit(req, 'annee_scolaire_deleted', 'AnneeScolaire', id, {
+        libelle: existing.libelle,
+        mode: 'archive',
+        classes,
+        inscriptions,
+      });
+      return res.json({
+        message: 'Année scolaire archivée (des classes ou inscriptions existent encore)',
+      });
+    }
+
+    await prisma.anneeScolaire.delete({ where: { id } });
+    await logAudit(req, 'annee_scolaire_deleted', 'AnneeScolaire', id, {
+      libelle: existing.libelle,
+      mode: 'hard',
     });
 
-    await logAudit(req, 'annee_scolaire_deleted', 'AnneeScolaire', id, { libelle: existing.libelle });
-
-    res.json({ message: 'Année scolaire archivée' });
+    res.json({ message: 'Année scolaire supprimée' });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Delete anneeScolaire error');
     res.status(500).json({ error: 'Internal server error' });
