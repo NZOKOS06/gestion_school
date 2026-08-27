@@ -34,7 +34,6 @@ export const V1_FROZEN_OFF = [
   'moduleBiblio',
   'moduleCantine',
   'moduleTransport',
-  'moduleActualites',
   'modulePointagePersonnel',
   'modulePaie',
 ];
@@ -61,7 +60,6 @@ export const MODULES_BY_PLAN = {
     'moduleParents',
     'moduleSanctions',
     'moduleCertificats',
-    'moduleActualites',
     'modulePointagePersonnel',
     'modulePaie',
   ],

@@ -38,11 +38,32 @@ const VALID_CONFIG_FIELDS = new Set([
   'emailAlertes', 'dureeSessionMinutes', 'ipWhitelist', 'forcer2FA',
   'privacyPolicyUrl', 'termsOfServiceUrl', 'cookiePolicyUrl', 'cookieBannerText', 'cookieBannerEnabled', 'analyticsEnabled',
   'moduleEleves', 'moduleClasses', 'moduleNotes', 'moduleBulletins', 'modulePaiements',
-  'moduleEmploiDuTemps', 'modulePresences', 'moduleSanctions', 'moduleActualites', 'modulePersonnel',
+  'moduleEmploiDuTemps', 'modulePresences', 'moduleSanctions', 'modulePersonnel',
   'moduleRapports', 'moduleInscriptions', 'moduleParents', 'moduleCertificats',
   'moduleBiblio', 'moduleCantine', 'moduleTransport',
-  'concerneCycles',
+  'modulePointagePersonnel', 'modulePaie', 'methodePaie', 'pointageToleranceMinutes', 'paieJourCloture',
+  'concerneCycles', 'nomEcole',
 ]);
+
+/** Champs UI / legacy à ne pas envoyer tels quels à Prisma TenantConfig */
+const PRISMA_CONFIG_STRIP = new Set([
+  'nomApp', 'nom', 'sloganApp', 'descriptionAbout', 'anneeCreation', 'rccm',
+  'footerLogoUrl', 'pwaIconUrl', 'heroImageUrl', 'featuresImageUrl', 'aboutImageUrl',
+  'heroVideoUrl', 'featuresVideoUrl', 'aboutVideoUrl', 'ogImageUrl',
+  'numeroAutorisation', 'numeroTVA', 'nomDirecteur',
+  'facebookUrl', 'instagramUrl', 'whatsappUrl', 'telegramUrl', 'googleMapsUrl', 'latitude', 'longitude',
+  'horaireOuverture', 'metaTitle', 'metaDescription', 'metaKeywords',
+  'emailAlertes', 'ipWhitelist', 'moduleActualites',
+  'modePrix', 'tauxTVA', 'anneeScolaire', 'modesPaiement',
+]);
+
+function toPrismaTenantConfig(data) {
+  const out = { ...data };
+  if (out.nomApp && !out.nomEcole) out.nomEcole = out.nomApp;
+  else if (out.nom && !out.nomEcole) out.nomEcole = out.nom;
+  for (const key of PRISMA_CONFIG_STRIP) delete out[key];
+  return out;
+}
 
 const isValidUrl = (value) => {
   if (!value) return false;
@@ -153,6 +174,17 @@ export const createTenant = async (req, res) => {
       ...moduleFlagsForPlan(plan),
       ...enforceModuleConstraints({}, plan),
     };
+    // Ne garder que les clés module réellement présentes sur TenantConfig (Prisma)
+    const configCreate = { nomEcole: nom };
+    for (const [key, value] of Object.entries(moduleDefaults)) {
+      if (key.startsWith('module') && typeof value === 'boolean') {
+        configCreate[key] = value;
+      }
+    }
+    if (Array.isArray(req.body?.concerneCycles) && req.body.concerneCycles.length) {
+      configCreate.concerneCycles = req.body.concerneCycles;
+    }
+
     const tenant = await rawPrisma.tenant.create({
       data: {
         nom,
@@ -160,7 +192,7 @@ export const createTenant = async (req, res) => {
         plan,
         numeroAutorisation,
         contact,
-        config: { create: { nomApp: nom, nom, ...moduleDefaults } }
+        config: { create: configCreate },
       },
       include: { config: true }
     });
@@ -200,7 +232,13 @@ export const updateTenant = async (req, res) => {
     // Si le plan a changé, réajuster les modules
     if (plan && plan !== existing.plan && tenant.config) {
       const adjusted = enforceModuleConstraints({}, plan);
-      await rawPrisma.tenantConfig.update({ where: { tenantId }, data: adjusted });
+      const moduleOnly = {};
+      for (const [key, value] of Object.entries(adjusted)) {
+        if (key.startsWith('module') && typeof value === 'boolean' && VALID_CONFIG_FIELDS.has(key)) {
+          moduleOnly[key] = value;
+        }
+      }
+      await rawPrisma.tenantConfig.update({ where: { tenantId }, data: moduleOnly });
     }
 
     await logAudit(req, 'tenant_updated', 'Tenant', tenant.id, {
@@ -226,14 +264,14 @@ export const updateTenantConfig = async (req, res) => {
     if (!tenant) return res.status(404).json({ error: 'Tenant non trouvé' });
 
     // Synchroniser le nom de l'école
-    if (configData.nom && configData.nom !== tenant.nom) {
-      await rawPrisma.tenant.update({ where: { id: tenantId }, data: { nom: configData.nom } });
+    const schoolName = configData.nom || configData.nomApp || configData.nomEcole;
+    if (schoolName && schoolName !== tenant.nom) {
+      await rawPrisma.tenant.update({ where: { id: tenantId }, data: { nom: schoolName } });
     }
 
-    // Appliquer les contraintes de modules
+    // Appliquer les contraintes de modules puis mapper vers les colonnes Prisma
     configData = enforceModuleConstraints(configData, tenant.plan);
-
-    const updatePayload = { ...configData };
+    const updatePayload = toPrismaTenantConfig(configData);
     if (ipWhitelist !== undefined) {
       updatePayload.ipWhitelist = {
         deleteMany: {},
