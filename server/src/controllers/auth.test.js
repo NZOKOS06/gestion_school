@@ -55,6 +55,19 @@ vi.mock('../utils/prisma.js', () => ({
     user: {
       findFirst: mockUserFindFirst,
     },
+    auditLog: {
+      create: vi.fn().mockResolvedValue({}),
+    },
+    passwordResetToken: {
+      create: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({}),
+      findUnique: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    emailVerificationToken: {
+      create: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({}),
+    },
   },
 }))
 
@@ -70,6 +83,14 @@ vi.mock('../config.js', () => ({
     brevo: { apiKey: null },
     smtp: {},
   },
+}))
+
+// ─── Mock email service ───────────────────────────────────────────────────────
+vi.mock('../services/email.service.js', () => ({
+  sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
+  sendEmailVerificationEmail: vi.fn().mockResolvedValue(true),
+  sendPasswordChangedEmail: vi.fn().mockResolvedValue(true),
+  sendNewDeviceLoginEmail: vi.fn().mockResolvedValue(true),
 }))
 
 import { login, refresh, changePassword } from './auth.controller.js'
