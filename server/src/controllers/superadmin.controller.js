@@ -41,6 +41,7 @@ const VALID_CONFIG_FIELDS = new Set([
   'moduleEmploiDuTemps', 'modulePresences', 'moduleSanctions', 'moduleActualites', 'modulePersonnel',
   'moduleRapports', 'moduleInscriptions', 'moduleParents', 'moduleCertificats',
   'moduleBiblio', 'moduleCantine', 'moduleTransport',
+  'concerneCycles',
 ]);
 
 const isValidUrl = (value) => {
@@ -74,7 +75,7 @@ const sanitizeConfigBody = (body) => {
     } else if (key === 'latitude' || key === 'longitude') {
       const num = parseFloat(value);
       config[key] = isNaN(num) ? null : num;
-    } else if (['horaireOuverture', 'modesPaiement', 'ipWhitelist'].includes(key)) {
+    } else if (['horaireOuverture', 'modesPaiement', 'ipWhitelist', 'concerneCycles'].includes(key)) {
       if (typeof value === 'object' && value !== null) {
         config[key] = value;
       } else if (typeof value === 'string') {

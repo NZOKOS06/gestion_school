@@ -446,9 +446,9 @@ const Rapports = () => {
       )}
 
       {/* KPI Cards */}
-      <KpiGrid cols={kpiCards.length || 4}>
+      <KpiGrid cols={2} className="lg:grid-cols-3">
         {loading && !data
-          ? Array.from({ length: 4 }).map((_, i) => (
+          ? Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
                 className="rounded-xl p-5 skeleton"

@@ -55,6 +55,9 @@ model Tenant {
   conseils        ConseilDeClasse[]
   messages        Message[]
   heuresEnseignees HeureEnseignee[]
+  pointageSessions PointageSession[]
+  periodesPaie PeriodePaie[]
+  bulletinsPaie BulletinPaie[]
   referentielVersions ReferentielVersion[]
   niveauxOfficiels  NiveauOfficiel[]
   filieresOfficielles FiliereOfficielle[]
@@ -127,6 +130,16 @@ model TenantConfig {
   moduleInscriptions  Boolean @default(true)
   modulePersonnel     Boolean @default(true)
   moduleRapports      Boolean @default(true)
+  modulePointagePersonnel Boolean @default(false)
+  modulePaie          Boolean @default(false)
+
+  // RH / paie
+  methodePaie             MethodePaie @default(mensuel)
+  pointageToleranceMinutes Int        @default(15)
+  paieJourCloture         Int        @default(25)
+
+  /// null = tous les cycles ; ex. ["prescolaire","primaire"] pour école maternelle+primaire
+  concerneCycles          Json?
 
   // Sécurité & sessions
   dureeSessionMinutes Int     @default(480)
@@ -176,6 +189,8 @@ model Staff {
   typeContrat        TypeContrat @default(titulaire) // titulaire | vacataire | stagiaire | contractuel
   heuresHebdo        Int?      // Cahier de charge — heures par semaine (pour vacataires)
   tauxHoraire        Decimal?  @db.Decimal(10, 2) // Taux horaire pour vacataires
+  salaireMensuel     Decimal?  @db.Decimal(12, 2)
+  deviceBiometricId  String?
   mustChangePassword Boolean   @default(true)
   actif              Boolean   @default(true)
   derniereConnexion  DateTime?
@@ -198,6 +213,9 @@ model Staff {
   notifications     Notification[]     @relation("StaffDestinataire")
   cahierDeTextes    CahierDeTextes[]
   heuresEnseignees  HeureEnseignee[]
+  pointageSessions  PointageSession[] @relation("PointageEnseignant")
+  pointagesSaisis   PointageSession[] @relation("PointageSaisiPar")
+  bulletinsPaie     BulletinPaie[]
   messagesEnvoyes   Message[]          @relation("MessageExpediteur")
   messagesRecus     Message[]          @relation("MessageDestinataireStaff")
   conseilParticipants ConseilParticipant[]
@@ -331,6 +349,7 @@ model AnneeScolaire {
   matieresNiveauAnnee MatiereNiveauAnnee[]
   depenses     Depense[]
   sanctions    Sanction[]
+  periodesPaie PeriodePaie[]
 
   @@unique([tenantId, libelle])
   @@index([tenantId])
@@ -453,6 +472,7 @@ model Classe {
   cahierDeTextes CahierDeTextes[]
   conseils       ConseilDeClasse[]
   heuresEnseignees HeureEnseignee[]
+  pointageSessions PointageSession[]
   inscriptionsCible Inscription[] @relation("InscriptionClasseCible")
 
   @@unique([tenantId, anneeScolaireId, nom])
@@ -480,6 +500,7 @@ model Matiere {
   enseignantClasses EnseignantClasse[]
   cahierDeTextes  CahierDeTextes[]
   heuresEnseignees HeureEnseignee[]
+  pointageSessions PointageSession[]
   matieresNiveauAnnee MatiereNiveauAnnee[]
   matieresClasseAnnee MatiereClasseAnnee[]
   bulletinDetails BulletinDetail[]
@@ -774,6 +795,7 @@ model EmploiDuTemps {
 
   absences Absence[]
   cahierDeTextes CahierDeTextes[]
+  pointageSessions PointageSession[]
 
   @@index([tenantId])
   @@index([classeId])
@@ -874,6 +896,7 @@ model Depense {
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   saisiePar     Staff          @relation("DepenseSaisiePar", fields: [saisieParId], references: [id])
   anneeScolaire AnneeScolaire? @relation(fields: [anneeScolaireId], references: [id], onDelete: SetNull)
+  bulletinsPaie BulletinPaie[]
 
   @@index([tenantId])
   @@index([dateDepense])
@@ -1101,6 +1124,39 @@ enum TypeContrat {
   contractuel
 }
 
+enum MethodePaie {
+  mensuel
+  horaire
+  mixte
+}
+
+enum StatutPointageSession {
+  prevue
+  en_cours
+  terminee
+  absente
+  annulee
+}
+
+enum SourcePointage {
+  manuel
+  biometrique
+  import
+}
+
+enum StatutPeriodePaie {
+  ouverte
+  calculee
+  validee
+  payee
+}
+
+enum StatutBulletinPaie {
+  brouillon
+  valide
+  paye
+}
+
 enum TypeEvenementCalendrier {
   rentree
   vacances
@@ -1126,6 +1182,7 @@ model Salle {
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   emploisDuTemps EmploiDuTemps[]
+  pointageSessions PointageSession[]
 
   @@unique([tenantId, nom])
   @@index([tenantId])
@@ -1224,30 +1281,116 @@ model ConseilParticipant {
   @@index([conseilId])
 }
 
-// --- Heures enseignées (pour la paie des vacataires) ---
+// --- Heures enseignées (pointage validé pour la paie) ---
 model HeureEnseignee {
-  id           String   @id @default(uuid())
-  tenantId     String
-  enseignantId String   // Staff (role: enseignant, typeContrat: vacataire)
-  classeId     String?
-  matiereId    String?
-  date         DateTime
-  heureDebut   String   // "HH:MM"
-  heureFin     String   // "HH:MM"
-  dureeHeures  Decimal  @db.Decimal(5, 2) // Durée calculée en heures
-  validee      Boolean  @default(false) // Validée par la direction pour la paie
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(uuid())
+  tenantId          String
+  enseignantId      String
+  classeId          String?
+  matiereId         String?
+  pointageSessionId String?  @unique
+  date              DateTime
+  heureDebut        String   // "HH:MM"
+  heureFin          String   // "HH:MM"
+  dureeHeures       Decimal  @db.Decimal(5, 2)
+  validee           Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  enseignant  Staff    @relation(fields: [enseignantId], references: [id], onDelete: Cascade)
-  classe      Classe?  @relation(fields: [classeId], references: [id], onDelete: SetNull)
-  matiere     Matiere? @relation(fields: [matiereId], references: [id], onDelete: SetNull)
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  enseignant       Staff            @relation(fields: [enseignantId], references: [id], onDelete: Cascade)
+  classe           Classe?          @relation(fields: [classeId], references: [id], onDelete: SetNull)
+  matiere          Matiere?         @relation(fields: [matiereId], references: [id], onDelete: SetNull)
+  pointageSession  PointageSession? @relation(fields: [pointageSessionId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([enseignantId])
   @@index([date])
   @@index([validee])
+}
+
+// --- Pointage enseignant (session journalière liée à l'EDT) ---
+model PointageSession {
+  id                String              @id @default(uuid())
+  tenantId          String
+  emploiDuTempsId   String
+  enseignantId      String
+  classeId          String
+  matiereId         String
+  salleId           String?
+  date              DateTime            @db.Date
+  heurePrevueDebut  String
+  heurePrevueFin    String
+  heureArrivee      DateTime?
+  heureDepart       DateTime?
+  statut            StatutPointageSession @default(prevue)
+  sourceArrivee     SourcePointage?
+  sourceDepart      SourcePointage?
+  saisiParId        String?
+  commentaire       String?
+  dureeHeures       Decimal?            @db.Decimal(5, 2)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  emploiDuTemps  EmploiDuTemps   @relation(fields: [emploiDuTempsId], references: [id], onDelete: Cascade)
+  enseignant     Staff           @relation("PointageEnseignant", fields: [enseignantId], references: [id], onDelete: Cascade)
+  classe         Classe          @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  matiere        Matiere         @relation(fields: [matiereId], references: [id], onDelete: Cascade)
+  salle          Salle?          @relation(fields: [salleId], references: [id], onDelete: SetNull)
+  saisiPar       Staff?          @relation("PointageSaisiPar", fields: [saisiParId], references: [id], onDelete: SetNull)
+  heureEnseignee HeureEnseignee?
+
+  @@unique([tenantId, emploiDuTempsId, date])
+  @@index([tenantId])
+  @@index([date])
+  @@index([enseignantId])
+  @@index([statut])
+}
+
+// --- Paie personnel ---
+model PeriodePaie {
+  id              String           @id @default(uuid())
+  tenantId        String
+  anneeScolaireId String
+  mois            Int
+  anneeCivile     Int
+  statut          StatutPeriodePaie @default(ouverte)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  anneeScolaire AnneeScolaire  @relation(fields: [anneeScolaireId], references: [id], onDelete: Cascade)
+  bulletins     BulletinPaie[]
+
+  @@unique([tenantId, anneeScolaireId, mois, anneeCivile])
+  @@index([tenantId])
+  @@index([anneeScolaireId])
+}
+
+model BulletinPaie {
+  id              String            @id @default(uuid())
+  tenantId        String
+  periodePaieId   String
+  staffId         String
+  montantFixe     Decimal           @default(0) @db.Decimal(12, 2)
+  heuresValidees  Decimal           @default(0) @db.Decimal(8, 2)
+  montantHoraire  Decimal           @default(0) @db.Decimal(12, 2)
+  montantTotal    Decimal           @default(0) @db.Decimal(12, 2)
+  detailJson      Json?
+  statut          StatutBulletinPaie @default(brouillon)
+  depenseId       String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  periodePaie PeriodePaie @relation(fields: [periodePaieId], references: [id], onDelete: Cascade)
+  staff       Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  depense     Depense?    @relation(fields: [depenseId], references: [id], onDelete: SetNull)
+
+  @@unique([periodePaieId, staffId])
+  @@index([tenantId])
+  @@index([staffId])
 }
 
 // --- Messagerie interne ---

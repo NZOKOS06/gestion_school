@@ -34,6 +34,8 @@ export const MODULES_CONFIG = [
   { key: 'moduleRapports',        label: 'Rapports',        icon: BarChart2,      desc: 'Statistiques',                    locked: false, planMinimum: 'basique',     required: false, v1: true },
   { key: 'moduleEmploiDuTemps',   label: 'Emploi du temps', icon: Calendar,       desc: 'Planification des cours',         locked: false, planMinimum: 'pro',         required: false, v1: false },
   { key: 'modulePresences',       label: 'Absences',        icon: ClipboardList,  desc: 'Appel et suivi des absences',     locked: false, planMinimum: 'pro',         required: false, v1: false },
+  { key: 'modulePointagePersonnel', label: 'Pointage personnel', icon: Calendar, desc: 'Présence enseignants (EDT)',     locked: false, planMinimum: 'pro',         required: false, v1: false },
+  { key: 'modulePaie',            label: 'Paie',            icon: ShoppingCart,   desc: 'Bulletins et salaires',           locked: false, planMinimum: 'pro',         required: false, v1: false },
   { key: 'moduleParents',         label: 'Parents',         icon: Users,          desc: 'Portail familles',                locked: false, planMinimum: 'pro',         required: false, v1: false },
   { key: 'moduleActualites',      label: 'Actualités',      icon: Globe,          desc: 'Publications',                    locked: false, planMinimum: 'enterprise',  required: false, v1: false },
   { key: 'moduleSanctions',       label: 'Sanctions',       icon: AlertTriangle,  desc: 'Discipline',                      locked: false, planMinimum: 'enterprise',  required: false, v1: false },
@@ -128,6 +130,9 @@ export const DEFAULT_CONFIG = {
   moduleActualites: false,
   moduleSanctions: false,
   moduleCertificats: false,
+  modulePointagePersonnel: false,
+  modulePaie: false,
+  concerneCycles: ['prescolaire', 'primaire', 'college', 'lycee'],
 };
 
 export const JOURS_SEMAINE_CONFIG = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];

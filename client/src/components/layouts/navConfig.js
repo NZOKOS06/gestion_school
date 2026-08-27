@@ -22,6 +22,9 @@ import {
   CalendarCheck,
   UserRound,
   TrendingDown,
+  Clock,
+  Timer,
+  Banknote,
 } from 'lucide-react';
 
 export const ADMIN_ROUTE_LABELS = {
@@ -46,6 +49,9 @@ export const ADMIN_ROUTE_LABELS = {
   '/admin/messagerie': 'Messagerie',
   '/admin/rapports': 'Rapports',
   '/admin/personnel': 'Personnel',
+  '/admin/pointage': 'Pointage personnel',
+  '/admin/heures-enseignees': 'Validation des heures',
+  '/admin/paie': 'Paie du personnel',
   '/admin/configuration': 'Configuration',
   '/admin/profil': 'Profil',
 };
@@ -71,6 +77,7 @@ export const ADMIN_NAV = [
       { path: '/admin/emploi-du-temps', icon: CalendarDays, labelKey: 'emploi_du_temps', roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
       { path: '/admin/salles', icon: DoorOpen, labelKey: 'salles', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/absences', icon: CalendarX, labelKey: 'absences', module: 'presences', roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
+      { path: '/admin/pointage', icon: Clock, labelKey: 'pointage_personnel', module: 'pointagePersonnel', roles: ['directeur', 'directeur_etudes', 'surveillant'] },
       { path: '/admin/sanctions', icon: Gavel, labelKey: 'sanctions', module: 'sanctions', roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
     ],
   },
@@ -81,6 +88,7 @@ export const ADMIN_NAV = [
       { path: '/admin/cahier-de-textes', icon: NotebookPen, labelKey: 'cahier_de_textes', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/conseil-de-classe', icon: Users2, labelKey: 'conseil_de_classe', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/bulletins', icon: FileText, labelKey: 'resultats_bulletins', module: 'bulletins', roles: ['directeur', 'directeur_etudes'] },
+      { path: '/admin/heures-enseignees', icon: Timer, labelKey: 'heures_enseignees', module: 'pointagePersonnel', roles: ['directeur', 'directeur_etudes'] },
       { path: '/admin/examens', icon: Award, labelKey: 'examens', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
       { path: '/admin/certificats', icon: Award, labelKey: 'certificats', module: 'certificats', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
     ],
@@ -89,6 +97,7 @@ export const ADMIN_NAV = [
     groupKey: 'finances',
     items: [
       { path: '/admin/paiements', icon: Wallet, labelKey: 'paiements', module: 'paiements', primary: true, roles: ['directeur'] },
+      { path: '/admin/paie', icon: Banknote, labelKey: 'paie_personnel', module: 'paie', roles: ['directeur', 'comptable'] },
     ],
   },
   {
@@ -132,6 +141,7 @@ export const ENSEIGNANT_NAV = [
       { path: '/enseignant/saisie-notes', icon: ClipboardEdit, labelKey: 'saisie_notes', primary: true },
       { path: '/enseignant/appel', icon: CalendarCheck, labelKey: 'faire_appel', primary: true },
       { path: '/enseignant/mon-emploi', icon: CalendarDays, labelKey: 'mon_emploi' },
+      { path: '/enseignant/mes-pointages', icon: Clock, labelKey: 'mes_pointages', module: 'pointagePersonnel' },
       { path: '/enseignant/cahier-de-textes', icon: NotebookPen, labelKey: 'cahier_de_textes' },
       { path: '/enseignant/messagerie', icon: Mail, labelKey: 'messagerie', primary: true },
     ],
@@ -144,6 +154,7 @@ export const ENSEIGNANT_ROUTE_LABELS = {
   '/enseignant/saisie-notes': 'Saisie des notes',
   '/enseignant/appel': "Faire l'appel",
   '/enseignant/mon-emploi': 'Mon emploi du temps',
+  '/enseignant/mes-pointages': 'Mes pointages',
   '/enseignant/cahier-de-textes': 'Cahier de textes',
   '/enseignant/messagerie': 'Messagerie',
 };

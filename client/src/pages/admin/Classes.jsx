@@ -1,17 +1,19 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
+import { CYCLE_LABELS, resolveAllowedCycles } from '../../constants/cycles.js';
 import { PageHeader, Badge, Button, Modal, Input, Select, FormField, SegmentedControl, EmptyState, Skeleton, DataTable } from '../../components/ui';
 import { School, Plus, Users, BookOpen, Printer, BarChart3, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const CYCLES = ['prescolaire', 'primaire', 'college', 'lycee'];
-const CYCLE_LABELS = { prescolaire: 'Préscolaire', primaire: 'Primaire', college: 'Collège', lycee: 'Lycée' };
-
 const Classes = () => {
   const { get, post, put } = useAxios();
-  const { formatPrice } = useTenant();
+  const { formatPrice, config } = useTenant();
+  const allowedCycles = useMemo(
+    () => resolveAllowedCycles(config?.concerneCycles),
+    [config?.concerneCycles],
+  );
   const navigate = useNavigate();
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -139,7 +141,11 @@ const Classes = () => {
     <div className="space-y-6">
       <PageHeader
         title="Classes & Niveaux"
-        subtitle="Niveaux officiels Congo (PS → Tle)"
+        subtitle={
+          allowedCycles.length < 4
+            ? `Niveaux : ${allowedCycles.map((c) => CYCLE_LABELS[c]).join(', ')}`
+            : 'Niveaux officiels Congo (selon cycles de l\'établissement)'
+        }
         actions={<Button icon={Plus} onClick={openCreate}>Nouvelle classe</Button>}
       />
 
@@ -148,7 +154,7 @@ const Classes = () => {
         onChange={(v) => setFilterCycle(v === 'all' ? '' : v)}
         options={[
           { value: 'all', label: 'Tous' },
-          ...CYCLES.map((c) => ({ value: c, label: CYCLE_LABELS[c] })),
+          ...allowedCycles.map((c) => ({ value: c, label: CYCLE_LABELS[c] })),
         ]}
       />
 

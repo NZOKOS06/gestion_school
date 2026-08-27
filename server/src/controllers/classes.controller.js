@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { resolveAnneeScolaireId } from '../utils/anneeScolaire.js';
+import { isCycleAllowed, getTenantCyclesConfig } from '../utils/tenantCycles.js';
 
 const log = createLogger('ClassesController');
 
@@ -137,6 +138,10 @@ export const create = async (req, res) => {
       });
       if (!niveauOfficiel) {
         return res.status(400).json({ error: 'Niveau officiel invalide' });
+      }
+      const tenantCycles = await getTenantCyclesConfig(tenantId, prisma);
+      if (!isCycleAllowed(niveauOfficiel.cycle, tenantCycles)) {
+        return res.status(400).json({ error: 'Ce cycle n\'est pas proposé par votre établissement' });
       }
       resolvedCycle = niveauOfficiel.cycle;
       resolvedNiveau = niveauOfficiel.code;

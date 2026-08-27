@@ -19,6 +19,8 @@ const SCHEMA_CONFIG_FIELDS = new Set([
   'moduleEmploiDuTemps', 'moduleParents', 'moduleEleves', 'moduleSanctions',
   'moduleBiblio', 'moduleCantine', 'moduleTransport', 'moduleCertificats',
   'moduleClasses', 'moduleInscriptions', 'modulePersonnel', 'moduleRapports',
+  'modulePointagePersonnel', 'modulePaie', 'methodePaie', 'pointageToleranceMinutes', 'paieJourCloture',
+  'concerneCycles',
   'dureeSessionMinutes', 'ipWhitelist', 'forcer2FA',
   'privacyPolicyUrl', 'termsOfServiceUrl', 'cookiePolicyUrl', 'cookieBannerText',
   'cookieBannerEnabled', 'analyticsEnabled',
@@ -64,10 +66,18 @@ const sanitizeConfigBody = (body) => {
         continue;
       }
     }
-    if (['notationSur', 'nombrePeriodes', 'dureeSessionMinutes'].includes(key)) {
+    if (['notationSur', 'nombrePeriodes', 'dureeSessionMinutes', 'pointageToleranceMinutes', 'paieJourCloture'].includes(key)) {
       const num = parseInt(value, 10);
       config[key] = Number.isNaN(num) ? undefined : num;
       if (config[key] === undefined) delete config[key];
+      continue;
+    }
+    if (key === 'concerneCycles') {
+      if (Array.isArray(value)) {
+        config[key] = value.length ? value : null;
+      } else {
+        config[key] = null;
+      }
       continue;
     }
     if (['seuilReussite', 'fraisInscriptionDefault', 'fraisScolariteDefault'].includes(key)) {
@@ -232,6 +242,12 @@ export const getBySlug = async (req, res) => {
       moduleInscriptions: cfg?.moduleInscriptions ?? true,
       modulePersonnel: cfg?.modulePersonnel ?? true,
       moduleRapports: cfg?.moduleRapports ?? true,
+      modulePointagePersonnel: cfg?.modulePointagePersonnel ?? false,
+      modulePaie: cfg?.modulePaie ?? false,
+      methodePaie: cfg?.methodePaie || 'mensuel',
+      pointageToleranceMinutes: cfg?.pointageToleranceMinutes ?? 15,
+      paieJourCloture: cfg?.paieJourCloture ?? 25,
+      concerneCycles: cfg?.concerneCycles ?? null,
       dureeSessionMinutes: cfg?.dureeSessionMinutes ?? 480,
       forcer2FA: cfg?.forcer2FA ?? false,
       privacyPolicyUrl: cfg?.privacyPolicyUrl ?? null,
@@ -275,6 +291,8 @@ export const getBySlug = async (req, res) => {
         rapports: cfg?.moduleRapports ?? true,
         inscriptions: cfg?.moduleInscriptions ?? true,
         actualites: true,
+        pointagePersonnel: cfg?.modulePointagePersonnel ?? false,
+        paie: cfg?.modulePaie ?? false,
       },
     });
 

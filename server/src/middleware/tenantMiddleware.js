@@ -121,6 +121,8 @@ const MODULE_KEY_ALIASES = {
   absences: 'modulePresences',
   presences: 'modulePresences',
   emploiDuTemps: 'moduleEmploiDuTemps',
+  pointagePersonnel: 'modulePointagePersonnel',
+  paie: 'modulePaie',
 };
 
 export const requireModule = (moduleName) => {

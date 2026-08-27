@@ -35,6 +35,8 @@ export const V1_FROZEN_OFF = [
   'moduleCantine',
   'moduleTransport',
   'moduleActualites',
+  'modulePointagePersonnel',
+  'modulePaie',
 ];
 
 /**
@@ -49,6 +51,8 @@ export const MODULES_BY_PLAN = {
     'moduleEmploiDuTemps',
     'modulePresences',
     'moduleParents',
+    'modulePointagePersonnel',
+    'modulePaie',
   ],
   enterprise: [
     ...V1_CORE_MODULES,
@@ -58,6 +62,8 @@ export const MODULES_BY_PLAN = {
     'moduleSanctions',
     'moduleCertificats',
     'moduleActualites',
+    'modulePointagePersonnel',
+    'modulePaie',
   ],
 };
 

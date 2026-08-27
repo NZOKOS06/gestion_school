@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { filterByTenantCycles, getTenantCyclesConfig, isCycleAllowed } from '../utils/tenantCycles.js';
 import { buildCalendrierTemplatesFromPeriodes } from '../data/referentielCongo.js';
 
 const log = createLogger('ReferentielController');
@@ -48,10 +49,14 @@ export const listNiveaux = async (req, res) => {
     const where = { tenantId: req.tenantId, referentielVersionId: versionId };
     if (cycle) where.cycle = cycle;
 
-    const niveaux = await prisma.niveauOfficiel.findMany({
+    let niveaux = await prisma.niveauOfficiel.findMany({
       where,
       orderBy: { ordre: 'asc' },
     });
+
+    const tenantCycles = await getTenantCyclesConfig(req.tenantId, prisma);
+    niveaux = filterByTenantCycles(niveaux, tenantCycles, (n) => n.cycle);
+
     res.json({ data: niveaux, referentielVersionId: versionId });
   } catch (error) {
     log.error({ err: error }, 'listNiveaux');
@@ -80,6 +85,11 @@ export const listFilieres = async (req, res) => {
     }
 
     if (!versionId) return res.json({ data: [] });
+
+    const tenantCycles = await getTenantCyclesConfig(req.tenantId, prisma);
+    if (!isCycleAllowed('lycee', tenantCycles)) {
+      return res.json({ data: [], referentielVersionId: versionId });
+    }
 
     const filieres = await prisma.filiereOfficielle.findMany({
       where: { tenantId: req.tenantId, referentielVersionId: versionId },

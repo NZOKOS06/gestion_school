@@ -27,7 +27,9 @@ import {
   FileText,
   Award,
   Gavel,
-  Layers
+  Layers,
+  Clock,
+  Banknote,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -55,6 +57,8 @@ const moduleDefinitions = [
   { key: 'modulePaiements', label: 'Paiements', description: 'Scolarités et échéances', icon: Wallet },
   { key: 'moduleCertificats', label: 'Certificats', description: 'Attestations et certificats', icon: Award },
   { key: 'modulePersonnel', label: 'Personnel', description: 'Comptes et rôles', icon: Users },
+  { key: 'modulePointagePersonnel', label: 'Pointage personnel', description: 'Présence enseignants liée à l\'EDT', icon: Clock },
+  { key: 'modulePaie', label: 'Paie', description: 'Bulletins mensuels et salaires', icon: Wallet },
   { key: 'moduleRapports', label: 'Rapports', description: 'Statistiques et analytics', icon: FileBarChart },
   { key: 'moduleActualites', label: 'Actualités', description: 'Publications et communication', icon: Layers }
 ];
@@ -98,6 +102,11 @@ const Configuration = () => {
     modulePaiements: true,
     moduleCertificats: true,
     modulePersonnel: true,
+    modulePointagePersonnel: false,
+    modulePaie: false,
+    methodePaie: 'mensuel',
+    pointageToleranceMinutes: 15,
+    paieJourCloture: 25,
     moduleRapports: true,
     moduleActualites: false
   });
@@ -177,6 +186,11 @@ const Configuration = () => {
         modulePaiements: form.modulePaiements,
         moduleCertificats: form.moduleCertificats,
         modulePersonnel: form.modulePersonnel,
+        modulePointagePersonnel: form.modulePointagePersonnel,
+        modulePaie: form.modulePaie,
+        methodePaie: form.methodePaie,
+        pointageToleranceMinutes: parseInt(form.pointageToleranceMinutes, 10) || 15,
+        paieJourCloture: parseInt(form.paieJourCloture, 10) || 25,
         moduleRapports: form.moduleRapports,
       };
 
@@ -563,6 +577,56 @@ const Configuration = () => {
               />
             </div>
           </div>
+
+          {(form.modulePointagePersonnel || form.modulePaie) && (
+            <div className="border-t border-[var(--border-subtle)] pt-6 space-y-4">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <Banknote className="h-4 w-4" /> RH — pointage & paie
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {form.modulePaie && (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Méthode de paie</label>
+                    <select
+                      value={form.methodePaie || 'mensuel'}
+                      onChange={e => updateForm('methodePaie', e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg bg-[var(--surface-raised)]"
+                    >
+                      <option value="mensuel">Mensuel (salaire fixe)</option>
+                      <option value="horaire">Horaire (heures validées × taux)</option>
+                      <option value="mixte">Mixte (fixe + heures validées)</option>
+                    </select>
+                  </div>
+                )}
+                {form.modulePointagePersonnel && (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Tolérance pointage (min)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="60"
+                      value={form.pointageToleranceMinutes ?? 15}
+                      onChange={e => updateForm('pointageToleranceMinutes', e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                )}
+                {form.modulePaie && (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Jour de clôture paie</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="28"
+                      value={form.paieJourCloture ?? 25}
+                      onChange={e => updateForm('paieJourCloture', e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

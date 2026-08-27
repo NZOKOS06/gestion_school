@@ -60,6 +60,9 @@ import enseignantRoutes from './routes/enseignant.js';
 import referentielRoutes from './routes/referentiel.js';
 import examensRoutes from './routes/examens.js';
 import notificationsRoutes from './routes/notifications.js';
+import pointageRoutes from './routes/pointage.js';
+import heuresEnseigneesRoutes from './routes/heuresEnseignees.js';
+import paieRoutes from './routes/paie.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -86,7 +89,7 @@ const corsOptions = {
   origin: corsOriginCallback,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Slug', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Slug', 'X-Requested-With', 'X-Pointage-Device-Token'],
 };
 
 // Socket.IO
@@ -303,6 +306,9 @@ app.use('/api/parent', tenantMiddleware, parentRoutes);
 app.use('/api/parents', tenantMiddleware, parentsRoutes);
 app.use('/api/enseignant', tenantMiddleware, enseignantRoutes);
 app.use('/api/notifications', tenantMiddleware, notificationsRoutes);
+app.use('/api/pointage', tenantMiddleware, pointageRoutes);
+app.use('/api/heures-enseignees', tenantMiddleware, heuresEnseigneesRoutes);
+app.use('/api/paie', tenantMiddleware, paieRoutes);
 
 // Super admin routes
 app.use('/api/superadmin', superadminRoutes);

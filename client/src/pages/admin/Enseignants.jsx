@@ -24,6 +24,7 @@ const Enseignants = () => {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({
     nom: '', prenom: '', email: '', telephone: '', typeContrat: 'titulaire',
+    salaireMensuel: '', tauxHoraire: '', heuresHebdo: '',
   });
   const [resultModal, setResultModal] = useState({ open: false, password: '', email: '' });
 
@@ -80,7 +81,7 @@ const Enseignants = () => {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ nom: '', prenom: '', email: '', telephone: '', typeContrat: 'titulaire' });
+    setForm({ nom: '', prenom: '', email: '', telephone: '', typeContrat: 'titulaire', salaireMensuel: '', tauxHoraire: '', heuresHebdo: '' });
     setModalOpen(true);
   };
 
@@ -92,6 +93,9 @@ const Enseignants = () => {
       email: row.email || '',
       telephone: row.telephone || '',
       typeContrat: row.typeContrat || 'titulaire',
+      salaireMensuel: row.salaireMensuel || '',
+      tauxHoraire: row.tauxHoraire || '',
+      heuresHebdo: row.heuresHebdo || '',
     });
     setModalOpen(true);
   };
@@ -338,6 +342,34 @@ const Enseignants = () => {
               <option value="stagiaire">Stagiaire</option>
             </select>
           </div>
+          {form.typeContrat === 'vacataire' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Heures / semaine</label>
+                <input type="number" style={inputStyle} value={form.heuresHebdo} onChange={(e) => setForm({ ...form, heuresHebdo: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Taux horaire (FCFA)</label>
+                <input type="number" style={inputStyle} value={form.tauxHoraire} onChange={(e) => setForm({ ...form, tauxHoraire: e.target.value })} />
+              </div>
+            </div>
+          ) : form.typeContrat === 'contractuel' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Salaire mensuel (FCFA)</label>
+                <input type="number" style={inputStyle} value={form.salaireMensuel} onChange={(e) => setForm({ ...form, salaireMensuel: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Taux horaire (FCFA)</label>
+                <input type="number" style={inputStyle} value={form.tauxHoraire} onChange={(e) => setForm({ ...form, tauxHoraire: e.target.value })} />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Salaire mensuel (FCFA)</label>
+              <input type="number" style={inputStyle} value={form.salaireMensuel} onChange={(e) => setForm({ ...form, salaireMensuel: e.target.value })} placeholder="Montant brut mensuel" />
+            </div>
+          )}
         </form>
       </Modal>
 

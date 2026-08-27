@@ -55,6 +55,9 @@ const Examens = lazy(() => import('./pages/admin/Examens'));
 const CaissierDashboard = lazy(() => import('./pages/admin/CaissierDashboard'));
 const ElevesFinances = lazy(() => import('./pages/admin/ElevesFinances'));
 const Depenses = lazy(() => import('./pages/admin/Depenses'));
+const Pointage = lazy(() => import('./pages/admin/Pointage'));
+const HeuresEnseignees = lazy(() => import('./pages/admin/HeuresEnseignees'));
+const Paie = lazy(() => import('./pages/admin/Paie'));
 
 // Enseignant pages (lazy)
 const EnseignantDashboard = lazy(() => import('./pages/enseignant/EnseignantDashboard'));
@@ -62,6 +65,7 @@ const MesClasses = lazy(() => import('./pages/enseignant/MesClasses'));
 const SaisieNotes = lazy(() => import('./pages/enseignant/SaisieNotes'));
 const Appel = lazy(() => import('./pages/enseignant/Appel'));
 const MonEmploi = lazy(() => import('./pages/enseignant/MonEmploi'));
+const MesPointages = lazy(() => import('./pages/enseignant/MesPointages'));
 
 // Parent pages (lazy)
 const ParentDashboard = lazy(() => import('./pages/parent/ParentDashboard'));
@@ -167,6 +171,7 @@ const AppRoutes = () => {
             <Route path="/admin/emploi-du-temps" element={<EmploiDuTemps />} />
             <Route path="/admin/absences" element={<Absences />} />
             <Route path="/admin/sanctions" element={<Sanctions />} />
+            <Route path="/admin/pointage" element={<Pointage />} />
             <Route path="/admin/profil" element={<Profil />} />
           </Route>
         </Route>
@@ -193,6 +198,13 @@ const AppRoutes = () => {
         <Route element={<ProtectedRoute allowedRoles={['directeur', 'directeur_etudes']} />}>
           <Route element={<AdminLayout />}>
             <Route path="/admin/bulletins" element={<Bulletins />} />
+            <Route path="/admin/heures-enseignees" element={<HeuresEnseignees />} />
+          </Route>
+        </Route>
+
+        <Route element={<ProtectedRoute allowedRoles={['directeur', 'comptable']} />}>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/paie" element={<Paie />} />
           </Route>
         </Route>
 
@@ -225,6 +237,7 @@ const AppRoutes = () => {
             <Route path="/enseignant/saisie-notes" element={<SaisieNotes />} />
             <Route path="/enseignant/appel" element={<Appel />} />
             <Route path="/enseignant/mon-emploi" element={<MonEmploi />} />
+            <Route path="/enseignant/mes-pointages" element={<MesPointages />} />
             <Route path="/enseignant/cahier-de-textes" element={<CahierDeTextes />} />
             <Route path="/enseignant/messagerie" element={<Messagerie />} />
           </Route>

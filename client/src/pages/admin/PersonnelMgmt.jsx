@@ -74,6 +74,8 @@ const PersonnelMgmt = () => {
     typeContrat: 'titulaire',
     heuresHebdo: '',
     tauxHoraire: '',
+    salaireMensuel: '',
+    deviceBiometricId: '',
   });
 
   const [resultModal, setResultModal] = useState({
@@ -124,7 +126,7 @@ const PersonnelMgmt = () => {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ nom: '', prenom: '', email: '', role: '', telephone: '', typeContrat: 'titulaire', heuresHebdo: '', tauxHoraire: '' });
+    setForm({ nom: '', prenom: '', email: '', role: '', telephone: '', typeContrat: 'titulaire', heuresHebdo: '', tauxHoraire: '', salaireMensuel: '', deviceBiometricId: '' });
     setModalOpen(true);
   };
 
@@ -139,6 +141,8 @@ const PersonnelMgmt = () => {
       typeContrat: member.typeContrat || 'titulaire',
       heuresHebdo: member.heuresHebdo || '',
       tauxHoraire: member.tauxHoraire || '',
+      salaireMensuel: member.salaireMensuel || '',
+      deviceBiometricId: member.deviceBiometricId || '',
     });
     setModalOpen(true);
   };
@@ -489,6 +493,57 @@ const PersonnelMgmt = () => {
               </div>
             </div>
           )}
+          {form.typeContrat === 'contractuel' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                  Salaire mensuel (FCFA)
+                </label>
+                <input
+                  type="number"
+                  value={form.salaireMensuel}
+                  onChange={(e) => setForm({ ...form, salaireMensuel: e.target.value })}
+                  className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                  Taux horaire (FCFA)
+                </label>
+                <input
+                  type="number"
+                  value={form.tauxHoraire}
+                  onChange={(e) => setForm({ ...form, tauxHoraire: e.target.value })}
+                  className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                />
+              </div>
+            </div>
+          )}
+          {form.typeContrat !== 'vacataire' && form.typeContrat !== 'contractuel' && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Salaire mensuel (FCFA)
+              </label>
+              <input
+                type="number"
+                value={form.salaireMensuel}
+                onChange={(e) => setForm({ ...form, salaireMensuel: e.target.value })}
+                className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                placeholder="Montant brut mensuel"
+              />
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              ID biométrique (lecteur empreinte)
+            </label>
+            <input
+              value={form.deviceBiometricId}
+              onChange={(e) => setForm({ ...form, deviceBiometricId: e.target.value })}
+              className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+              placeholder="Ex. 101 — optionnel"
+            />
+          </div>
         </form>
       </Modal>
 

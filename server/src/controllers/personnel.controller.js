@@ -47,6 +47,8 @@ export const getAll = async (req, res) => {
           typeContrat: true,
           heuresHebdo: true,
           tauxHoraire: true,
+          salaireMensuel: true,
+          deviceBiometricId: true,
           createdAt: true
         },
         skip,
@@ -85,6 +87,9 @@ export const getEnseignants = async (req, res) => {
         telephone: true,
         actif: true,
         typeContrat: true,
+        salaireMensuel: true,
+        tauxHoraire: true,
+        heuresHebdo: true,
         enseignantClasses: {
           include: {
             classe: { select: { id: true, nom: true, cycle: true, niveau: true } },
@@ -122,6 +127,8 @@ export const getById = async (req, res) => {
         typeContrat: true,
         heuresHebdo: true,
         tauxHoraire: true,
+        salaireMensuel: true,
+        deviceBiometricId: true,
         createdAt: true
       }
     });
@@ -139,7 +146,7 @@ export const getById = async (req, res) => {
 
 export const create = async (req, res) => {
   try {
-    const { email, nom, prenom, role, telephone, typeContrat, heuresHebdo, tauxHoraire } = req.body;
+    const { email, nom, prenom, role, telephone, typeContrat, heuresHebdo, tauxHoraire, salaireMensuel, deviceBiometricId } = req.body;
     const tenantId = req.tenantId;
 
     const existant = await prisma.staff.findFirst({
@@ -165,6 +172,8 @@ export const create = async (req, res) => {
         typeContrat: typeContrat || 'titulaire',
         heuresHebdo: heuresHebdo ? parseInt(heuresHebdo) : null,
         tauxHoraire: tauxHoraire ? parseFloat(tauxHoraire) : null,
+        salaireMensuel: salaireMensuel ? parseFloat(salaireMensuel) : null,
+        deviceBiometricId: deviceBiometricId || null,
         mustChangePassword: true
       },
       select: {
@@ -179,6 +188,8 @@ export const create = async (req, res) => {
         typeContrat: true,
         heuresHebdo: true,
         tauxHoraire: true,
+        salaireMensuel: true,
+        deviceBiometricId: true,
         createdAt: true
       }
     });
@@ -226,7 +237,7 @@ export const update = async (req, res) => {
     }
 
     // Whitelist des champs modifiables — protège contre le mass assignment
-    const { nom, prenom, email, telephone, role, actif, typeContrat, heuresHebdo, tauxHoraire } = req.body;
+    const { nom, prenom, email, telephone, role, actif, typeContrat, heuresHebdo, tauxHoraire, salaireMensuel, deviceBiometricId } = req.body;
     let data;
     if (isSelf && !isAdmin) {
       // Self-profile: identity fields only
@@ -240,6 +251,8 @@ export const update = async (req, res) => {
           typeContrat: typeContrat !== undefined ? typeContrat : undefined,
           heuresHebdo: heuresHebdo !== undefined ? (heuresHebdo ? parseInt(heuresHebdo) : null) : undefined,
           tauxHoraire: tauxHoraire !== undefined ? (tauxHoraire ? parseFloat(tauxHoraire) : null) : undefined,
+          salaireMensuel: salaireMensuel !== undefined ? (salaireMensuel ? parseFloat(salaireMensuel) : null) : undefined,
+          deviceBiometricId: deviceBiometricId !== undefined ? (deviceBiometricId || null) : undefined,
         }).filter(([, v]) => v !== undefined)
       );
     }
@@ -277,6 +290,8 @@ export const update = async (req, res) => {
         typeContrat: true,
         heuresHebdo: true,
         tauxHoraire: true,
+        salaireMensuel: true,
+        deviceBiometricId: true,
         updatedAt: true
       }
     });

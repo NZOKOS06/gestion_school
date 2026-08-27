@@ -134,6 +134,11 @@ async function main() {
       moduleInscriptions: true,
       modulePersonnel: true,
       moduleRapports: true,
+      modulePointagePersonnel: true,
+      modulePaie: true,
+      methodePaie: 'mixte',
+      pointageToleranceMinutes: 15,
+      concerneCycles: ['prescolaire', 'primaire', 'college', 'lycee'],
     },
     create: {
       tenantId: demoTenant.id,
@@ -163,6 +168,11 @@ async function main() {
       moduleInscriptions: true,
       modulePersonnel: true,
       moduleRapports: true,
+      modulePointagePersonnel: true,
+      modulePaie: true,
+      methodePaie: 'mixte',
+      pointageToleranceMinutes: 15,
+      concerneCycles: ['prescolaire', 'primaire', 'college', 'lycee'],
     },
   });
   console.log('✓ Configuration démo créée');
@@ -216,18 +226,18 @@ async function main() {
 
   // ==================== STAFF COMPLET (démo) ====================
   const staffDemo = [
-    { email: 'directeur@demo.cg', password: 'Directeur123!', role: 'directeur', nom: 'Mbemba', prenom: 'Jean', typeContrat: 'titulaire' },
-    { email: 'de@demo.cg', password: 'DirecteurEtudes123!', role: 'directeur_etudes', nom: 'Makosso', prenom: 'Claire', typeContrat: 'titulaire' },
-    { email: 'secretaire@demo.cg', password: 'Secretaire123!', role: 'secretaire', nom: 'Ngoma', prenom: 'Marie', typeContrat: 'titulaire' },
-    { email: 'enseignant@demo.cg', password: 'Enseignant123!', role: 'enseignant', nom: 'Kouassi', prenom: 'Paul', typeContrat: 'titulaire' },
-    { email: 'surveillant@demo.cg', password: 'Surveillant123!', role: 'surveillant', nom: 'Moussa', prenom: 'Amadou', typeContrat: 'titulaire' },
-    { email: 'comptable@demo.cg', password: 'Comptable123!', role: 'comptable', nom: 'Lingui', prenom: 'Sarah', typeContrat: 'titulaire' },
-    { email: 'vacataire@demo.cg', password: 'Vacataire123!', role: 'enseignant', nom: 'Bouanga', prenom: 'Alain', typeContrat: 'vacataire', heuresHebdo: 12, tauxHoraire: 5000 },
-    { email: 'titulaire.gs@demo.cg', password: 'TitulaireGS123!', role: 'enseignant', nom: 'Nkodia', prenom: 'Bernadette', typeContrat: 'titulaire' },
-    { email: 'titulaire.cm2@demo.cg', password: 'TitulaireCM2123!', role: 'enseignant', nom: 'Obami', prenom: 'Sylvie', typeContrat: 'titulaire' },
-    { email: 'prof.francais@demo.cg', password: 'ProfFrancais123!', role: 'enseignant', nom: 'Loemba', prenom: 'Estelle', typeContrat: 'titulaire' },
-    { email: 'prof.histoire@demo.cg', password: 'ProfHistoire123!', role: 'enseignant', nom: 'Tchicaya', prenom: 'Rodrigue', typeContrat: 'contractuel' },
-    { email: 'prof.svt@demo.cg', password: 'ProfSvt123!', role: 'enseignant', nom: 'Ondongo', prenom: 'Nadège', typeContrat: 'titulaire' },
+    { email: 'directeur@demo.cg', password: 'Directeur123!', role: 'directeur', nom: 'Mbemba', prenom: 'Jean', typeContrat: 'titulaire', salaireMensuel: 450000 },
+    { email: 'de@demo.cg', password: 'DirecteurEtudes123!', role: 'directeur_etudes', nom: 'Makosso', prenom: 'Claire', typeContrat: 'titulaire', salaireMensuel: 380000 },
+    { email: 'secretaire@demo.cg', password: 'Secretaire123!', role: 'secretaire', nom: 'Ngoma', prenom: 'Marie', typeContrat: 'titulaire', salaireMensuel: 220000 },
+    { email: 'enseignant@demo.cg', password: 'Enseignant123!', role: 'enseignant', nom: 'Kouassi', prenom: 'Paul', typeContrat: 'titulaire', salaireMensuel: 280000, deviceBiometricId: '101' },
+    { email: 'surveillant@demo.cg', password: 'Surveillant123!', role: 'surveillant', nom: 'Moussa', prenom: 'Amadou', typeContrat: 'titulaire', salaireMensuel: 180000 },
+    { email: 'comptable@demo.cg', password: 'Comptable123!', role: 'comptable', nom: 'Lingui', prenom: 'Sarah', typeContrat: 'titulaire', salaireMensuel: 250000 },
+    { email: 'vacataire@demo.cg', password: 'Vacataire123!', role: 'enseignant', nom: 'Bouanga', prenom: 'Alain', typeContrat: 'vacataire', heuresHebdo: 12, tauxHoraire: 5000, deviceBiometricId: '102' },
+    { email: 'titulaire.gs@demo.cg', password: 'TitulaireGS123!', role: 'enseignant', nom: 'Nkodia', prenom: 'Bernadette', typeContrat: 'titulaire', salaireMensuel: 260000 },
+    { email: 'titulaire.cm2@demo.cg', password: 'TitulaireCM2123!', role: 'enseignant', nom: 'Obami', prenom: 'Sylvie', typeContrat: 'titulaire', salaireMensuel: 260000 },
+    { email: 'prof.francais@demo.cg', password: 'ProfFrancais123!', role: 'enseignant', nom: 'Loemba', prenom: 'Estelle', typeContrat: 'titulaire', salaireMensuel: 270000 },
+    { email: 'prof.histoire@demo.cg', password: 'ProfHistoire123!', role: 'enseignant', nom: 'Tchicaya', prenom: 'Rodrigue', typeContrat: 'contractuel', salaireMensuel: 240000, tauxHoraire: 4000 },
+    { email: 'prof.svt@demo.cg', password: 'ProfSvt123!', role: 'enseignant', nom: 'Ondongo', prenom: 'Nadège', typeContrat: 'titulaire', salaireMensuel: 265000 },
   ];
 
   const staffMap = {};
@@ -235,7 +245,14 @@ async function main() {
     const hash = await bcrypt.hash(s.password, BCRYPT_ROUNDS);
     const created = await prisma.staff.upsert({
       where: { tenantId_email: { tenantId: demoTenant.id, email: s.email } },
-      update: { passwordHash: hash, actif: true },
+      update: {
+        passwordHash: hash,
+        actif: true,
+        salaireMensuel: s.salaireMensuel ?? null,
+        tauxHoraire: s.tauxHoraire ?? null,
+        heuresHebdo: s.heuresHebdo ?? null,
+        deviceBiometricId: s.deviceBiometricId ?? null,
+      },
       create: {
         tenantId: demoTenant.id,
         email: s.email,
@@ -247,6 +264,8 @@ async function main() {
         typeContrat: s.typeContrat || 'titulaire',
         heuresHebdo: s.heuresHebdo || null,
         tauxHoraire: s.tauxHoraire || null,
+        salaireMensuel: s.salaireMensuel || null,
+        deviceBiometricId: s.deviceBiometricId || null,
         mustChangePassword: false,
         actif: true,
       },

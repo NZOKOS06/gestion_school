@@ -37,6 +37,7 @@ import {
   formatCurrency,
   tabFromPathname,
 } from './constants';
+import CyclesSelector from './CyclesSelector';
 import {
   Avatar,
   TabButton,
@@ -708,6 +709,9 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
       ...DEFAULT_CONFIG,
       ...config,
       nomApp: config.nomApp || tenant.nom,
+      concerneCycles: Array.isArray(config.concerneCycles) && config.concerneCycles.length
+        ? config.concerneCycles
+        : DEFAULT_CONFIG.concerneCycles,
     });
     setLogoPreview(config.logoUrl || null);
     setLogoFile(null);
@@ -1521,6 +1525,13 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
                       <div>
                         <label className="block text-sm font-medium mb-1 text-slate-700">Adresse</label>
                         <input type="text" value={createForm.adresse} onChange={(e) => setCreateForm({ ...createForm, adresse: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2 text-slate-700">Cycles proposés *</label>
+                        <CyclesSelector
+                          value={createConfig.concerneCycles}
+                          onChange={(cycles) => setCreateConfig({ ...createConfig, concerneCycles: cycles })}
+                        />
                       </div>
                     </div>
                     <div className="flex justify-end mt-6">
@@ -2559,6 +2570,15 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
                 <label className="block text-xs font-medium mb-1 text-slate-500">URL OG image (partage réseaux)</label>
                 <input type="text" value={tenantConfig.ogImageUrl || ''} onChange={(e) => setTenantConfig({ ...tenantConfig, ogImageUrl: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900" />
               </div>
+            </div>
+
+            {/* Pédagogie — cycles */}
+            <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 space-y-3">
+              <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2"><GraduationCap className="h-4 w-4" /> Cycles & niveaux</h4>
+              <CyclesSelector
+                value={tenantConfig.concerneCycles}
+                onChange={(cycles) => setTenantConfig({ ...tenantConfig, concerneCycles: cycles })}
+              />
             </div>
 
             {/* Commerce */}
