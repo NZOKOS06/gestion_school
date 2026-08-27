@@ -1,9 +1,11 @@
 ﻿import { io } from '../index.js';
 
-// Émission d'événements temps réel pour GestSchool
+/** Salle staff isolée par tenantId JWT — jamais un slug client. */
+export const staffRoom = (tenantId) => (tenantId ? `staff-tenant-${tenantId}` : null);
 
-export const emitNouvelleNote = (tenantSlug, note) => {
-  const room = `tenant-${tenantSlug}-staff`;
+export const emitNouvelleNote = (tenantId, note) => {
+  const room = staffRoom(tenantId);
+  if (!room) return;
   io?.to(room).emit('nouvelleNote', {
     type: 'note_saisie',
     noteId: note.id,
@@ -14,8 +16,9 @@ export const emitNouvelleNote = (tenantSlug, note) => {
   });
 };
 
-export const emitNouvelleAbsence = (tenantSlug, absence) => {
-  const room = `tenant-${tenantSlug}-staff`;
+export const emitNouvelleAbsence = (tenantId, absence) => {
+  const room = staffRoom(tenantId);
+  if (!room) return;
   io?.to(room).emit('nouvelleAbsence', {
     type: 'absence_saisie',
     absenceId: absence.id,
@@ -25,8 +28,9 @@ export const emitNouvelleAbsence = (tenantSlug, absence) => {
   });
 };
 
-export const emitNouvelleSanction = (tenantSlug, sanction) => {
-  const room = `tenant-${tenantSlug}-staff`;
+export const emitNouvelleSanction = (tenantId, sanction) => {
+  const room = staffRoom(tenantId);
+  if (!room) return;
   io?.to(room).emit('nouvelleSanction', {
     type: 'sanction_saisie',
     sanctionId: sanction.id,
@@ -36,8 +40,9 @@ export const emitNouvelleSanction = (tenantSlug, sanction) => {
   });
 };
 
-export const emitPaiementEncaisse = (tenantSlug, paiement) => {
-  const room = `tenant-${tenantSlug}-staff`;
+export const emitPaiementEncaisse = (tenantId, paiement) => {
+  const room = staffRoom(tenantId);
+  if (!room) return;
   io?.to(room).emit('paiementEncaisse', {
     type: 'paiement_encaisse',
     paiementId: paiement.id,
@@ -48,8 +53,9 @@ export const emitPaiementEncaisse = (tenantSlug, paiement) => {
   });
 };
 
-export const emitPaiementEchu = (tenantSlug, echeance) => {
-  const room = `tenant-${tenantSlug}-staff`;
+export const emitPaiementEchu = (tenantId, echeance) => {
+  const room = staffRoom(tenantId);
+  if (!room) return;
   io?.to(room).emit('paiementEchu', {
     type: 'paiement_echu',
     echeanceId: echeance.id,
@@ -59,8 +65,9 @@ export const emitPaiementEchu = (tenantSlug, echeance) => {
   });
 };
 
-export const emitBulletinGenere = (tenantSlug, bulletin) => {
-  const room = `tenant-${tenantSlug}-staff`;
+export const emitBulletinGenere = (tenantId, bulletin) => {
+  const room = staffRoom(tenantId);
+  if (!room) return;
   io?.to(room).emit('bulletinGenere', {
     type: 'bulletin_genere',
     bulletinId: bulletin.id,
@@ -71,15 +78,16 @@ export const emitBulletinGenere = (tenantSlug, bulletin) => {
 };
 
 export const emitNotificationParent = (userId, notification) => {
-  const room = `parent-room-${userId}`;
-  io?.to(room).emit('notification', {
+  if (!userId) return;
+  io?.to(`parent-room-${userId}`).emit('notification', {
     ...notification,
     timestamp: new Date().toISOString(),
   });
 };
 
-export const emitNotificationStaff = (tenantSlug, notification) => {
-  const room = `tenant-${tenantSlug}-staff`;
+export const emitNotificationStaff = (tenantId, notification) => {
+  const room = staffRoom(tenantId);
+  if (!room) return;
   io?.to(room).emit('notification', {
     ...notification,
     timestamp: new Date().toISOString(),
@@ -93,25 +101,16 @@ const STAFF_ROLES = [
   'enseignant',
   'surveillant',
   'comptable',
-  'super_admin',
 ];
 
 export const setupSocketRooms = (socket) => {
-  const { tenantSlug, userId, role, userType } = socket.handshake.auth || {};
+  const { userId, role, tenantId } = socket.handshake.auth || {};
 
-  if (tenantSlug && STAFF_ROLES.includes(role)) {
-    socket.join(`tenant-${tenantSlug}-staff`);
+  if (tenantId && STAFF_ROLES.includes(role)) {
+    socket.join(staffRoom(tenantId));
   }
 
-  if (userId && (userType === 'parent' || role === 'parent')) {
+  if (userId && role === 'parent') {
     socket.join(`parent-room-${userId}`);
   }
-
-  if (userId) {
-    socket.join(`parent-room-${userId}`);
-  }
-
-  socket.on('disconnect', () => {
-    // Nettoyage automatique des rooms
-  });
 };

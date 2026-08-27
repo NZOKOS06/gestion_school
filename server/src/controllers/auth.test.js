@@ -46,7 +46,9 @@ vi.mock('../utils/prisma.js', () => ({
   rawPrisma: {
     staff: {
       findFirst: mockStaffFindFirst,
+      findMany: vi.fn().mockResolvedValue([]),
       update: mockStaffUpdate,
+      findUnique: mockStaffFindUnique,
     },
     user: {
       findFirst: mockUserFindFirst,
@@ -180,7 +182,7 @@ describe('Auth — login', () => {
     )
   })
 
-  it('retourne access + refresh token lors d\'un login réussi', async () => {
+  it('pose les cookies HttpOnly sans renvoyer le JWT dans le JSON', async () => {
     const hash = await bcrypt.hash('Password1!', 10)
     mockStaffFindFirst.mockResolvedValue({ ...staffBase, passwordHash: hash })
     mockRefreshTokenCreate.mockResolvedValue({})
@@ -194,9 +196,16 @@ describe('Auth — login', () => {
     expect(res.status).not.toHaveBeenCalledWith(401)
     expect(res.status).not.toHaveBeenCalledWith(403)
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ accessToken: expect.any(String) })
+      expect.objectContaining({
+        user: expect.objectContaining({ email: 'staff@pharma.com' }),
+      })
     )
-    expect(res.cookie).toHaveBeenCalledWith('accessToken', expect.any(String), expect.any(Object))
+    const payload = res.json.mock.calls[0][0]
+    expect(payload.accessToken).toBeUndefined()
+    expect(res.cookie).toHaveBeenCalledWith('accessToken', expect.any(String), expect.objectContaining({
+      httpOnly: true,
+      maxAge: 15 * 60 * 1000,
+    }))
     expect(res.cookie).toHaveBeenCalledWith('refreshToken', expect.any(String), expect.any(Object))
   })
 
@@ -322,9 +331,12 @@ describe('Auth — refresh token', () => {
     await refresh(req, res)
 
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ accessToken: expect.any(String) })
+      expect.objectContaining({ success: true })
     )
-    expect(res.cookie).toHaveBeenCalledWith('accessToken', expect.any(String), expect.any(Object))
+    expect(res.cookie).toHaveBeenCalledWith('accessToken', expect.any(String), expect.objectContaining({
+      httpOnly: true,
+      maxAge: 15 * 60 * 1000,
+    }))
   })
 
   it('accepte le refresh token depuis le cookie (pas seulement le body)', async () => {
@@ -344,7 +356,7 @@ describe('Auth — refresh token', () => {
     await refresh(req, res)
 
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ accessToken: expect.any(String) })
+      expect.objectContaining({ success: true })
     )
   })
 
@@ -387,7 +399,7 @@ describe('Auth — refresh token', () => {
     await refresh(req, res)
 
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ accessToken: expect.any(String) })
+      expect.objectContaining({ success: true })
     )
     // L'ancien token n'est PAS supprimé → faille de sécurité
     expect(mockRefreshTokenDelete).not.toHaveBeenCalled()

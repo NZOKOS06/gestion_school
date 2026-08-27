@@ -64,21 +64,24 @@ import notificationsRoutes from './routes/notifications.js';
 const app = express();
 const httpServer = createServer(app);
 
-// CORS dynamique pour multi-origins (Vercel, localhost, Render)
+// CORS : origines explicites uniquement (pas de wildcard *.vercel.app).
+// FRONTEND_URL = app prod. CORS_EXTRA_ORIGINS = liste CSV (previews Vercel ciblées).
+const stripSlash = (url) => (url || '').replace(/\/$/, '');
+const extraCorsOrigins = (process.env.CORS_EXTRA_ORIGINS || '')
+  .split(',')
+  .map((s) => stripSlash(s.trim()))
+  .filter(Boolean);
 const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:5173',
-  'http://localhost:4173',
-  'http://localhost:5175',
-  /https:\/\/.*\.vercel\.app$/,
+  stripSlash(process.env.FRONTEND_URL),
+  ...extraCorsOrigins,
+  ...(process.env.NODE_ENV === 'production'
+    ? []
+    : ['http://localhost:5173', 'http://localhost:4173', 'http://localhost:5175']),
 ].filter(Boolean);
 
 const corsOriginCallback = (origin, callback) => {
   if (!origin) return callback(null, true);
-  const allowed = allowedOrigins.some(o =>
-    o instanceof RegExp ? o.test(origin) : o === origin
-  );
-  if (allowed) return callback(null, true);
+  if (allowedOrigins.includes(origin)) return callback(null, true);
   callback(new Error(`CORS bloqué: ${origin}`));
 };
 
@@ -106,8 +109,8 @@ io.use((socket, next) => {
   }
   try {
     const decoded = jwt.verify(token, appConfig.jwtSecret);
+    // Ne pas conserver tenantSlug / userId / role envoyés par le client
     socket.handshake.auth = {
-      ...socket.handshake.auth,
       userId: decoded.userId,
       role: decoded.role,
       tenantId: decoded.tenantId,
@@ -329,8 +332,8 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-/** Diagnostic prod : compte tenants + tente config demo (sans secrets). */
-app.get('/api/health/bootstrap', async (req, res) => {
+/** Diagnostic interne — super_admin uniquement (ne pas exposer en public). */
+app.get('/api/health/bootstrap', authenticate, requireRole('super_admin'), async (req, res) => {
   try {
     const tenantCount = await rawPrisma.tenant.count();
     const staffCount = await rawPrisma.staff.count();
@@ -396,10 +399,8 @@ app.get('/api/health/bootstrap', async (req, res) => {
       staffCount,
       demo,
       system: !!system,
-      superAdminEmail: superAdmin?.email || null,
       superAdminActif: superAdmin?.actif ?? null,
       anneeProbe,
-      tip: 'Super-admin : email = SUPER_ADMIN_EMAIL (voir superAdminEmail ci-dessus), mot de passe = SUPER_ADMIN_PASSWORD sur Render. Connexion via https://…vercel.app/login (pas besoin de /e/demo).',
     });
   } catch (e) {
     res.status(500).json({ error: e.message, code: e.code });
@@ -410,7 +411,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/health/smtp', async (req, res) => {
+app.get('/api/health/smtp', authenticate, requireRole('super_admin'), async (req, res) => {
   const result = await verifySmtpConnection();
   const configured = !!(appConfig.brevo.apiKey || (appConfig.smtp.host && appConfig.smtp.user && appConfig.smtp.pass));
   res.json({

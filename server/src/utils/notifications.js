@@ -82,18 +82,16 @@ export async function notifyStaff({
       },
     });
 
-    if (tenantSlug) {
-      emitNotificationStaff(tenantSlug, {
-        id: notif.id,
-        type: notif.type,
-        titre: notif.titre,
-        contenu: notif.contenu,
-        message: notif.contenu,
-        lien: notif.lien,
-        lu: false,
-        staffId,
-      });
-    }
+    emitNotificationStaff(tenantId, {
+      id: notif.id,
+      type: notif.type,
+      titre: notif.titre,
+      contenu: notif.contenu,
+      message: notif.contenu,
+      lien: notif.lien,
+      lu: false,
+      staffId,
+    });
 
     return notif;
   } catch (err) {
@@ -118,7 +116,7 @@ export async function notifyParentOfEleve(tenantId, eleveId, payload, tenantSlug
 
 /** Staff room + parent when a note is saved */
 export async function broadcastNote(tenantSlug, tenantId, note) {
-  emitNouvelleNote(tenantSlug, note);
+  emitNouvelleNote(tenantId, note);
   await notifyParentOfEleve(tenantId, note.eleveId, {
     type: 'note',
     titre: 'Nouvelle note',
@@ -128,7 +126,7 @@ export async function broadcastNote(tenantSlug, tenantId, note) {
 }
 
 export async function broadcastAbsence(tenantSlug, tenantId, absence) {
-  emitNouvelleAbsence(tenantSlug, absence);
+  emitNouvelleAbsence(tenantId, absence);
   await notifyParentOfEleve(tenantId, absence.eleveId, {
     type: 'absence',
     titre: 'Absence signalée',
@@ -138,7 +136,7 @@ export async function broadcastAbsence(tenantSlug, tenantId, absence) {
 }
 
 export async function broadcastSanction(tenantSlug, tenantId, sanction) {
-  emitNouvelleSanction(tenantSlug, sanction);
+  emitNouvelleSanction(tenantId, sanction);
   await notifyParentOfEleve(tenantId, sanction.eleveId, {
     type: 'sanction',
     titre: 'Sanction disciplinaire',
@@ -148,7 +146,7 @@ export async function broadcastSanction(tenantSlug, tenantId, sanction) {
 }
 
 export async function broadcastPaiement(tenantSlug, tenantId, paiement, parentUserId = null) {
-  emitPaiementEncaisse(tenantSlug, paiement);
+  emitPaiementEncaisse(tenantId, paiement);
   const userId = parentUserId
     || (paiement.inscription?.eleve?.parentId)
     || (paiement.inscription?.eleve?.parent?.id);
@@ -166,7 +164,7 @@ export async function broadcastPaiement(tenantSlug, tenantId, paiement, parentUs
 }
 
 export async function broadcastPaiementEchu(tenantSlug, tenantId, echeance, parentUserId) {
-  emitPaiementEchu(tenantSlug, echeance);
+  emitPaiementEchu(tenantId, echeance);
   if (parentUserId) {
     await notifyParent({
       tenantId,
@@ -181,7 +179,7 @@ export async function broadcastPaiementEchu(tenantSlug, tenantId, echeance, pare
 }
 
 export async function broadcastBulletin(tenantSlug, tenantId, bulletin) {
-  emitBulletinGenere(tenantSlug, bulletin);
+  emitBulletinGenere(tenantId, bulletin);
   await notifyParentOfEleve(tenantId, bulletin.eleveId, {
     type: 'bulletin',
     titre: 'Bulletin publié',

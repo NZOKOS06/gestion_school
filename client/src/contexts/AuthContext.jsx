@@ -52,6 +52,11 @@ export const AuthProvider = ({ children }) => {
       async (error) => {
         const originalRequest = error.config;
 
+        if (error.response?.data?.code === 'MUST_CHANGE_PASSWORD') {
+          navigate('/changer-mot-de-passe');
+          return Promise.reject(error);
+        }
+
         if (error.response?.status === 401 &&
             error.response?.data?.code === 'TOKEN_EXPIRED' &&
             !originalRequest._retry) {

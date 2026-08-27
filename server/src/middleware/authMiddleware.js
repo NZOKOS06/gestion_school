@@ -6,6 +6,14 @@ import { cacheGet, cacheSet, cacheDel, CacheKeys } from '../utils/cache.js';
 const JWT_SECRET = config.jwtSecret;
 const AUTH_CACHE_TTL = 60; // secondes — réduit les hits DB sans stale trop long
 
+const MUST_CHANGE_ALLOWLIST = new Set([
+  '/api/auth/change-password',
+  '/api/auth/logout',
+  '/api/auth/me',
+  '/api/auth/refresh',
+  '/api/staff/profile/me',
+]);
+
 export const authenticate = async (req, res, next) => {
   try {
     const token = req.cookies?.accessToken ||
@@ -23,10 +31,23 @@ export const authenticate = async (req, res, next) => {
     let user = null;
 
     if (decoded.role === 'super_admin') {
+      const staff = await rawPrisma.staff.findUnique({
+        where: { id: decoded.userId },
+        include: { tenant: { include: { config: true } } },
+      });
+      if (!staff || !staff.actif || staff.role !== 'super_admin') {
+        return res.status(401).json({
+          error: 'User not found or inactive',
+        });
+      }
       user = {
-        id: decoded.userId,
+        id: staff.id,
         role: 'super_admin',
-        tenantId: decoded.tenantId || null
+        tenantId: staff.tenantId || null,
+        email: staff.email,
+        nom: staff.nom,
+        prenom: staff.prenom,
+        mustChangePassword: staff.mustChangePassword,
       };
     } else if (decoded.role === 'parent') {
       const cacheKey = CacheKeys.authUser('parent', decoded.userId);
@@ -84,6 +105,18 @@ export const authenticate = async (req, res, next) => {
     }
 
     req.user = user;
+
+    if (user.mustChangePassword) {
+      const path = (req.originalUrl || req.path || '').split('?')[0];
+      if (!MUST_CHANGE_ALLOWLIST.has(path)) {
+        return res.status(403).json({
+          error: 'Password change required',
+          code: 'MUST_CHANGE_PASSWORD',
+          message: 'Vous devez changer votre mot de passe avant de continuer.',
+        });
+      }
+    }
+
     next();
 
   } catch (error) {
