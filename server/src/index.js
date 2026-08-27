@@ -62,6 +62,9 @@ import examensRoutes from './routes/examens.js';
 import notificationsRoutes from './routes/notifications.js';
 
 const app = express();
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 const httpServer = createServer(app);
 
 // CORS : origines explicites uniquement (pas de wildcard *.vercel.app).
@@ -242,17 +245,20 @@ app.use('/uploads', express.static('uploads', {
   },
 }));
 
-// Documentation API
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+// Documentation API — ouverte en dev, super_admin uniquement en production
+const swaggerUiHandler = swaggerUi.setup(swaggerSpec, {
   customCss: '.swagger-ui .topbar { display: none }',
   customSiteTitle: 'GestSchool API Docs',
   swaggerOptions: {
     persistAuthorization: true,
     displayRequestDuration: true,
   },
-}));
-
-app.get('/api/docs.json', (req, res) => {
+});
+const swaggerGuard = process.env.NODE_ENV === 'production'
+  ? [authenticate, requireRole('super_admin')]
+  : [];
+app.use('/api/docs', ...swaggerGuard, swaggerUi.serve, swaggerUiHandler);
+app.get('/api/docs.json', ...swaggerGuard, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.json(swaggerSpec);
 });

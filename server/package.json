@@ -14,7 +14,7 @@
     "db:seed": "node prisma/seed.js",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
-    "test:integration": "vitest run src/middleware/tenantMiddleware.test.js src/utils/prisma.tenantIsolation.test.js src/utils/anneeActive.test.js src/config/v1Modules.test.js src/services/echeances.service.test.js src/services/finance.smoke.test.js"
+    "test:integration": "vitest run src/middleware/tenantMiddleware.test.js src/utils/prisma.tenantIsolation.test.js src/utils/anneeActive.test.js src/config/v1Modules.test.js src/services/echeances.service.test.js src/services/finance.smoke.test.js src/controllers/auth.test.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

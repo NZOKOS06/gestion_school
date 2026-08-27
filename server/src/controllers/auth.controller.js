@@ -366,29 +366,51 @@ export const refresh = async (req, res) => {
       return res.status(401).json({ error: 'Refresh token manquant' });
     }
 
-    const storedToken = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken }
-    });
-
-    if (!storedToken || storedToken.expiresAt < new Date()) {
-      return res.status(401).json({ error: 'Refresh token invalide ou expiré' });
-    }
-
     let decoded;
     try {
       decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
     } catch (err) {
-      await prisma.refreshToken.delete({ where: { token: refreshToken } });
+      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
       return res.status(401).json({ error: 'Refresh token invalide' });
     }
 
-    const accessToken = jwt.sign(
-      { userId: decoded.userId, role: decoded.role, tenantId: decoded.tenantId },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+    const storedToken = await prisma.refreshToken.findUnique({
+      where: { token: refreshToken }
+    });
+
+    if (!storedToken) {
+      if (decoded.userId) {
+        await prisma.refreshToken.deleteMany({ where: { userId: decoded.userId } });
+      }
+      res.clearCookie('accessToken', cookieBase());
+      res.clearCookie('refreshToken', cookieBase());
+      return res.status(401).json({ error: 'Refresh token invalide ou expiré' });
+    }
+
+    if (storedToken.expiresAt < new Date()) {
+      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+      return res.status(401).json({ error: 'Refresh token invalide ou expiré' });
+    }
+
+    await prisma.refreshToken.delete({ where: { token: refreshToken } });
+
+    const { accessToken, refreshToken: newRefresh } = generateTokens(
+      decoded.userId,
+      decoded.role,
+      decoded.tenantId
     );
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    await prisma.refreshToken.create({
+      data: {
+        userId: decoded.userId,
+        token: newRefresh,
+        expiresAt,
+      },
+    });
 
     res.cookie('accessToken', accessToken, accessCookieOpts());
+    res.cookie('refreshToken', newRefresh, refreshCookieOpts());
 
     res.json({ success: true });
   } catch (error) {

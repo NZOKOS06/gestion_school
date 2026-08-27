@@ -21,11 +21,10 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     fileParallelism: false,
-    // Suites legacy (setup DB dédié / mocks auth) hors CI smoke
+    // Suites legacy avec setup DB dédié (src/tests) hors smoke CI
     exclude: [
       '**/node_modules/**',
       '**/src/tests/**',
-      '**/src/controllers/auth.test.js',
     ],
     include: [
       'src/middleware/tenantMiddleware.test.js',
@@ -35,6 +34,7 @@ export default defineConfig({
       'src/config/v1Modules.test.js',
       'src/services/echeances.service.test.js',
       'src/services/finance.smoke.test.js',
+      'src/controllers/auth.test.js',
     ],
     coverage: { reporter: ['text', 'lcov'] },
     env: {
