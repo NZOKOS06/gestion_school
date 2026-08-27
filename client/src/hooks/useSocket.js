@@ -1,13 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
-import { useTenant } from '../contexts/TenantContext';
 import toast from 'react-hot-toast';
 
 export const useSocket = () => {
   const socketRef = useRef(null);
   const { user } = useAuth();
-  const { slug } = useTenant();
 
   useEffect(() => {
     if (!user) return;
@@ -17,11 +15,6 @@ export const useSocket = () => {
       || window.location.origin;
 
     const socket = io(SOCKET_URL, {
-      auth: {
-        tenantSlug: slug,
-        userId: user.id,
-        role: user.role
-      },
       withCredentials: true,
       transports: ['websocket', 'polling'],
     });
@@ -85,7 +78,7 @@ export const useSocket = () => {
       if (socket.connected) socket.disconnect();
       else socket.close();
     };
-  }, [user, slug]);
+  }, [user]);
 
   // Rejoindre une room spécifique (ex: classe-{classeId})
   const joinRoom = useCallback((roomName) => {

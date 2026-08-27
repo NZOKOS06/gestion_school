@@ -6,6 +6,40 @@ import { cacheGet, cacheSet, cacheDel, CacheKeys } from '../utils/cache.js';
 const JWT_SECRET = config.jwtSecret;
 const AUTH_CACHE_TTL = 60; // secondes — réduit les hits DB sans stale trop long
 
+const MUST_CHANGE_ALLOWLIST = new Set([
+  '/api/auth/change-password',
+  '/api/auth/logout',
+  '/api/auth/me',
+  '/api/auth/refresh',
+  '/api/staff/profile/me',
+]);
+
+const STAFF_AUTH_INCLUDE = {
+  tenant: { include: { config: { include: { ipWhitelist: true } } } },
+};
+
+function normalizeIp(ip) {
+  let value = String(ip || '').trim();
+  if (value.startsWith('::ffff:')) value = value.slice(7);
+  if (value === '::1') value = '127.0.0.1';
+  return value;
+}
+
+function clientIp(req) {
+  return normalizeIp(req.ip || req.socket?.remoteAddress || '');
+}
+
+function isStaffIpAllowed(user, req) {
+  const list = user.ipWhitelist;
+  if (!Array.isArray(list) || list.length === 0) return true;
+  const ip = clientIp(req);
+  return list.map(normalizeIp).includes(ip);
+}
+
+function ipListFromStaff(staff) {
+  return staff?.tenant?.config?.ipWhitelist?.map((row) => row.ip) || [];
+}
+
 export const authenticate = async (req, res, next) => {
   try {
     const token = req.cookies?.accessToken ||
@@ -23,10 +57,23 @@ export const authenticate = async (req, res, next) => {
     let user = null;
 
     if (decoded.role === 'super_admin') {
+      const staff = await rawPrisma.staff.findUnique({
+        where: { id: decoded.userId },
+        include: { tenant: { include: { config: true } } },
+      });
+      if (!staff || !staff.actif || staff.role !== 'super_admin') {
+        return res.status(401).json({
+          error: 'User not found or inactive',
+        });
+      }
       user = {
-        id: decoded.userId,
+        id: staff.id,
         role: 'super_admin',
-        tenantId: decoded.tenantId || null
+        tenantId: staff.tenantId || null,
+        email: staff.email,
+        nom: staff.nom,
+        prenom: staff.prenom,
+        mustChangePassword: staff.mustChangePassword,
       };
     } else if (decoded.role === 'parent') {
       const cacheKey = CacheKeys.authUser('parent', decoded.userId);
@@ -60,7 +107,7 @@ export const authenticate = async (req, res, next) => {
       if (!user) {
         const staff = await rawPrisma.staff.findUnique({
           where: { id: decoded.userId },
-          include: { tenant: { include: { config: true } } }
+          include: STAFF_AUTH_INCLUDE,
         });
 
         if (!staff || !staff.actif) {
@@ -77,13 +124,42 @@ export const authenticate = async (req, res, next) => {
           email: staff.email,
           nom: staff.nom,
           prenom: staff.prenom,
-          mustChangePassword: staff.mustChangePassword
+          mustChangePassword: staff.mustChangePassword,
+          ipWhitelist: ipListFromStaff(staff),
         };
         await cacheSet(CacheKeys.authUser(staff.role, staff.id), user, AUTH_CACHE_TTL);
       }
     }
 
     req.user = user;
+
+    if (user.role !== 'parent' && user.role !== 'super_admin') {
+      if (!Array.isArray(user.ipWhitelist) && user.tenantId) {
+        const rows = await rawPrisma.tenantIpWhitelist.findMany({
+          where: { tenantId: user.tenantId },
+          select: { ip: true },
+        });
+        user.ipWhitelist = rows.map((row) => row.ip);
+      }
+      if (!isStaffIpAllowed(user, req)) {
+        return res.status(403).json({
+          error: 'IP not allowed',
+          message: 'Accès interdit depuis cette adresse IP.',
+        });
+      }
+    }
+
+    if (user.mustChangePassword) {
+      const path = (req.originalUrl || req.path || '').split('?')[0];
+      if (!MUST_CHANGE_ALLOWLIST.has(path)) {
+        return res.status(403).json({
+          error: 'Password change required',
+          code: 'MUST_CHANGE_PASSWORD',
+          message: 'Vous devez changer votre mot de passe avant de continuer.',
+        });
+      }
+    }
+
     next();
 
   } catch (error) {

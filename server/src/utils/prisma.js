@@ -69,6 +69,30 @@ const TENANT_MODELS = new Set([
 
 const shouldIsolate = (model) => TENANT_MODELS.has(model);
 
+function prismaDelegate(model) {
+  return rawPrisma[model.charAt(0).toLowerCase() + model.slice(1)];
+}
+
+/** Convertit un WhereUniqueInput (id ou email_tenantId: {…}) en filtre findFirst. */
+function uniqueWhereToFilter(where) {
+  if (!where || typeof where !== 'object') return {};
+  const out = {};
+  for (const [key, value] of Object.entries(where)) {
+    if (
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      !(value instanceof Date) &&
+      key.includes('_')
+    ) {
+      Object.assign(out, value);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 // Extension Prisma pour assertions multi-tenant
 const extendedPrisma = rawPrisma.$extends({
   query: {
@@ -162,9 +186,27 @@ const extendedPrisma = rawPrisma.$extends({
         const tenantId = asyncLocalStorage.getStore()?.tenantId;
         if (tenantId && shouldIsolate(model)) {
           if (args.create) args.create = { ...args.create, tenantId };
-          // Ne pas forcer tenantId sur where : certaines uniques ne le contiennent pas.
+          if (args.update?.tenantId && args.update.tenantId !== tenantId) {
+            delete args.update.tenantId;
+          }
+          if (args.where) {
+            const delegate = prismaDelegate(model);
+            if (typeof delegate?.findFirst === 'function') {
+              const match = await delegate.findFirst({
+                where: uniqueWhereToFilter(args.where),
+                select: { tenantId: true },
+              });
+              if (match?.tenantId && match.tenantId !== tenantId) {
+                throw new Error('Cross-tenant upsert blocked');
+              }
+            }
+          }
         }
-        return query(args);
+        const result = await query(args);
+        if (tenantId && shouldIsolate(model) && result?.tenantId && result.tenantId !== tenantId) {
+          throw new Error('Cross-tenant upsert blocked');
+        }
+        return result;
       },
     },
   },
@@ -176,3 +218,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Export extendedPrisma as the default 'prisma' so all imports get tenant isolation
 export { extendedPrisma as prisma, extendedPrisma, rawPrisma, TENANT_MODELS };
+
+export function runInTenant(tenantId, fn) {
+  return asyncLocalStorage.run({ tenantId }, fn);
+}

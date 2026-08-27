@@ -224,6 +224,24 @@ describe('extendedPrisma cross-tenant isolation (integration)', () => {
     expect(n).toBe(1);
   });
 
+  it('upsert refuse de modifier une ligne d’un autre tenant', async () => {
+    const secretB = await rawPrisma.actualite.findFirst({
+      where: { tenantId: tenantB.id },
+    });
+    await expect(
+      asyncLocalStorage.run({ tenantId: tenantA.id }, async () =>
+        prisma.actualite.upsert({
+          where: { id: secretB.id },
+          update: { titre: 'Hacked' },
+          create: { titre: 'Hacked', contenu: 'nope', publique: true },
+        })
+      )
+    ).rejects.toThrow('Cross-tenant upsert blocked');
+
+    const stillB = await rawPrisma.actualite.findUnique({ where: { id: secretB.id } });
+    expect(stillB.titre).toBe('Secret B');
+  });
+
   it('sans ALS, extendedPrisma ne filtre pas (comportement documenté)', async () => {
     const rows = await prisma.actualite.findMany({
       where: { tenantId: { in: [tenantA.id, tenantB.id] } },

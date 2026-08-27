@@ -1,4 +1,4 @@
-import { prisma } from '../utils/prisma.js';
+import { prisma, rawPrisma, runInTenant } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { notifyStaff } from '../utils/notifications.js';
 import { sendAlerteEvenement } from '../services/email.service.js';
@@ -27,8 +27,8 @@ function startOfDay(d) {
  */
 export async function runAlertesCalendrierBatch({ tenantId = null } = {}) {
   const tenants = tenantId
-    ? await prisma.tenant.findMany({ where: { id: tenantId, actif: true }, include: { config: true } })
-    : await prisma.tenant.findMany({ where: { actif: true }, include: { config: true } });
+    ? await rawPrisma.tenant.findMany({ where: { id: tenantId, actif: true }, include: { config: true } })
+    : await rawPrisma.tenant.findMany({ where: { actif: true }, include: { config: true } });
 
   let emailed = 0;
   let notified = 0;
@@ -41,6 +41,7 @@ export async function runAlertesCalendrierBatch({ tenantId = null } = {}) {
 
   for (const tenant of tenants) {
     try {
+      await runInTenant(tenant.id, async () => {
       const events = await prisma.calendrierScolaire.findMany({
         where: {
           tenantId: tenant.id,
@@ -50,7 +51,7 @@ export async function runAlertesCalendrierBatch({ tenantId = null } = {}) {
         },
       });
 
-      if (!events.length) continue;
+      if (!events.length) return;
 
       const nomApp = tenant.config?.nomEcole || tenant.nom || 'GestSchool';
 
@@ -101,6 +102,7 @@ export async function runAlertesCalendrierBatch({ tenantId = null } = {}) {
         });
         eventsHandled += 1;
       }
+      });
     } catch (err) {
       log.error({ err, tenantId: tenant.id }, 'Alertes calendrier tenant failed');
     }

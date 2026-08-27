@@ -13,6 +13,7 @@ const {
   mockRefreshTokenCreate,
   mockRefreshTokenFindUnique,
   mockRefreshTokenDelete,
+  mockRefreshTokenDeleteMany,
 } = vi.hoisted(() => ({
   mockStaffFindFirst: vi.fn(),
   mockStaffUpdate: vi.fn(),
@@ -23,6 +24,7 @@ const {
   mockRefreshTokenCreate: vi.fn(),
   mockRefreshTokenFindUnique: vi.fn(),
   mockRefreshTokenDelete: vi.fn(),
+  mockRefreshTokenDeleteMany: vi.fn(),
 }))
 
 vi.mock('../utils/prisma.js', () => ({
@@ -40,16 +42,31 @@ vi.mock('../utils/prisma.js', () => ({
       create: mockRefreshTokenCreate,
       findUnique: mockRefreshTokenFindUnique,
       delete: mockRefreshTokenDelete,
-      deleteMany: vi.fn(),
+      deleteMany: mockRefreshTokenDeleteMany,
     },
   },
   rawPrisma: {
     staff: {
       findFirst: mockStaffFindFirst,
+      findMany: vi.fn().mockResolvedValue([]),
       update: mockStaffUpdate,
+      findUnique: mockStaffFindUnique,
     },
     user: {
       findFirst: mockUserFindFirst,
+    },
+    auditLog: {
+      create: vi.fn().mockResolvedValue({}),
+    },
+    passwordResetToken: {
+      create: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({}),
+      findUnique: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    emailVerificationToken: {
+      create: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({}),
     },
   },
 }))
@@ -63,7 +80,17 @@ vi.mock('../config.js', () => ({
     nodeEnv: 'test',
     frontendUrl: 'http://localhost:5173',
     databaseUrl: 'postgresql://test',
+    brevo: { apiKey: null },
+    smtp: {},
   },
+}))
+
+// ─── Mock email service ───────────────────────────────────────────────────────
+vi.mock('../services/email.service.js', () => ({
+  sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
+  sendEmailVerificationEmail: vi.fn().mockResolvedValue(true),
+  sendPasswordChangedEmail: vi.fn().mockResolvedValue(true),
+  sendNewDeviceLoginEmail: vi.fn().mockResolvedValue(true),
 }))
 
 import { login, refresh, changePassword } from './auth.controller.js'
@@ -161,7 +188,7 @@ describe('Auth — login', () => {
     )
   })
 
-  it('retourne 403 si l'établissement est désactivé', async () => {
+  it('retourne 403 si l\'établissement est désactivé', async () => {
     const hash = await bcrypt.hash('Password1!', 10)
     mockStaffFindFirst.mockResolvedValue({
       ...staffBase,
@@ -176,11 +203,11 @@ describe('Auth — login', () => {
 
     expect(res.status).toHaveBeenCalledWith(403)
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ error: 'Etablissement désactivé' })
+      expect.objectContaining({ error: 'École désactivée' })
     )
   })
 
-  it('retourne access + refresh token lors d\'un login réussi', async () => {
+  it('pose les cookies HttpOnly sans renvoyer le JWT dans le JSON', async () => {
     const hash = await bcrypt.hash('Password1!', 10)
     mockStaffFindFirst.mockResolvedValue({ ...staffBase, passwordHash: hash })
     mockRefreshTokenCreate.mockResolvedValue({})
@@ -194,9 +221,16 @@ describe('Auth — login', () => {
     expect(res.status).not.toHaveBeenCalledWith(401)
     expect(res.status).not.toHaveBeenCalledWith(403)
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ accessToken: expect.any(String) })
+      expect.objectContaining({
+        user: expect.objectContaining({ email: 'staff@pharma.com' }),
+      })
     )
-    expect(res.cookie).toHaveBeenCalledWith('accessToken', expect.any(String), expect.any(Object))
+    const payload = res.json.mock.calls[0][0]
+    expect(payload.accessToken).toBeUndefined()
+    expect(res.cookie).toHaveBeenCalledWith('accessToken', expect.any(String), expect.objectContaining({
+      httpOnly: true,
+      maxAge: 15 * 60 * 1000,
+    }))
     expect(res.cookie).toHaveBeenCalledWith('refreshToken', expect.any(String), expect.any(Object))
   })
 
@@ -271,18 +305,23 @@ describe('Auth — refresh token', () => {
   })
 
   it('retourne 401 si le refresh token est expiré en base', async () => {
-    const expiredDate = new Date(Date.now() - 1000)
+    const validToken = jwt.sign(
+      { userId: 'staff-1', role: 'directeur', tenantId: 'tenant-1', type: 'refresh' },
+      JWT_REFRESH_SECRET,
+      { expiresIn: '7d' }
+    )
     mockRefreshTokenFindUnique.mockResolvedValue({
-      token: 'old-token',
-      expiresAt: expiredDate
+      token: validToken,
+      expiresAt: new Date(Date.now() - 1000)
     })
 
-    const req = mockReq({ body: { refreshToken: 'old-token' } })
+    const req = mockReq({ body: { refreshToken: validToken } })
     const res = mockRes()
 
     await refresh(req, res)
 
     expect(res.status).toHaveBeenCalledWith(401)
+    expect(mockRefreshTokenDeleteMany).toHaveBeenCalledWith({ where: { token: validToken } })
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ error: expect.stringContaining('expiré') })
     )
@@ -322,9 +361,12 @@ describe('Auth — refresh token', () => {
     await refresh(req, res)
 
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ accessToken: expect.any(String) })
+      expect.objectContaining({ success: true })
     )
-    expect(res.cookie).toHaveBeenCalledWith('accessToken', expect.any(String), expect.any(Object))
+    expect(res.cookie).toHaveBeenCalledWith('accessToken', expect.any(String), expect.objectContaining({
+      httpOnly: true,
+      maxAge: 15 * 60 * 1000,
+    }))
   })
 
   it('accepte le refresh token depuis le cookie (pas seulement le body)', async () => {
@@ -344,7 +386,7 @@ describe('Auth — refresh token', () => {
     await refresh(req, res)
 
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ accessToken: expect.any(String) })
+      expect.objectContaining({ success: true })
     )
   })
 
@@ -362,15 +404,13 @@ describe('Auth — refresh token', () => {
     await refresh(req, res)
 
     expect(res.status).toHaveBeenCalledWith(401)
+    expect(mockRefreshTokenDeleteMany).toHaveBeenCalledWith({ where: { userId: 'staff-1' } })
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ error: expect.stringContaining('invalide') })
     )
   })
 
-  it('révèle le bug : refresh NE révoque PAS l\'ancien token (pas de rotation)', async () => {
-    // BUG : après un refresh réussi, l'ancien token reste valide en base.
-    // Le controller n'appelle pas refreshToken.delete ni refreshToken.create.
-    // Ce test documente le comportement actuel — il passera tant que le bug existe.
+  it('révoque l\'ancien refresh token et en crée un nouveau (rotation)', async () => {
     const validToken = jwt.sign(
       { userId: 'staff-1', role: 'directeur', tenantId: 'tenant-1', type: 'refresh' },
       JWT_REFRESH_SECRET,
@@ -380,6 +420,8 @@ describe('Auth — refresh token', () => {
       token: validToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     })
+    mockRefreshTokenDelete.mockResolvedValue({})
+    mockRefreshTokenCreate.mockResolvedValue({})
 
     const req = mockReq({ body: { refreshToken: validToken } })
     const res = mockRes()
@@ -387,12 +429,13 @@ describe('Auth — refresh token', () => {
     await refresh(req, res)
 
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ accessToken: expect.any(String) })
+      expect.objectContaining({ success: true })
     )
-    // L'ancien token n'est PAS supprimé → faille de sécurité
-    expect(mockRefreshTokenDelete).not.toHaveBeenCalled()
-    // Aucun nouveau token n'est créé en base → pas de rotation
-    expect(mockRefreshTokenCreate).not.toHaveBeenCalled()
+    expect(mockRefreshTokenDelete).toHaveBeenCalledWith({ where: { token: validToken } })
+    expect(mockRefreshTokenCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ userId: 'staff-1' }),
+    }))
+    expect(res.cookie).toHaveBeenCalledWith('refreshToken', expect.any(String), expect.any(Object))
   })
 })
 
@@ -557,13 +600,13 @@ describe('Auth — changePassword', () => {
     expect(res.status).toHaveBeenCalledWith(400)
   })
 
-  it('change le mot de passe d\'un client sans mettre à jour mustChangePassword', async () => {
+  it('change le mot de passe d\'un parent sans mettre à jour mustChangePassword', async () => {
     const hash = await bcrypt.hash('OldPass1!', 10)
     mockUserFindUnique.mockResolvedValue({ id: 'user-1', passwordHash: hash, mustChangePassword: false })
     mockUserUpdate.mockResolvedValue({ id: 'user-1' })
 
     const req = mockReq({
-      user: { id: 'user-1', role: 'client', mustChangePassword: false },
+      user: { id: 'user-1', role: 'parent', mustChangePassword: false },
       body: { currentPassword: 'OldPass1!', newPassword: 'NewPass1!' }
     })
     const res = mockRes()

@@ -1,4 +1,4 @@
-import { prisma } from '../utils/prisma.js';
+import { prisma, rawPrisma, runInTenant } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { listRetards, markOverdue } from '../services/echeances.service.js';
 import { sendRelanceEcheance } from '../services/email.service.js';
@@ -13,8 +13,8 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
  */
 export async function runRelancesBatch({ tenantId = null } = {}) {
   const tenants = tenantId
-    ? await prisma.tenant.findMany({ where: { id: tenantId, actif: true }, include: { config: true } })
-    : await prisma.tenant.findMany({ where: { actif: true }, include: { config: true } });
+    ? await rawPrisma.tenant.findMany({ where: { id: tenantId, actif: true }, include: { config: true } })
+    : await rawPrisma.tenant.findMany({ where: { actif: true }, include: { config: true } });
 
   let emailed = 0;
   let notified = 0;
@@ -22,6 +22,7 @@ export async function runRelancesBatch({ tenantId = null } = {}) {
 
   for (const tenant of tenants) {
     try {
+      await runInTenant(tenant.id, async () => {
       await markOverdue(tenant.id);
       const retards = await listRetards(tenant.id);
       overdueMarked += retards.length;
@@ -30,8 +31,8 @@ export async function runRelancesBatch({ tenantId = null } = {}) {
       const now = Date.now();
 
       for (const row of retards) {
-        const full = await prisma.echeance.findUnique({
-          where: { id: row.id },
+        const full = await prisma.echeance.findFirst({
+          where: { id: row.id, tenantId: tenant.id },
           include: {
             inscription: {
               include: {
@@ -76,6 +77,7 @@ export async function runRelancesBatch({ tenantId = null } = {}) {
           data: { lastRelanceAt: new Date() },
         });
       }
+      });
     } catch (err) {
       log.error({ err, tenantId: tenant.id }, 'Relances batch tenant failed');
     }

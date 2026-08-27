@@ -13,14 +13,27 @@ import {
   sendNewDeviceLoginEmail
 } from '../services/email.service.js';
 import { buildTenantUrl } from '../utils/tenantUrl.js';
+import { invalidateAuthCache } from '../middleware/authMiddleware.js';
 
 const log = createLogger('AuthController');
 
 const JWT_SECRET = config.jwtSecret;
 const JWT_REFRESH_SECRET = config.jwtRefreshSecret;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15h';
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 const isProd = process.env.NODE_ENV === 'production';
+const JWT_EXPIRES_IN = isProd ? '15m' : (process.env.JWT_EXPIRES_IN || '15m');
+const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+const ACCESS_COOKIE_MS = 15 * 60 * 1000;
+const REFRESH_COOKIE_MS = 7 * 24 * 60 * 60 * 1000;
+
+const cookieBase = () => ({
+  httpOnly: true,
+  secure: isProd,
+  sameSite: isProd ? 'none' : 'lax',
+  path: '/',
+});
+
+const accessCookieOpts = () => ({ ...cookieBase(), maxAge: ACCESS_COOKIE_MS });
+const refreshCookieOpts = () => ({ ...cookieBase(), maxAge: REFRESH_COOKIE_MS });
 
 const generateTokens = (userId, role, tenantId) => {
   const accessToken = jwt.sign(
@@ -54,14 +67,15 @@ export const login = async (req, res) => {
       include: { tenant: { include: { config: true } } }
     });
 
-    // 2. Sinon staff du tenant courant, ou cross-tenant si pas de tenant
+    // 2. Sinon staff du tenant courant (en prod le slug est obligatoire, sauf super-admin)
     if (!user) {
-      if (tenantId) {
-        user = await rawPrisma.staff.findFirst({
-          where: { email, tenantId },
-          include: { tenant: { include: { config: true } } }
-        });
-      } else {
+      if (!tenantId) {
+        if (isProd) {
+          return res.status(400).json({
+            error: 'École requise',
+            message: 'Identifiez l\'établissement (sous-domaine, /e/slug ou en-tête X-Tenant-Slug).',
+          });
+        }
         const staffMatches = await rawPrisma.staff.findMany({
           where: { email },
           include: { tenant: { include: { config: true } } }
@@ -72,9 +86,13 @@ export const login = async (req, res) => {
           log.warn({ email, count: staffMatches.length }, 'Multiple staff accounts found for email without tenant');
           return res.status(400).json({
             error: 'Plusieurs comptes trouvés. Précisez l\'école (tenant).',
-            tenants: staffMatches.map(s => ({ id: s.tenantId, slug: s.tenant.slug, nom: s.tenant.nom }))
           });
         }
+      } else {
+        user = await rawPrisma.staff.findFirst({
+          where: { email, tenantId },
+          include: { tenant: { include: { config: true } } }
+        });
       }
     }
 
@@ -109,7 +127,6 @@ export const login = async (req, res) => {
           log.warn({ email, count: parentMatches.length }, 'Multiple parent accounts found for email without tenant');
           return res.status(400).json({
             error: 'Plusieurs comptes trouvés. Précisez l\'école (tenant).',
-            tenants: parentMatches.map(c => ({ id: c.tenantId, slug: c.tenant.slug, nom: c.tenant.nom }))
           });
         }
       }
@@ -215,21 +232,9 @@ export const login = async (req, res) => {
       details: { email: user.email, name: `${user.prenom} ${user.nom}` }
     });
 
-    res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 15 * 60 * 60 * 1000,
-      path: '/',
-    });
+    res.cookie('accessToken', accessToken, accessCookieOpts());
 
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-    });
+    res.cookie('refreshToken', refreshToken, refreshCookieOpts());
 
     res.json({
       user: {
@@ -247,7 +252,6 @@ export const login = async (req, res) => {
           config: user.tenant.config
         }
       },
-      accessToken
     });
   } catch (error) {
     captureError(error, {
@@ -328,21 +332,9 @@ export const register = async (req, res) => {
       }
     });
 
-    res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 15 * 60 * 60 * 1000,
-      path: '/',
-    });
+    res.cookie('accessToken', accessToken, accessCookieOpts());
 
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-    });
+    res.cookie('refreshToken', refreshToken, refreshCookieOpts());
 
     res.status(201).json({
       user: {
@@ -359,7 +351,6 @@ export const register = async (req, res) => {
           config: user.tenant.config
         }
       },
-      accessToken
     });
   } catch (error) {
     log.error({ err: error, email, tenantId }, 'Register error');
@@ -375,37 +366,53 @@ export const refresh = async (req, res) => {
       return res.status(401).json({ error: 'Refresh token manquant' });
     }
 
-    const storedToken = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken }
-    });
-
-    if (!storedToken || storedToken.expiresAt < new Date()) {
-      return res.status(401).json({ error: 'Refresh token invalide ou expiré' });
-    }
-
     let decoded;
     try {
       decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
     } catch (err) {
-      await prisma.refreshToken.delete({ where: { token: refreshToken } });
+      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
       return res.status(401).json({ error: 'Refresh token invalide' });
     }
 
-    const accessToken = jwt.sign(
-      { userId: decoded.userId, role: decoded.role, tenantId: decoded.tenantId },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-
-    res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      maxAge: 15 * 60 * 60 * 1000,
-      path: '/',
+    const storedToken = await prisma.refreshToken.findUnique({
+      where: { token: refreshToken }
     });
 
-    res.json({ accessToken });
+    if (!storedToken) {
+      if (decoded.userId) {
+        await prisma.refreshToken.deleteMany({ where: { userId: decoded.userId } });
+      }
+      res.clearCookie('accessToken', cookieBase());
+      res.clearCookie('refreshToken', cookieBase());
+      return res.status(401).json({ error: 'Refresh token invalide ou expiré' });
+    }
+
+    if (storedToken.expiresAt < new Date()) {
+      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+      return res.status(401).json({ error: 'Refresh token invalide ou expiré' });
+    }
+
+    await prisma.refreshToken.delete({ where: { token: refreshToken } });
+
+    const { accessToken, refreshToken: newRefresh } = generateTokens(
+      decoded.userId,
+      decoded.role,
+      decoded.tenantId
+    );
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    await prisma.refreshToken.create({
+      data: {
+        userId: decoded.userId,
+        token: newRefresh,
+        expiresAt,
+      },
+    });
+
+    res.cookie('accessToken', accessToken, accessCookieOpts());
+    res.cookie('refreshToken', newRefresh, refreshCookieOpts());
+
+    res.json({ success: true });
   } catch (error) {
     captureError(error, {
       action: 'refreshToken'
@@ -437,18 +444,8 @@ export const logout = async (req, res) => {
       });
     }
 
-    res.clearCookie('accessToken', {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      path: '/',
-    });
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      path: '/',
-    });
+    res.clearCookie('accessToken', cookieBase());
+    res.clearCookie('refreshToken', cookieBase());
 
     res.json({ message: 'Déconnecté avec succès' });
   } catch (error) {
@@ -521,6 +518,8 @@ export const changePassword = async (req, res) => {
     } catch (emailError) {
       log.error({ err: emailError, email: updatedUser.email }, 'Failed to send password changed email');
     }
+
+    await invalidateAuthCache(user.role, user.id);
 
     res.json({ message: 'Mot de passe modifié avec succès' });
   } catch (error) {
