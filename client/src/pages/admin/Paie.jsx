@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { PageHeader, DataTable, Badge, Button, Modal, Input, KpiCard, KpiGrid } from '../../components/ui';
-import { Banknote, Calculator, CheckCircle, Wallet, Users, TrendingUp, Clock } from 'lucide-react';
+import { Banknote, Calculator, CheckCircle, Wallet, Users, TrendingUp, Clock, Printer, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const MOIS = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
@@ -10,13 +10,13 @@ const MOIS = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juille
 const STATUT_PERIODE = {
   ouverte: { label: 'Ouverte', variant: 'neutral' },
   calculee: { label: 'Calculée', variant: 'warning' },
-  validee: { label: 'Validée', variant: 'success' },
-  payee: { label: 'Payée', variant: 'success' },
+  validee: { label: 'Validée (Approuvée)', variant: 'success' },
+  payee: { label: 'Payée (Décaissée)', variant: 'success' },
 };
 
 const Paie = () => {
   const { get, post, put } = useAxios();
-  const { formatPrice, config } = useTenant();
+  const { formatPrice, config, logoUrl } = useTenant();
   const [periodes, setPeriodes] = useState([]);
   const [bulletins, setBulletins] = useState([]);
   const [periodeActive, setPeriodeActive] = useState(null);
@@ -91,7 +91,7 @@ const Paie = () => {
       await post(`/api/paie/periodes/${periodeActive.id}/valider`);
       await fetchPeriodes();
       await fetchBulletins(periodeActive.id);
-      toast.success('Période validée — dépenses créées');
+      toast.success('Période approuvée & validée');
     } catch {
       toast.error('Validation impossible');
     }
@@ -104,11 +104,124 @@ const Paie = () => {
     try {
       await post(`/api/paie/periodes/${periodeActive.id}/payer`);
       await fetchPeriodes();
-      toast.success('Période marquée payée');
+      toast.success('Décaissement global clôturé (Payée)');
     } catch {
       toast.error('Action impossible');
     }
     setBusy(false);
+  };
+
+  const decaisserBulletin = async (b) => {
+    setBusy(true);
+    try {
+      await post(`/api/paie/bulletins/${b.id}/valider`);
+      toast.success(`Salaire de ${b.staff?.prenom} ${b.staff?.nom} décaissé`);
+      await fetchBulletins(periodeActive.id);
+      await fetchPeriodes();
+    } catch {
+      toast.error('Impossible de décaisser ce bulletin');
+    }
+    setBusy(false);
+  };
+
+  const printFichePaie = (b) => {
+    const ecoleNom = config?.nomEcole || 'Établissement Scolaire';
+    const moisNom = MOIS[periodeActive?.mois] || '';
+    const anneeCiv = periodeActive?.anneeCivile || '';
+    const dateToday = new Date().toLocaleDateString('fr-FR');
+
+    const html = `<!DOCTYPE html>
+    <html>
+      <head>
+        <title>Bulletin de Paie — ${b.staff?.nom || ''} ${b.staff?.prenom || ''}</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; padding: 30px; margin: 0; }
+          .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 20px; }
+          .ecole-title { font-size: 20px; font-weight: bold; text-transform: uppercase; color: #0f172a; }
+          .ecole-subtitle { font-size: 11px; color: #64748b; margin-top: 3px; }
+          .doc-title { font-size: 16px; font-weight: bold; text-align: center; background: #f1f5f9; padding: 8px; border-radius: 6px; margin: 20px 0; text-transform: uppercase; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; font-size: 13px; }
+          .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
+          .info-box span { display: block; font-size: 11px; color: #64748b; margin-bottom: 3px; }
+          .info-box strong { font-size: 14px; color: #0f172a; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+          th { background: #f1f5f9; text-align: left; padding: 10px; border: 1px solid #cbd5e1; font-weight: 600; }
+          td { padding: 10px; border: 1px solid #cbd5e1; }
+          .total-row { font-size: 15px; font-weight: bold; background: #e2e8f0; }
+          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; }
+          .sig-box { border: 1px dashed #94a3b8; border-radius: 6px; padding: 15px; height: 90px; font-size: 12px; }
+          @media print { body { padding: 15px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="ecole-title">${ecoleNom}</div>
+            <div class="ecole-subtitle">${config?.adresse || ''} · Tél : ${config?.telephone || ''}</div>
+          </div>
+          <div style="text-align: right; font-size: 12px; color: #64748b;">
+            Date d'édition : ${dateToday}
+          </div>
+        </div>
+
+        <div class="doc-title">BULLETIN DE SALAIRE & REÇU DE DÉCAISSEMENT — ${moisNom.toUpperCase()} ${anneeCiv}</div>
+
+        <div class="grid">
+          <div class="info-box">
+            <span>BÉNÉFICIAIRE (AGENT)</span>
+            <strong>${b.staff?.nom?.toUpperCase() || ''} ${b.staff?.prenom || ''}</strong>
+            <div style="font-size: 12px; color: #475569; margin-top: 3px;">Rôle : ${b.staff?.role || 'Enseignant'}</div>
+            <div style="font-size: 12px; color: #475569;">Email : ${b.staff?.email || '—'}</div>
+          </div>
+          <div class="info-box">
+            <span>PÉRIODE DE PAIE</span>
+            <strong>${moisNom} ${anneeCiv}</strong>
+            <div style="font-size: 12px; color: #475569; margin-top: 3px;">Statut : ${b.statut === 'valide' || b.statut === 'paye' ? 'RÉGLÉ (DÉCAISSÉ)' : 'EN COURS'}</div>
+            <div style="font-size: 12px; color: #475569;">Mode de paiement : Espèces / Caisse</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>DÉSIGNATION / ÉLÉMENTS DE PAIE</th>
+              <th style="text-align: right;">MONTANT / VALEUR</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Salaire de base / Fixe mensuel</td>
+              <td style="text-align: right;">${formatPrice(b.montantFixe || 0)}</td>
+            </tr>
+            <tr>
+              <td>Heures de cours validées (${Number(b.heuresValidees || 0).toFixed(1)} h)</td>
+              <td style="text-align: right;">${formatPrice(b.montantHoraire || 0)}</td>
+            </tr>
+            <tr class="total-row">
+              <td>NET À PAYER / DÉCAISSÉ</td>
+              <td style="text-align: right; color: #16a34a;">${formatPrice(b.montantTotal || 0)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="signatures">
+          <div class="sig-box">
+            <strong>Signature et Cachet du Gestionnaire / Caissier</strong>
+          </div>
+          <div class="sig-box">
+            <strong>Signature du Bénéficiaire (Reçu pour solde)</strong>
+          </div>
+        </div>
+
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+    </html>`;
+
+    const win = window.open('', '_blank', 'width=850,height=750');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
   };
 
   const saveBulletin = async () => {
@@ -296,11 +409,29 @@ const Paie = () => {
               },
               {
                 key: 'actions',
-                label: '',
-                render: (_, row) => row.statut === 'brouillon' && (
-                  <Button size="sm" variant="secondary" onClick={() => setEditBulletin({ ...row })}>
-                    Ajuster
-                  </Button>
+                label: 'Actions',
+                render: (_, row) => (
+                  <div className="flex items-center gap-1.5 justify-end">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      icon={Printer}
+                      onClick={() => printFichePaie(row)}
+                      title="Imprimer la fiche de paie / reçu de décaissement"
+                    >
+                      Fiche
+                    </Button>
+                    {row.statut === 'brouillon' && (
+                      <Button size="sm" variant="secondary" onClick={() => setEditBulletin({ ...row })}>
+                        Ajuster
+                      </Button>
+                    )}
+                    {row.statut !== 'valide' && row.statut !== 'paye' && (
+                      <Button size="sm" icon={CheckCircle} onClick={() => decaisserBulletin(row)} loading={busy}>
+                        Décaisser
+                      </Button>
+                    )}
+                  </div>
                 ),
               },
             ]}

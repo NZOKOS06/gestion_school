@@ -4,8 +4,8 @@ import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader, DataTable, Badge, Button, Modal, SearchInput, FilterBar, Select, QuickSearchSelect } from '../../components/ui';
-import { Plus, Check, X, Pause, UserPlus, RefreshCw } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
+import InscriptionWizard from './InscriptionWizard.jsx';
 import toast from 'react-hot-toast';
 
 const STATUT_VARIANT = {
@@ -652,170 +652,19 @@ const Inscriptions = () => {
         </div>
       </Modal>
 
-      <Modal
+      {/* Modal Wizard Inscription Multi-étapes avec Tuteur Obligatoire */}
+      <InscriptionWizard
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        title="Nouvelle inscription"
-        subtitle="Crée le dossier scolaire (identité + classe + échéances)"
-        size="lg"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setCreateOpen(false)}>Annuler</Button>
-            <Button onClick={handleCreate} disabled={saving}>
-              {saving ? 'Enregistrement…' : 'Inscrire'}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setMode('nouveau')}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium"
-              style={mode === 'nouveau'
-                ? { background: 'var(--color-primary)', color: '#fff' }
-                : { background: 'var(--surface-overlay)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
-            >
-              Nouvel élève
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('existant')}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium"
-              style={mode === 'existant'
-                ? { background: 'var(--color-primary)', color: '#fff' }
-                : { background: 'var(--surface-overlay)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
-            >
-              Élève existant
-            </button>
-          </div>
-
-          {mode === 'existant' ? (
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Élève</label>
-              <QuickSearchSelect
-                items={eleves}
-                value={form.eleveId}
-                onChange={(id) => setForm({ ...form, eleveId: id })}
-                getLabel={(el) =>
-                  `${el.prenom} ${el.nom} (${el.matricule})${!el.inscriptions?.length ? ' — non inscrit' : ''}`
-                }
-                placeholder="Nom, prénom ou matricule…"
-              />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Matricule</label>
-                <input style={inputStyle} value={form.eleve.matricule} onChange={(e) => setForm({ ...form, eleve: { ...form.eleve, matricule: e.target.value } })} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Sexe</label>
-                <select style={inputStyle} value={form.eleve.sexe} onChange={(e) => setForm({ ...form, eleve: { ...form.eleve, sexe: e.target.value } })}>
-                  <option value="M">Garçon</option>
-                  <option value="F">Fille</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nom</label>
-                <input style={inputStyle} value={form.eleve.nom} onChange={(e) => setForm({ ...form, eleve: { ...form.eleve, nom: e.target.value } })} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Prénom</label>
-                <input style={inputStyle} value={form.eleve.prenom} onChange={(e) => setForm({ ...form, eleve: { ...form.eleve, prenom: e.target.value } })} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Date de naissance</label>
-                <input type="date" style={inputStyle} value={form.eleve.dateNaissance} onChange={(e) => setForm({ ...form, eleve: { ...form.eleve, dateNaissance: e.target.value } })} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Lieu de naissance</label>
-                <input style={inputStyle} value={form.eleve.lieuNaissance} onChange={(e) => setForm({ ...form, eleve: { ...form.eleve, lieuNaissance: e.target.value } })} />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Adresse</label>
-                <input style={inputStyle} value={form.eleve.adresse} onChange={(e) => setForm({ ...form, eleve: { ...form.eleve, adresse: e.target.value } })} />
-              </div>
-            </div>
-          )}
-
-          <div className="pt-2">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <label className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                Parent / tuteur <span style={{ color: 'var(--text-muted)' }}>(recommandé)</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setParentQuickOpen(true)}
-                className="text-xs flex items-center gap-1"
-                style={{ color: 'var(--color-primary)' }}
-              >
-                <UserPlus className="h-3.5 w-3.5" /> Créer un parent
-              </button>
-            </div>
-            <QuickSearchSelect
-              items={parents}
-              value={form.parentId}
-              onChange={(id) => setForm({ ...form, parentId: id })}
-              getLabel={(p) => `${p.prenom} ${p.nom}${p.telephone ? ` · ${p.telephone}` : ''}`}
-              placeholder="Rechercher un parent…"
-            />
-            {!form.parentId && (
-              <p className="text-xs mt-1" style={{ color: 'var(--color-warning, #b45309)' }}>
-                Sans parent, le portail famille et les relances ne pourront pas être utilisés.
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Année scolaire</label>
-              <select
-                style={inputStyle}
-                value={form.anneeScolaireId}
-                onChange={(e) => setForm({ ...form, anneeScolaireId: e.target.value, classeId: '' })}
-              >
-                <option value="">Sélectionner</option>
-                {annees.length === 0 && <option value="" disabled>Aucune année — créez-en une</option>}
-                {annees.map((an) => <option key={an.id} value={an.id}>{an.libelle}{an.actif ? ' (active)' : ''}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Classe</label>
-              <select style={inputStyle} value={form.classeId} onChange={(e) => setForm({ ...form, classeId: e.target.value })}>
-                <option value="">Sélectionner</option>
-                {classesForAnnee.length === 0 && form.anneeScolaireId && (
-                  <option value="" disabled>Aucune classe pour cette année</option>
-                )}
-                {classesForAnnee.map((cl) => <option key={cl.id} value={cl.id}>{cl.nom} ({cl.niveau})</option>)}
-              </select>
-            </div>
-          </div>
-
-          {form.classeId && (
-            <div className="rounded-lg p-3 text-sm space-y-1" style={{ background: 'var(--surface-overlay)', border: '1px solid var(--border-subtle)' }}>
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Aperçu financier</p>
-              <div className="flex justify-between" style={{ color: 'var(--text-secondary)' }}>
-                <span>Frais d&apos;inscription</span>
-                <span>{formatPrice(fraisInscriptionDefault)}</span>
-              </div>
-              <div className="flex justify-between" style={{ color: 'var(--text-secondary)' }}>
-                <span>Scolarité ({selectedClasse?.nom})</span>
-                <span>{formatPrice(fraisScolaritePreview)}</span>
-              </div>
-              <div className="flex justify-between font-semibold pt-1" style={{ color: 'var(--text-primary)', borderTop: '1px solid var(--border-subtle)' }}>
-                <span>Solde initial</span>
-                <span>{formatPrice(totalFraisPreview)}</span>
-              </div>
-            </div>
-          )}
-
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            L’inscription démarre en attente. La validation active la scolarité (effectif, notes, bulletins) et le dossier financier (échéances) est créé immédiatement.
-          </p>
-        </div>
-      </Modal>
+        classes={classes}
+        annees={annees}
+        eleves={eleves}
+        parents={parents}
+        fraisInscriptionDefault={fraisInscriptionDefault}
+        formatPrice={formatPrice}
+        onSuccess={fetchInscriptions}
+        post={post}
+      />
 
       <Modal
         open={reinscriptionOpen}

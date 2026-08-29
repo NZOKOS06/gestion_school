@@ -122,11 +122,14 @@ const SaisieNotes = () => {
     return evaluations.filter((e) => e.classeId === filterClasseId || e.classeNom === classes.find((c) => c.id === filterClasseId)?.nom);
   }, [evaluations, filterClasseId, classes]);
 
+  const [saisieOuverte, setSaisieOuverte] = useState(true);
+
   const openSaisie = async (evaluation) => {
     setSelectedEval(evaluation);
     try {
       const res = await get(`/api/evaluations/${evaluation.id}/notes`, { silent: true });
-      const notesData = res?.data || res || [];
+      const notesData = res?.data || (Array.isArray(res) ? res : []);
+      setSaisieOuverte(res?.saisieNotesOuverte !== false);
       const notesMap = {};
       notesData.forEach((n) => { notesMap[n.eleveId] = n.valeur != null ? String(n.valeur) : ''; });
       setNotes(notesMap);
@@ -139,6 +142,10 @@ const SaisieNotes = () => {
   };
 
   const handleSave = async () => {
+    if (!saisieOuverte) {
+      toast.error('Saisie des notes fermée par la direction');
+      return;
+    }
     setSaving(true);
     try {
       const max = Number(selectedEval?.noteMaximale || 20);
@@ -149,9 +156,12 @@ const SaisieNotes = () => {
           return { eleveId, valeur: Math.min(max, Math.max(0, n)) };
         });
       await post(`/api/evaluations/${selectedEval.id}/notes`, { notes: payload });
+      toast.success('Notes enregistrées avec succès');
       setSelectedEval(null);
       fetchEvaluations();
-    } catch { /* silent */ }
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Erreur lors de l’enregistrement');
+    }
     setSaving(false);
   };
 
@@ -327,22 +337,68 @@ const SaisieNotes = () => {
         size="lg"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setSelectedEval(null)}>Annuler</Button>
-            <Button icon={Save} onClick={handleSave} loading={saving}>Enregistrer</Button>
+            <Button variant="secondary" onClick={() => setSelectedEval(null)}>Fermer</Button>
+            <Button icon={Save} onClick={handleSave} loading={saving} disabled={!saisieOuverte}>
+              Enregistrer
+            </Button>
           </>
         }
       >
-        <div className="space-y-2">
+        <div className="space-y-3">
+          {!saisieOuverte && (
+            <div
+              className="p-3 rounded-xl text-sm font-medium flex items-center gap-2 border"
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                borderColor: 'var(--color-danger, #ef4444)',
+                color: 'var(--color-danger, #ef4444)',
+              }}
+            >
+              <span>⛔</span>
+              <span>La saisie des notes est actuellement fermée par la direction de l'établissement.</span>
+            </div>
+          )}
+
+          {saisieOuverte && (
+            <div
+              className="p-2.5 rounded-lg text-xs flex items-center gap-2 border"
+              style={{
+                background: 'var(--surface-raised)',
+                borderColor: 'var(--border-subtle)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <span>ℹ️</span>
+              <span>Règle anti-fraude : vous disposez d'un délai de <strong>2 heures</strong> après la première saisie pour modifier une note. Au-delà, seul le Directeur peut intervenir.</span>
+            </div>
+          )}
+
           {eleves.map((eleve) => (
-            <div key={eleve.eleveId} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
+            <div
+              key={eleve.eleveId}
+              className="flex items-center justify-between p-3 rounded-lg"
+              style={{
+                background: eleve.verrouillee ? 'var(--surface-hover)' : 'var(--surface-overlay)',
+                opacity: eleve.verrouillee ? 0.8 : 1,
+              }}
+            >
               <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                  style={{ background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)', color: 'var(--color-primary)' }}>
+                <div
+                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                  style={{ background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)', color: 'var(--color-primary)' }}
+                >
                   {eleve.elevePrenom?.[0]}{eleve.eleveNom?.[0]}
                 </div>
-                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                  {eleve.elevePrenom} {eleve.eleveNom}
-                </span>
+                <div>
+                  <span className="text-sm font-medium block" style={{ color: 'var(--text-primary)' }}>
+                    {eleve.elevePrenom} {eleve.eleveNom}
+                  </span>
+                  {eleve.verrouillee && (
+                    <span className="text-[11px] font-medium" style={{ color: 'var(--color-warning, #f59e0b)' }}>
+                      🔒 Verrouillé (&gt; 2h)
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -350,7 +406,11 @@ const SaisieNotes = () => {
                   step="0.25"
                   min="0"
                   max={selectedEval?.noteMaximale || 20}
-                  style={noteInputStyle}
+                  style={{
+                    ...noteInputStyle,
+                    ...(eleve.verrouillee || !saisieOuverte ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+                  }}
+                  disabled={eleve.verrouillee || !saisieOuverte}
                   value={notes[eleve.eleveId] || ''}
                   onChange={(e) => handleNoteChange(eleve.eleveId, e.target.value)}
                   placeholder="—"

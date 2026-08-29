@@ -225,6 +225,7 @@ const AppRoutes = () => {
             <Route path="/caissier/retards" element={<Paiements />} />
             <Route path="/caissier/historique" element={<Paiements />} />
             <Route path="/caissier/depenses" element={<Depenses />} />
+            <Route path="/caissier/paie" element={<Paie />} />
             <Route path="/caissier/rapports" element={<Rapports />} />
           </Route>
         </Route>

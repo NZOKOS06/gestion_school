@@ -141,6 +141,9 @@ model TenantConfig {
   /// null = tous les cycles ; ex. ["prescolaire","primaire"] pour école maternelle+primaire
   concerneCycles          Json?
 
+  /// Contrôle strict anti-fraude : le Directeur peut fermer/ouvrir la saisie des notes
+  saisieNotesOuverte      Boolean @default(true)
+
   // Sécurité & sessions
   dureeSessionMinutes Int     @default(480)
   ipWhitelist         TenantIpWhitelist[]

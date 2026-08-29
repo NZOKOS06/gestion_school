@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
+import { useTenant } from '../../contexts/TenantContext';
 import axiosInstance from '../../utils/axios';
 import {
   PageHeader, DataTable, Badge, Button, Card, KpiCard, KpiGrid, Modal,
 } from '../../components/ui';
 import {
   Calculator, FileDown, CheckCircle, Eye, Printer, Users,
-  UserCheck, UserX, Percent, TrendingUp,
+  UserCheck, UserX, Percent, TrendingUp, Lock, Unlock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -37,6 +38,8 @@ const eleveLabel = (row) => {
 
 const Bulletins = () => {
   const { get, post, put } = useAxios();
+  const { config, slug, refreshConfig } = useTenant();
+  const [togglingLock, setTogglingLock] = useState(false);
   const [searchParams] = useSearchParams();
   const [annees, setAnnees] = useState([]);
   const [classes, setClasses] = useState([]);
@@ -266,11 +269,36 @@ const Bulletins = () => {
     padding: '0 12px',
   };
 
+  const isSaisieOuverte = config?.saisieNotesOuverte !== false;
+
+  const toggleSaisieNotes = async () => {
+    setTogglingLock(true);
+    try {
+      await put(`/api/config/${slug}`, { saisieNotesOuverte: !isSaisieOuverte });
+      toast.success(isSaisieOuverte ? 'Saisie des notes verrouillée (fermée)' : 'Saisie des notes déverrouillée (ouverte)');
+      if (refreshConfig) await refreshConfig();
+    } catch {
+      toast.error('Impossible de modifier le verrou de saisie');
+    }
+    setTogglingLock(false);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Résultats et Bulletin"
         subtitle="Vue d’ensemble des moyennes, KPI d’admission et bulletins PDF"
+        actions={
+          <Button
+            variant={isSaisieOuverte ? 'secondary' : 'danger'}
+            icon={isSaisieOuverte ? Unlock : Lock}
+            onClick={toggleSaisieNotes}
+            loading={togglingLock}
+            title={isSaisieOuverte ? 'Cliquez pour fermer la saisie des notes aux enseignants' : 'Cliquez pour ouvrir la saisie des notes'}
+          >
+            Saisie enseignants : {isSaisieOuverte ? 'Ouverte' : 'Fermée (Verrouillée)'}
+          </Button>
+        }
       />
 
       <Card>

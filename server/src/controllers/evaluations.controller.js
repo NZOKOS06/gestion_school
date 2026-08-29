@@ -190,7 +190,21 @@ export const saveNotes = async (req, res) => {
         evaluation.matiereId
       );
       if (!ok) return;
+
+      // Anti-fraude : Vérifier si la saisie des notes est ouverte par la direction
+      const cfg = await prisma.tenantConfig.findUnique({
+        where: { tenantId },
+        select: { saisieNotesOuverte: true },
+      });
+      if (cfg?.saisieNotesOuverte === false) {
+        return res.status(403).json({
+          error: 'La saisie des notes est actuellement fermée par la direction de l’établissement.',
+        });
+      }
     }
+
+    const now = Date.now();
+    const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
     await prisma.$transaction(async (tx) => {
       for (const note of notes) {
@@ -199,6 +213,16 @@ export const saveNotes = async (req, res) => {
         });
 
         if (existing) {
+          // Anti-fraude : Vérifier le délai de 2h si enseignant
+          if (req.user.role === 'enseignant') {
+            const ageMs = now - new Date(existing.createdAt).getTime();
+            if (ageMs > TWO_HOURS_MS) {
+              const err = new Error('DELAI_MODIFICATION_EXPIRE');
+              err.statusCode = 403;
+              throw err;
+            }
+          }
+
           await tx.note.update({
             where: { id: existing.id },
             data: {
@@ -238,6 +262,11 @@ export const saveNotes = async (req, res) => {
 
     res.json({ message: 'Notes enregistrées', count: notes.length });
   } catch (error) {
+    if (error.message === 'DELAI_MODIFICATION_EXPIRE') {
+      return res.status(403).json({
+        error: 'Délai de modification dépassé (> 2h). Seule la direction peut modifier ces notes.',
+      });
+    }
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Save notes error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -264,6 +293,12 @@ export const getNotes = async (req, res) => {
       if (!ok) return;
     }
 
+    const cfg = await prisma.tenantConfig.findUnique({
+      where: { tenantId },
+      select: { saisieNotesOuverte: true },
+    });
+    const saisieNotesOuverte = cfg?.saisieNotesOuverte !== false;
+
     const inscriptions = await prisma.inscription.findMany({
       where: { tenantId, classeId: evaluation.classeId, statut: 'validee' },
       include: {
@@ -277,21 +312,33 @@ export const getNotes = async (req, res) => {
     });
     const byEleve = new Map(notes.map((n) => [n.eleveId, n]));
 
-    res.json(
-      inscriptions
-        .filter((i) => i.eleve?.actif !== false)
-        .map((i) => {
-          const n = byEleve.get(i.eleve.id);
-          return {
-            eleveId: i.eleve.id,
-            elevePrenom: i.eleve.prenom,
-            eleveNom: i.eleve.nom,
-            matricule: i.eleve.matricule,
-            valeur: n ? Number(n.valeur) : null,
-            appreciation: n?.appreciation || null,
-          };
-        })
-    );
+    const now = Date.now();
+    const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+    const isTeacher = req.user.role === 'enseignant';
+
+    const data = inscriptions
+      .filter((i) => i.eleve?.actif !== false)
+      .map((i) => {
+        const n = byEleve.get(i.eleve.id);
+        const ageMs = n?.createdAt ? now - new Date(n.createdAt).getTime() : 0;
+        const verrouillee = isTeacher && Boolean(n?.createdAt && ageMs > TWO_HOURS_MS);
+
+        return {
+          eleveId: i.eleve.id,
+          elevePrenom: i.eleve.prenom,
+          eleveNom: i.eleve.nom,
+          matricule: i.eleve.matricule,
+          valeur: n ? Number(n.valeur) : null,
+          appreciation: n?.appreciation || null,
+          createdAt: n?.createdAt || null,
+          verrouillee,
+        };
+      });
+
+    res.json({
+      data,
+      saisieNotesOuverte,
+    });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'getNotes error');
     res.status(500).json({ error: 'Internal server error' });

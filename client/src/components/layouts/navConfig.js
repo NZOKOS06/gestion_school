@@ -113,12 +113,6 @@ export const ADMIN_NAV = [
       { path: '/admin/messagerie', icon: Mail, labelKey: 'messagerie', primary: true, roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
     ],
   },
-  {
-    groupKey: 'systeme',
-    items: [
-      { path: '/admin/configuration', icon: Settings, labelKey: 'configuration', roles: ['directeur'] },
-    ],
-  },
 ];
 
 export const ROLE_DISPLAY_LABELS = {
@@ -192,6 +186,7 @@ export const CAISSIER_NAV = [
       { path: '/caissier/eleves', icon: GraduationCap, labelKey: 'eleves_finances', primary: true },
       { path: '/caissier/historique', icon: Wallet, labelKey: 'caisse', primary: true },
       { path: '/caissier/depenses', icon: TrendingDown, labelKey: 'depenses', primary: true },
+      { path: '/caissier/paie', icon: Banknote, labelKey: 'paie_personnel', primary: true },
       { path: '/caissier/rapports', icon: BarChart3, labelKey: 'rapports', primary: true },
     ],
   },
@@ -204,6 +199,7 @@ export const CAISSIER_ROUTE_LABELS = {
   '/caissier/retards': 'Retards',
   '/caissier/encaisser': 'Encaisser',
   '/caissier/depenses': 'Dépenses',
+  '/caissier/paie': 'Paie & Fiches de salaire',
   '/caissier/rapports': 'Rapports',
 };
 

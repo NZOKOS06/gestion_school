@@ -3,6 +3,7 @@ import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { resolveAnneeScolaireId } from '../utils/anneeScolaire.js';
 import { isCycleAllowed, getTenantCyclesConfig } from '../utils/tenantCycles.js';
+import { bootstrapTenantReferentiel } from '../utils/tenantBootstrap.js';
 
 const log = createLogger('ClassesController');
 
@@ -127,6 +128,9 @@ export const create = async (req, res) => {
       return res.status(400).json({ error: 'nom et anneeScolaireId requis' });
     }
 
+    // Fetch tenant cycles once
+    const tenantCycles = await getTenantCyclesConfig(tenantId, prisma);
+
     let resolvedCycle = cycle || null;
     let resolvedNiveau = niveau || null;
     let resolvedFiliere = filiere || null;
@@ -136,13 +140,24 @@ export const create = async (req, res) => {
       niveauOfficiel = await prisma.niveauOfficiel.findFirst({
         where: { id: niveauOfficielId, tenantId },
       });
+
+      // Auto-bootstrap referentiel if not yet populated for this tenant
+      if (!niveauOfficiel) {
+        log.info({ tenantId, niveauOfficielId }, 'NiveauOfficiel not found — triggering auto-bootstrap');
+        await bootstrapTenantReferentiel(tenantId, prisma);
+        niveauOfficiel = await prisma.niveauOfficiel.findFirst({
+          where: { id: niveauOfficielId, tenantId },
+        });
+      }
+
       if (!niveauOfficiel) {
         return res.status(400).json({ error: 'Niveau officiel invalide' });
       }
-      const tenantCycles = await getTenantCyclesConfig(tenantId, prisma);
+
       if (!isCycleAllowed(niveauOfficiel.cycle, tenantCycles)) {
         return res.status(400).json({ error: 'Ce cycle n\'est pas proposé par votre établissement' });
       }
+
       resolvedCycle = niveauOfficiel.cycle;
       resolvedNiveau = niveauOfficiel.code;
     }
@@ -164,7 +179,7 @@ export const create = async (req, res) => {
       return res.status(400).json({ error: 'niveau requis' });
     }
 
-    const tenantCycles = await getTenantCyclesConfig(tenantId, prisma);
+    // Validate the resolved cycle is allowed for this tenant (covers free-text cycle input)
     if (!isCycleAllowed(resolvedCycle, tenantCycles)) {
       return res.status(400).json({ error: 'Ce cycle n\'est pas proposé par votre établissement' });
     }

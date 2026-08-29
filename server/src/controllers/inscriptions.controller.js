@@ -154,7 +154,14 @@ export const create = async (req, res) => {
 export const createAvecEleve = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { eleveId: existingEleveId, classeId, anneeScolaireId, eleve: eleveData, parentId } = req.body;
+    const {
+      eleveId: existingEleveId,
+      classeId,
+      anneeScolaireId,
+      eleve: eleveData,
+      parentId: explicitParentId,
+      tuteur: tuteurData,
+    } = req.body;
 
     const annee = await prisma.anneeScolaire.findFirst({ where: { id: anneeScolaireId, tenantId } });
     if (!annee) return res.status(400).json({ error: 'Année scolaire invalide' });
@@ -165,6 +172,47 @@ export const createAvecEleve = async (req, res) => {
     const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, classeId);
 
     const result = await prisma.$transaction(async (tx) => {
+      let finalParentId = explicitParentId || eleveData?.parentId || null;
+
+      // Création automatique ou rattachement du tuteur obligatoire
+      if (!finalParentId && tuteurData && tuteurData.nom && tuteurData.telephone) {
+        const cleanTel = tuteurData.telephone.trim();
+        const cleanEmail = tuteurData.email?.trim()?.toLowerCase() || null;
+
+        let parentUser = await tx.user.findFirst({
+          where: {
+            tenantId,
+            OR: [
+              { telephone: cleanTel },
+              ...(cleanEmail ? [{ email: cleanEmail }] : []),
+            ],
+          },
+        });
+
+        if (!parentUser) {
+          const { hashPassword } = await import('../utils/password.js');
+          const pwdHash = await hashPassword('Parent123!');
+          const generatedEmail =
+            cleanEmail ||
+            `parent_${cleanTel.replace(/\D/g, '') || Date.now()}@${req.tenant?.slug || 'gestschool'}.cg`;
+
+          parentUser = await tx.user.create({
+            data: {
+              tenantId,
+              nom: tuteurData.nom.trim(),
+              prenom: tuteurData.prenom?.trim() || '',
+              telephone: cleanTel,
+              email: generatedEmail,
+              adresse: tuteurData.adresse?.trim() || null,
+              passwordHash: pwdHash,
+              role: 'parent',
+              actif: true,
+            },
+          });
+        }
+        finalParentId = parentUser.id;
+      }
+
       let eleveId = existingEleveId || null;
 
       if (!eleveId) {
@@ -191,7 +239,7 @@ export const createAvecEleve = async (req, res) => {
             sexe: eleveData.sexe,
             lieuNaissance: eleveData.lieuNaissance?.trim() || null,
             adresse: eleveData.adresse?.trim() || null,
-            parentId: eleveData.parentId || parentId || null,
+            parentId: finalParentId,
           },
         });
         eleveId = created.id;
@@ -200,10 +248,10 @@ export const createAvecEleve = async (req, res) => {
         if (!eleve) {
           throw Object.assign(new Error('Élève introuvable'), { status: 404 });
         }
-        if (parentId || eleveData?.parentId) {
+        if (finalParentId) {
           await tx.eleve.update({
             where: { id: eleveId },
-            data: { parentId: eleveData?.parentId || parentId },
+            data: { parentId: finalParentId },
           });
         }
       }
