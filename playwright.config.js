@@ -33,13 +33,14 @@ module.exports = defineConfig({
       timeout: 120000,
       env: {
         ...process.env,
+        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/gestschool_e2e',
         PORT: API_PORT,
         FRONTEND_URL: `http://localhost:${APP_PORT}`,
         NODE_ENV: process.env.NODE_ENV || 'development',
       },
     },
     {
-      command: `npx vite --port ${APP_PORT}`,
+      command: `npx vite --host 0.0.0.0 --port ${APP_PORT}`,
       cwd: './client',
       url: `http://localhost:${APP_PORT}`,
       reuseExistingServer: !process.env.CI,
