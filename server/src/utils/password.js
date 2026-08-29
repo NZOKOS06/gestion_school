@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
 const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const LOWER = 'abcdefghijklmnopqrstuvwxyz';
@@ -35,4 +36,25 @@ export const generateRandomPassword = (length = 12) => {
   return chars.join('');
 };
 
-export default { generateRandomPassword };
+/**
+ * Hash un mot de passe avec bcrypt.
+ * @param {string} password - Mot de passe en clair
+ * @param {number} rounds - Salt rounds (défaut 12)
+ * @returns {Promise<string>} Mot de passe hashé
+ */
+export const hashPassword = async (password, rounds = 12) => {
+  return bcrypt.hash(password, rounds);
+};
+
+/**
+ * Compare un mot de passe avec un hash bcrypt.
+ * @param {string} password - Mot de passe en clair
+ * @param {string} hash - Hash stocké
+ * @returns {Promise<boolean>}
+ */
+export const comparePassword = async (password, hash) => {
+  return bcrypt.compare(password, hash);
+};
+
+export default { generateRandomPassword, hashPassword, comparePassword };
+

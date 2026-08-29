@@ -4,6 +4,7 @@ import { logAudit } from '../utils/auditLogger.js';
 import { generateForInscription } from '../services/echeances.service.js';
 import { messageErreurDateNaissance } from '../utils/formatters.js';
 import { resolveAnneeScolaireId, getAnneeOperationnelle } from '../utils/anneeScolaire.js';
+import { hashPassword } from '../utils/password.js';
 
 const log = createLogger('InscriptionsController');
 
@@ -190,7 +191,6 @@ export const createAvecEleve = async (req, res) => {
         });
 
         if (!parentUser) {
-          const { hashPassword } = await import('../utils/password.js');
           const pwdHash = await hashPassword('Parent123!');
           const generatedEmail =
             cleanEmail ||
