@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button, Modal, Badge, QuickSearchSelect } from '../../components/ui';
 import { User, Phone, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, CreditCard, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
