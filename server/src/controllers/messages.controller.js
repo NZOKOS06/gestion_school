@@ -233,7 +233,7 @@ export const markAsRead = async (req, res) => {
   }
 };
 
-export const remove = async (req, res) => {
+export const archiveMessage = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
@@ -243,21 +243,105 @@ export const remove = async (req, res) => {
       return res.status(404).json({ error: 'Message non trouvé' });
     }
 
-    const canDelete =
+    // Only the concerned party (sender or recipient) can archive their own copy
+    const isInvolved =
       message.expediteurId === req.user.id ||
       message.expediteurUserId === req.user.id ||
       (req.user.role === 'parent' && message.destinataireUserId === req.user.id) ||
       (req.user.role !== 'parent' && message.destinataireStaffId === req.user.id);
 
-    if (!canDelete) {
+    if (!isInvolved) {
       return res.status(403).json({ error: 'Action non autorisée' });
     }
 
-    await prisma.message.delete({ where: { id } });
+    // Determine which archive flag to set based on who is archiving
+    const isExpeditor =
+      message.expediteurId === req.user.id || message.expediteurUserId === req.user.id;
 
-    res.json({ message: 'Message supprimé' });
+    const updateData = isExpeditor
+      ? { archivePar: 'expediteur' }
+      : { archivePar: message.archivePar === 'expediteur' ? 'les_deux' : 'destinataire' };
+
+    const updated = await prisma.message.update({ where: { id }, data: updateData });
+
+    await logAudit(req, 'message_archive', 'Message', id, {});
+    res.json(updated);
   } catch (error) {
-    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Delete message error');
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Archive message error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+
+    const message = await prisma.message.findFirst({
+      where: { id, tenantId },
+      include: {
+        expediteur: { select: { id: true, nom: true, prenom: true, role: true } },
+        expediteurUser: { select: { id: true, nom: true, prenom: true } },
+        destinataireStaff: { select: { id: true, nom: true, prenom: true, role: true } },
+        destinataireUser: { select: { id: true, nom: true, prenom: true } },
+      },
+    });
+
+    if (!message) return res.status(404).json({ error: 'Message non trouvé' });
+
+    const isInvolved =
+      message.expediteurId === req.user.id ||
+      message.expediteurUserId === req.user.id ||
+      (req.user.role === 'parent' && message.destinataireUserId === req.user.id) ||
+      (req.user.role !== 'parent' && message.destinataireStaffId === req.user.id);
+
+    if (!isInvolved) return res.status(403).json({ error: 'Accès refusé' });
+
+    res.json(message);
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'getById message error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getArchives = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { page = 1, limit = 20 } = req.query;
+    const take = parseInt(limit);
+    const skip = (parseInt(page) - 1) * take;
+    const isParent = req.user.role === 'parent';
+
+    // Archived by the current user as sender or recipient
+    const senderCondition = isParent
+      ? { expediteurUserId: req.user.id, archivePar: { in: ['expediteur', 'les_deux'] } }
+      : { expediteurId: req.user.id, archivePar: { in: ['expediteur', 'les_deux'] } };
+
+    const recipientCondition = isParent
+      ? { destinataireUserId: req.user.id, archivePar: { in: ['destinataire', 'les_deux'] } }
+      : { destinataireStaffId: req.user.id, archivePar: { in: ['destinataire', 'les_deux'] } };
+
+    const where = { tenantId, OR: [senderCondition, recipientCondition] };
+
+    const [rows, total] = await Promise.all([
+      prisma.message.findMany({
+        where,
+        include: {
+          expediteur: { select: { id: true, nom: true, prenom: true, role: true } },
+          expediteurUser: { select: { id: true, nom: true, prenom: true } },
+          destinataireStaff: { select: { id: true, nom: true, prenom: true, role: true } },
+          destinataireUser: { select: { id: true, nom: true, prenom: true } },
+        },
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.message.count({ where }),
+    ]);
+
+    res.json({ data: rows, pagination: { page: parseInt(page), limit: take, total, totalPages: Math.ceil(total / take) } });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'getArchives message error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

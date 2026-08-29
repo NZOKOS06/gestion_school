@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
-import { PageHeader, DataTable, Badge, Button, Modal, Input } from '../../components/ui';
-import { Banknote, Calculator, CheckCircle, Wallet } from 'lucide-react';
+import { PageHeader, DataTable, Badge, Button, Modal, Input, KpiCard, KpiGrid } from '../../components/ui';
+import { Banknote, Calculator, CheckCircle, Wallet, Users, TrendingUp, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const MOIS = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
@@ -129,6 +129,16 @@ const Paie = () => {
     setBusy(false);
   };
 
+  const kpis = useMemo(() => {
+    const total = bulletins.length;
+    const masseTotale = bulletins.reduce((s, b) => s + Number(b.montantTotal || 0), 0);
+    const totalVerse = bulletins
+      .filter((b) => b.statut === 'valide' || b.statut === 'paye')
+      .reduce((s, b) => s + Number(b.montantTotal || 0), 0);
+    const resteAPayer = masseTotale - totalVerse;
+    return { total, masseTotale, totalVerse, resteAPayer };
+  }, [bulletins]);
+
   const selectStyle = {
     height: 36,
     background: 'var(--surface-overlay)',
@@ -146,6 +156,39 @@ const Paie = () => {
         subtitle={`Méthode école : ${methode} — calcul, validation et sortie caisse (Salaires)`}
         icon={Banknote}
       />
+
+      {/* KPIs */}
+      <KpiGrid cols={4}>
+        <KpiCard
+          title="Agents concernés"
+          value={periodeActive ? kpis.total : '—'}
+          icon={Users}
+          color="blue"
+          subtitle={periodeActive ? `${MOIS[periodeActive.mois]} ${periodeActive.anneeCivile}` : 'Ouvrez une période'}
+        />
+        <KpiCard
+          title="Masse salariale"
+          value={periodeActive ? formatPrice(kpis.masseTotale) : '—'}
+          icon={TrendingUp}
+          color="purple"
+          subtitle="Total brut à décaisser"
+        />
+        <KpiCard
+          title="Salaires versés"
+          value={periodeActive ? formatPrice(kpis.totalVerse) : '—'}
+          icon={CheckCircle}
+          color="green"
+          subtitle="Bulletins validés / payés"
+        />
+        <KpiCard
+          title="Reste à verser"
+          value={periodeActive ? formatPrice(kpis.resteAPayer) : '—'}
+          icon={Clock}
+          color={kpis.resteAPayer > 0 ? 'orange' : 'green'}
+          subtitle="Bulletins en attente"
+        />
+      </KpiGrid>
+
 
       <div className="flex flex-wrap gap-3 items-end">
         <div>

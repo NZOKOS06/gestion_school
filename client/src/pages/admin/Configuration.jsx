@@ -63,6 +63,8 @@ const moduleDefinitions = [
   { key: 'moduleActualites', label: 'Actualités', description: 'Publications et communication', icon: Layers }
 ];
 
+import CyclesSelector from '../superadmin/CyclesSelector.jsx';
+
 const Configuration = () => {
   const { put, post, loading } = useAxios();
   const { config: tenantConfig, slug, previewTheme, refreshConfig } = useTenant();
@@ -92,6 +94,7 @@ const Configuration = () => {
     police: 'DM Sans',
     devise: 'FCFA',
     tauxTVA: 0,
+    concerneCycles: ['prescolaire', 'primaire', 'college', 'lycee'],
     moduleEleves: true,
     moduleClasses: true,
     moduleMatieres: true,
@@ -115,7 +118,10 @@ const Configuration = () => {
     if (tenantConfig) {
       setForm(prev => ({
         ...prev,
-        ...tenantConfig
+        ...tenantConfig,
+        concerneCycles: Array.isArray(tenantConfig.concerneCycles) && tenantConfig.concerneCycles.length
+          ? tenantConfig.concerneCycles
+          : ['prescolaire', 'primaire', 'college', 'lycee'],
       }));
       if (tenantConfig.logoUrl) {
         setLogoPreview(tenantConfig.logoUrl);
@@ -191,6 +197,7 @@ const Configuration = () => {
         methodePaie: form.methodePaie,
         pointageToleranceMinutes: parseInt(form.pointageToleranceMinutes, 10) || 15,
         paieJourCloture: parseInt(form.paieJourCloture, 10) || 25,
+        concerneCycles: form.concerneCycles,
         moduleRapports: form.moduleRapports,
       };
 
@@ -574,6 +581,23 @@ const Configuration = () => {
                 onChange={e => updateForm('anneeScolaire', e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="2025-2026"
+              />
+            </div>
+          </div>
+
+          {/* Cycles d'enseignement proposés */}
+          <div className="border-t border-[var(--border-subtle)] pt-6 space-y-3">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-[var(--color-primary)]" />
+              Cycles d'enseignement de l'établissement
+            </h3>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Sélectionnez les cycles assurés par votre école. Les formulaires de création de classes, de matières et d'emploi du temps s'ajusteront automatiquement.
+            </p>
+            <div className="max-w-2xl bg-[var(--surface-overlay)] p-4 rounded-xl border border-[var(--border-subtle)]">
+              <CyclesSelector
+                value={form.concerneCycles}
+                onChange={(cycles) => updateForm('concerneCycles', cycles)}
               />
             </div>
           </div>

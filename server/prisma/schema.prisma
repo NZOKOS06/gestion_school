@@ -1405,6 +1405,7 @@ model Message {
   contenu      String   @db.Text
   lu           Boolean  @default(false)
   dateLecture  DateTime?
+  archivePar   String?  // null | 'expediteur' | 'destinataire' | 'les_deux'
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -1420,8 +1421,10 @@ model Message {
   @@index([destinataireStaffId])
   @@index([destinataireUserId])
   @@index([lu])
+  @@index([archivePar])
   @@index([createdAt])
 }
+
 
 // ==================== EXAMENS NATIONAUX (Congo) ====================
 

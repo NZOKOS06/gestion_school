@@ -28,6 +28,21 @@ router.get('/sent',
   ctrl.getSent
 );
 
+router.get('/archives',
+  authenticate,
+  requireRole(...roles),
+  requireTenantMatch,
+  ctrl.getArchives
+);
+
+router.get('/:id',
+  authenticate,
+  requireRole(...roles),
+  requireTenantMatch,
+  idParamValidator,
+  ctrl.getById
+);
+
 router.post('/',
   authenticate,
   requireRole(...roles),
@@ -43,12 +58,12 @@ router.put('/:id/read',
   ctrl.markAsRead
 );
 
-router.delete('/:id',
+router.put('/:id/archive',
   authenticate,
   requireRole(...roles),
   requireTenantMatch,
   idParamValidator,
-  ctrl.remove
+  ctrl.archiveMessage
 );
 
 export default router;
