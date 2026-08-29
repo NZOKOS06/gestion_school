@@ -30,7 +30,18 @@ export default function InscriptionWizard({
   const [saving, setSaving] = useState(false);
 
   // Form State
-  const [anneeScolaireId, setAnneeScolaireId] = useState(annees.find((a) => a.actif || a.statut === 'active')?.id || annees[0]?.id || '');
+  const [anneeScolaireId, setAnneeScolaireId] = useState(
+    annees.find((a) => a.actif || a.statut === 'active')?.id || annees[0]?.id || ''
+  );
+
+  // Synchronise anneeScolaireId quand la liste des années arrive de l'API
+  useEffect(() => {
+    if (!anneeScolaireId && annees.length > 0) {
+      const active = annees.find((a) => a.actif || a.statut === 'active') || annees[0];
+      if (active?.id) setAnneeScolaireId(active.id);
+    }
+  }, [annees, anneeScolaireId]);
+
   const [classeId, setClasseId] = useState('');
   const [existingEleveId, setExistingEleveId] = useState('');
   const [existingParentId, setExistingParentId] = useState('');
@@ -55,9 +66,11 @@ export default function InscriptionWizard({
     activerEspaceParent: true,
   });
 
+  const effectiveAnneeId = anneeScolaireId || annees.find((a) => a.actif || a.statut === 'active')?.id || annees[0]?.id || '';
+
   const availableClasses = useMemo(
-    () => classes.filter((c) => !anneeScolaireId || c.anneeScolaireId === anneeScolaireId),
-    [classes, anneeScolaireId]
+    () => classes.filter((c) => !effectiveAnneeId || c.anneeScolaireId === effectiveAnneeId),
+    [classes, effectiveAnneeId]
   );
 
   const selectedClasse = useMemo(
@@ -80,7 +93,7 @@ export default function InscriptionWizard({
   };
 
   const validateStep1 = () => {
-    if (!anneeScolaireId) {
+    if (!effectiveAnneeId) {
       toast.error('Sélectionnez une année scolaire');
       return false;
     }
@@ -138,7 +151,7 @@ export default function InscriptionWizard({
     try {
       const payload = {
         classeId,
-        anneeScolaireId,
+        anneeScolaireId: effectiveAnneeId,
         eleveId: mode === 'existant' ? existingEleveId : undefined,
         eleve: mode === 'nouveau' ? eleve : undefined,
         parentId: parentMode === 'existant' ? existingParentId : undefined,
@@ -261,7 +274,7 @@ export default function InscriptionWizard({
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Année scolaire *</label>
                 <select
                   style={inputStyle}
-                  value={anneeScolaireId}
+                  value={anneeScolaireId || effectiveAnneeId}
                   onChange={(e) => {
                     setAnneeScolaireId(e.target.value);
                     setClasseId('');
