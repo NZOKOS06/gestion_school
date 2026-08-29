@@ -16,7 +16,7 @@ router.get('/',
 
 router.post('/',
   authenticate,
-  requireRole(...adminRoles),
+  requireRole(...writeRoles),
   requireTenantMatch,
   ctrl.create
 );
