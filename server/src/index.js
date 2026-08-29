@@ -333,7 +333,7 @@ app.get('/', (req, res) => {
 });
 
 // Health checks
-app.get('/api/health', (req, res) => {
+const healthHandler = (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -342,7 +342,10 @@ app.get('/api/health', (req, res) => {
     dbConnected,
     cloudinaryConfigured: isCloudinaryConfigured(),
   });
-});
+};
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 /** Diagnostic interne — super_admin uniquement (ne pas exposer en public). */
 app.get('/api/health/bootstrap', authenticate, requireRole('super_admin'), async (req, res) => {

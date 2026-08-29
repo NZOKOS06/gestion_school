@@ -442,7 +442,7 @@ const Inscriptions = () => {
   const totalFraisPreview = fraisInscriptionDefault + fraisScolaritePreview;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="page-inscriptions">
       <PageHeader
         title="Inscriptions / Réinscriptions"
         subtitle="L'inscription lie l'élève à une classe et ouvre le dossier financier"
