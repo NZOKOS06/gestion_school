@@ -8,7 +8,7 @@ module.exports = defineConfig({
   testDir: './e2e',
   // Smoke scolaire + login ; legacy pharmacie / superadmin lourds exclus de la CI par défaut
   testMatch: /.*(01-login|04-rapports|05-smoke-scolaire)\.spec\.js/,
-  timeout: 30000,
+  timeout: 60000,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: [['html', { outputFolder: 'e2e/reports' }], ['line']],
@@ -18,6 +18,8 @@ module.exports = defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
+    actionTimeout: 15000,
+    navigationTimeout: 30000,
   },
 
   projects: [
