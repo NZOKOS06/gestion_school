@@ -205,7 +205,6 @@ export const createAvecEleve = async (req, res) => {
               email: generatedEmail,
               adresse: tuteurData.adresse?.trim() || null,
               passwordHash: pwdHash,
-              role: 'parent',
               actif: true,
             },
           });
@@ -300,7 +299,10 @@ export const createAvecEleve = async (req, res) => {
     if (error.status) {
       return res.status(error.status).json({ error: error.message });
     }
-    log.error({ err: error, tenantId: req.tenantId }, 'Create inscription avec eleve error');
+    log.error(
+      { err: error, message: error.message, code: error.code, meta: error.meta, tenantId: req.tenantId },
+      'Create inscription avec eleve error'
+    );
     res.status(500).json({ error: 'Internal server error' });
   }
 };
