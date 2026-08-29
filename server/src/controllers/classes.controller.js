@@ -124,8 +124,13 @@ export const create = async (req, res) => {
       niveauOfficielId, filiereOfficielleId,
     } = req.body;
 
-    if (!nom || !anneeScolaireId) {
-      return res.status(400).json({ error: 'nom et anneeScolaireId requis' });
+    let targetAnneeId = anneeScolaireId;
+    if (!targetAnneeId) {
+      targetAnneeId = await resolveAnneeScolaireId(tenantId, null);
+    }
+
+    if (!nom || !targetAnneeId) {
+      return res.status(400).json({ error: 'Nom de classe et année scolaire requis' });
     }
 
     // Fetch tenant cycles once
@@ -185,7 +190,7 @@ export const create = async (req, res) => {
     }
 
     const annee = await prisma.anneeScolaire.findFirst({
-      where: { id: anneeScolaireId, tenantId },
+      where: { id: targetAnneeId, tenantId },
     });
     if (!annee) {
       return res.status(400).json({ error: 'Année scolaire invalide' });
@@ -197,7 +202,7 @@ export const create = async (req, res) => {
         nom,
         niveau: resolvedNiveau,
         cycle: resolvedCycle,
-        anneeScolaireId,
+        anneeScolaireId: targetAnneeId,
         filiere: resolvedFiliere,
         niveauOfficielId: niveauOfficielId || null,
         filiereOfficielleId: filiereOfficielleId || null,

@@ -86,18 +86,32 @@ const Classes = () => {
   };
 
   const handleCreate = async () => {
+    if (!form.nom?.trim()) {
+      toast.error('Le nom de la classe est requis');
+      return;
+    }
+    if (!form.niveauOfficielId) {
+      toast.error('Veuillez sélectionner un niveau officiel');
+      return;
+    }
     try {
-      await post('/api/classes', {
-        ...form,
-        anneeScolaireId: anneeId,
-        filiereOfficielleId: form.filiereOfficielleId || null,
-      });
+      const payload = {
+        nom: form.nom.trim(),
+        niveauOfficielId: form.niveauOfficielId,
+        capacite: parseInt(form.capacite, 10) || 40,
+        fraisScolarite: parseFloat(form.fraisScolarite) || 0,
+      };
+      if (anneeId) payload.anneeScolaireId = anneeId;
+      if (form.filiereOfficielleId) payload.filiereOfficielleId = form.filiereOfficielleId;
+
+      await post('/api/classes', payload);
       setCreateOpen(false);
       setForm({ nom: '', niveauOfficielId: '', filiereOfficielleId: '', capacite: 40, fraisScolarite: 0 });
       toast.success('Classe créée');
       fetchClasses();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Création impossible');
+      const errorMsg = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Création impossible';
+      toast.error(errorMsg);
     }
   };
 

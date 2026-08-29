@@ -59,20 +59,53 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <Sentry.ErrorBoundary
-      fallback={({ error, resetError }) => (
-        <div style={{
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          height: '100vh', gap: 16, fontFamily: 'sans-serif'
-        }}>
-          <h2>Une erreur inattendue est survenue</h2>
-          <p style={{ color: '#666' }}>{error.message}</p>
-          <button onClick={resetError}
-            style={{ padding: '8px 16px', cursor: 'pointer' }}>
-            Réessayer
-          </button>
-        </div>
-      )}
+      fallback={({ error, resetError }) => {
+        const isChunkError =
+          error?.message?.includes('dynamically imported module') ||
+          error?.message?.includes('Loading chunk') ||
+          error?.message?.includes('Failed to fetch');
+
+        return (
+          <div style={{
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            height: '100vh', gap: 16, fontFamily: 'sans-serif',
+            background: 'var(--surface-base, #0F172A)',
+            color: 'var(--text-primary, #F8FAFC)',
+            padding: 24, textAlign: 'center'
+          }}>
+            <h2 style={{ fontSize: 20, fontWeight: 600 }}>
+              {isChunkError ? 'Mise à jour de l\'application disponible' : 'Une erreur inattendue est survenue'}
+            </h2>
+            <p style={{ color: 'var(--text-secondary, #94A3B8)', maxWidth: 480, fontSize: 14 }}>
+              {isChunkError
+                ? 'Une nouvelle version a été déployée. Veuillez actualiser la page.'
+                : error.message}
+            </p>
+            <button
+              onClick={() => {
+                if (isChunkError) {
+                  window.location.reload();
+                } else {
+                  resetError();
+                }
+              }}
+              style={{
+                padding: '10px 20px',
+                cursor: 'pointer',
+                background: 'var(--color-primary, #2563EB)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 500,
+                fontSize: 14
+              }}
+            >
+              {isChunkError ? 'Actualiser la page' : 'Réessayer'}
+            </button>
+          </div>
+        );
+      }}
     >
       <BrowserRouter>
         <App />

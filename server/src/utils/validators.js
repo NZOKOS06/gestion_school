@@ -57,13 +57,13 @@ export const eleveValidator = [
 // Validators Classes
 export const classeValidator = [
   body('nom').trim().notEmpty().withMessage('Nom de classe requis'),
-  body('niveau').optional().trim(),
-  body('niveauOfficielId').optional().isUUID().withMessage('Niveau officiel invalide'),
-  body('anneeScolaireId').isUUID().withMessage('ID année scolaire invalide'),
-  body('filiere').optional().trim(),
-  body('filiereOfficielleId').optional().isUUID(),
-  body('capacite').optional().isInt({ min: 1 }).withMessage('Capacité invalide'),
-  body('fraisScolarite').optional().isDecimal({ min: 0 }).withMessage('Frais de scolarité invalide'),
+  body('niveau').optional({ values: 'falsy' }).trim(),
+  body('niveauOfficielId').optional({ values: 'falsy' }).isUUID().withMessage('Niveau officiel invalide'),
+  body('anneeScolaireId').optional({ values: 'falsy' }).isUUID().withMessage('ID année scolaire invalide'),
+  body('filiere').optional({ values: 'falsy' }).trim(),
+  body('filiereOfficielleId').optional({ values: 'falsy' }).isUUID().withMessage('ID filière officielle invalide'),
+  body('capacite').optional({ values: 'falsy' }).customSanitizer(v => parseInt(v, 10)).isInt({ min: 1 }).withMessage('Capacité invalide'),
+  body('fraisScolarite').optional({ values: 'falsy' }).customSanitizer(v => parseFloat(v)).isFloat({ min: 0 }).withMessage('Frais de scolarité invalide'),
   body().custom((_, { req }) => {
     if (!req.body.niveau && !req.body.niveauOfficielId) {
       throw new Error('Niveau ou niveau officiel requis');
