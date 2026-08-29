@@ -164,6 +164,11 @@ export const create = async (req, res) => {
       return res.status(400).json({ error: 'niveau requis' });
     }
 
+    const tenantCycles = await getTenantCyclesConfig(tenantId, prisma);
+    if (!isCycleAllowed(resolvedCycle, tenantCycles)) {
+      return res.status(400).json({ error: 'Ce cycle n\'est pas proposé par votre établissement' });
+    }
+
     const annee = await prisma.anneeScolaire.findFirst({
       where: { id: anneeScolaireId, tenantId },
     });

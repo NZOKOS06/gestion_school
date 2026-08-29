@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
+import { resolveAllowedCycles } from '../../constants/cycles.js';
 import { PageHeader, Card, Badge, Button, Modal } from '../../components/ui';
 import { CalendarRange, Plus, Save, Trash2, Copy, AlertTriangle, CheckCircle2, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -14,7 +16,7 @@ const getAnneeStatut = (a) => {
   return a.actif ? 'active' : 'archivee';
 };
 
-const CYCLES_OPTS = [
+const ALL_CYCLES_OPTS = [
   { value: 'prescolaire', label: 'Préscolaire' },
   { value: 'primaire', label: 'Primaire' },
   { value: 'college', label: 'Collège' },
@@ -48,6 +50,15 @@ const parseLocal = (s) => (s ? new Date(`${s}T12:00:00`) : null);
 const AnneesScolaires = () => {
   const { get, post, put, delete: del } = useAxios();
   const { hasRole } = useAuth();
+  const { config } = useTenant();
+  const allowedCycles = useMemo(
+    () => resolveAllowedCycles(config?.concerneCycles),
+    [config?.concerneCycles],
+  );
+  const CYCLES_OPTS = useMemo(
+    () => ALL_CYCLES_OPTS.filter((c) => allowedCycles.includes(c.value)),
+    [allowedCycles],
+  );
   const canWrite = hasRole('directeur', 'directeur_etudes');
   const isDirecteur = hasRole('directeur');
 

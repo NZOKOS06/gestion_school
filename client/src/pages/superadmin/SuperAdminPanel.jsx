@@ -820,6 +820,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
         telephone: createForm.telephone,
         adresse: createForm.adresse,
         numeroAutorisation: createForm.numeroAutorisation,
+        concerneCycles: createConfig.concerneCycles,
       });
 
       newTenant = tenantRes.data || tenantRes;

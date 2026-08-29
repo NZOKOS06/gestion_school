@@ -228,25 +228,41 @@ const Classes = () => {
       >
         <div className="space-y-4">
           <FormField label="Nom de la classe" required>
-            <Input value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} placeholder="ex: 6ème A" />
+            <Input
+              value={form.nom}
+              onChange={(e) => setForm({ ...form, nom: e.target.value })}
+              placeholder={
+                allowedCycles.includes('primaire') && !allowedCycles.includes('college')
+                  ? 'ex: CP1 A, CE2 B, CM2 A'
+                  : allowedCycles.includes('lycee')
+                  ? 'ex: 2nde C, 1ère D, Terminale S1'
+                  : 'ex: 6ème A, 3ème B'
+              }
+            />
           </FormField>
-          <FormField label="Niveau officiel" required hint={selectedNiveau ? `Cycle : ${CYCLE_LABELS[selectedNiveau.cycle]}${selectedNiveau.typeExamenSortie ? ` · Examen : ${selectedNiveau.typeExamenSortie}` : ''}` : undefined}>
+          <FormField label="Niveau officiel" required hint={selectedNiveau ? `Cycle : ${CYCLE_LABELS[selectedNiveau.cycle]}${selectedNiveau.typeExamenSortie ? ` · Examen de sortie : ${selectedNiveau.typeExamenSortie}` : ''}` : undefined}>
             <Select
               value={form.niveauOfficielId}
               onChange={(e) => setForm({ ...form, niveauOfficielId: e.target.value, filiereOfficielleId: '' })}
             >
-              <option value="">Sélectionner (PS → Tle)</option>
-              {niveaux.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.libelle} ({n.code}) — {CYCLE_LABELS[n.cycle] || n.cycle}
-                </option>
-              ))}
+              <option value="">
+                {allowedCycles.length === 1
+                  ? `Sélectionner le niveau (${CYCLE_LABELS[allowedCycles[0]]})`
+                  : 'Sélectionner un niveau officiel'}
+              </option>
+              {niveaux
+                .filter((n) => !allowedCycles.length || allowedCycles.includes(n.cycle))
+                .map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.libelle} ({n.code}) — {CYCLE_LABELS[n.cycle] || n.cycle}
+                  </option>
+                ))}
             </Select>
           </FormField>
-          {showFiliere && (
-            <FormField label="Filière officielle">
+          {showFiliere && allowedCycles.includes('lycee') && (
+            <FormField label="Filière officielle" hint="Filière spécifique au lycée (Scientifique, Littéraire, etc.)">
               <Select value={form.filiereOfficielleId} onChange={(e) => setForm({ ...form, filiereOfficielleId: e.target.value })}>
-                <option value="">Optionnel</option>
+                <option value="">Générale / Non spécifiée</option>
                 {filieres.map((f) => <option key={f.id} value={f.id}>{f.libelle}</option>)}
               </Select>
             </FormField>

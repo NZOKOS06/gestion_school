@@ -30,6 +30,7 @@ export default defineConfig({
       'src/middleware/tenantMiddleware.test.js',
       'src/utils/prisma.tenantIsolation.test.js',
       'src/utils/anneeActive.test.js',
+      'src/utils/tenantCycles.test.js',
       'src/utils/httpCache.test.js',
       'src/config/v1Modules.test.js',
       'src/services/echeances.service.test.js',

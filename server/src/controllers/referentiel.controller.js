@@ -3,18 +3,31 @@ import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { filterByTenantCycles, getTenantCyclesConfig, isCycleAllowed } from '../utils/tenantCycles.js';
 import { buildCalendrierTemplatesFromPeriodes } from '../data/referentielCongo.js';
+import { bootstrapTenantReferentiel } from '../utils/tenantBootstrap.js';
 
 const log = createLogger('ReferentielController');
 
 export const listVersions = async (req, res) => {
   try {
-    const versions = await prisma.referentielVersion.findMany({
+    let versions = await prisma.referentielVersion.findMany({
       where: { tenantId: req.tenantId },
       include: {
         _count: { select: { niveaux: true, filieres: true, annees: true } },
       },
       orderBy: { code: 'asc' },
     });
+
+    if (versions.length === 0) {
+      await bootstrapTenantReferentiel(req.tenantId, prisma);
+      versions = await prisma.referentielVersion.findMany({
+        where: { tenantId: req.tenantId },
+        include: {
+          _count: { select: { niveaux: true, filieres: true, annees: true } },
+        },
+        orderBy: { code: 'asc' },
+      });
+    }
+
     res.json({ data: versions });
   } catch (error) {
     log.error({ err: error }, 'listVersions');
@@ -36,9 +49,15 @@ export const listNiveaux = async (req, res) => {
     }
 
     if (!versionId) {
-      const active = await prisma.referentielVersion.findFirst({
+      let active = await prisma.referentielVersion.findFirst({
         where: { tenantId: req.tenantId, actif: true },
       });
+      if (!active) {
+        await bootstrapTenantReferentiel(req.tenantId, prisma);
+        active = await prisma.referentielVersion.findFirst({
+          where: { tenantId: req.tenantId, actif: true },
+        });
+      }
       versionId = active?.id;
     }
 
@@ -53,6 +72,14 @@ export const listNiveaux = async (req, res) => {
       where,
       orderBy: { ordre: 'asc' },
     });
+
+    if (niveaux.length === 0) {
+      await bootstrapTenantReferentiel(req.tenantId, prisma);
+      niveaux = await prisma.niveauOfficiel.findMany({
+        where,
+        orderBy: { ordre: 'asc' },
+      });
+    }
 
     const tenantCycles = await getTenantCyclesConfig(req.tenantId, prisma);
     niveaux = filterByTenantCycles(niveaux, tenantCycles, (n) => n.cycle);

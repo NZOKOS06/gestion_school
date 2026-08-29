@@ -13,6 +13,7 @@ import {
   moduleFlagsForPlan,
 } from '../config/v1Modules.js';
 import { cacheDel, CacheKeys } from '../utils/cache.js';
+import { bootstrapTenantReferentiel } from '../utils/tenantBootstrap.js';
 
 async function invalidateTenantConfigCache(tenantId) {
   if (!tenantId) return;
@@ -196,6 +197,9 @@ export const createTenant = async (req, res) => {
       },
       include: { config: true }
     });
+
+    // Amorçage automatique du référentiel scolaire selon les cycles
+    await bootstrapTenantReferentiel(tenant.id, rawPrisma);
 
     await logAudit(req, 'tenant_created', 'Tenant', tenant.id, {
       nom: tenant.nom,
