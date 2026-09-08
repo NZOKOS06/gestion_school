@@ -157,3 +157,20 @@ export const formatRole = (role) => {
   };
   return map[role] || role;
 };
+
+/**
+ * Construit un objet orderBy sécurisé avec validation whitelist des colonnes autorisées.
+ * Évite les rejets ou erreurs 500 du moteur Prisma lors de l'envoi d'un paramètre sortBy invalide.
+ */
+export const safeOrderBy = (
+  sortBy,
+  order,
+  allowedFields = ['createdAt'],
+  defaultField = 'createdAt',
+  defaultOrder = 'desc'
+) => {
+  const safeSort = allowedFields.includes(sortBy) ? sortBy : defaultField;
+  const safeOrder = String(order || '').toLowerCase() === 'asc' ? 'asc' : defaultOrder;
+  return { [safeSort]: safeOrder };
+};
+

@@ -34,6 +34,14 @@ router.post('/generer-masse',
   ctrl.genererMasse
 );
 
+router.get('/jobs/:jobId',
+  authenticate,
+  requireRole(...genRoles),
+  requireTenantMatch,
+  requireModule('bulletins'),
+  ctrl.getJobStatus
+);
+
 router.put('/publier',
   authenticate,
   requireRole('directeur'),

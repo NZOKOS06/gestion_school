@@ -2,7 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { generateForInscription } from '../services/echeances.service.js';
-import { messageErreurDateNaissance } from '../utils/formatters.js';
+import { messageErreurDateNaissance, safeOrderBy } from '../utils/formatters.js';
 import { resolveAnneeScolaireId, getAnneeOperationnelle } from '../utils/anneeScolaire.js';
 import { hashPassword } from '../utils/password.js';
 
@@ -41,8 +41,13 @@ export const getAll = async (req, res) => {
       };
     }
 
-    const orderBy = {};
-    orderBy[sortBy] = order;
+    const orderBy = safeOrderBy(
+      sortBy,
+      order,
+      ['createdAt', 'dateInscription', 'soldeScolarite'],
+      'createdAt',
+      'desc'
+    );
 
     const [rows, total] = await Promise.all([
       prisma.inscription.findMany({

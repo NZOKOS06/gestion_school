@@ -12,4 +12,8 @@ router.get('/infos', ctrl.getInfosEcole);
 // GET /api/public/bulletins/verify/:idOrHash — authenticité bulletin (sans auth)
 router.get('/bulletins/verify/:idOrHash', ctrl.verifyBulletin);
 
+// GET /api/public/portail-parent?token=... — accès portail parent via QR Code (sans auth)
+router.get('/portail-parent', ctrl.getPortailParent);
+
 export default router;
+

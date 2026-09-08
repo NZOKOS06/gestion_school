@@ -60,4 +60,18 @@ export const config = {
   brevo: {
     apiKey: process.env.BREVO_API_KEY || null,
   },
+  sms: {
+    from: process.env.BREVO_SMS_FROM || 'GestSchool',
+    africasTalking: {
+      apiKey: process.env.AT_API_KEY || null,
+      username: process.env.AT_USERNAME || null,
+      from: process.env.AT_SMS_FROM || 'GestSchool',
+    },
+  },
+  whatsapp: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID || null,
+    authToken: process.env.TWILIO_AUTH_TOKEN || null,
+    from: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886',
+  },
 };
+

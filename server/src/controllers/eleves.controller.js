@@ -1,7 +1,10 @@
+import jwt from 'jsonwebtoken';
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
-import { messageErreurDateNaissance } from '../utils/formatters.js';
+import { messageErreurDateNaissance, safeOrderBy } from '../utils/formatters.js';
+import { config } from '../config.js';
+import { generateCarteScolairePdf } from '../services/pdf/carteScolaire.pdf.js';
 
 const log = createLogger('ElevesController');
 
@@ -61,8 +64,13 @@ export const getAll = async (req, res) => {
       };
     }
 
-    const orderBy = {};
-    orderBy[sortBy] = order;
+    const orderBy = safeOrderBy(
+      sortBy,
+      order,
+      ['nom', 'prenom', 'matricule', 'dateNaissance', 'dateEntree', 'createdAt'],
+      'nom',
+      'asc'
+    );
 
     const [rows, total] = await Promise.all([
       prisma.eleve.findMany({
@@ -233,3 +241,78 @@ export const remove = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const getCarteScolaire = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+
+    const eleve = await prisma.eleve.findFirst({
+      where: { id, tenantId },
+      include: {
+        inscriptions: {
+          where: { anneeScolaire: { actif: true } },
+          include: {
+            classe: { select: { id: true, nom: true, niveau: true } },
+            anneeScolaire: { select: { id: true, libelle: true } },
+          },
+          take: 1,
+        },
+        tenant: {
+          select: {
+            nom: true,
+            contact: true,
+            config: {
+              select: {
+                nomEcole: true,
+                logoUrl: true,
+                telephone: true,
+                adresse: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!eleve) {
+      return res.status(404).json({ error: 'Élève non trouvé' });
+    }
+
+    const inscription = eleve.inscriptions?.[0];
+    const anneeScolaire = inscription?.anneeScolaire;
+    const classe = inscription?.classe;
+    const ecole = {
+      nomEcole: eleve.tenant?.config?.nomEcole || eleve.tenant?.nom,
+      logoUrl: eleve.tenant?.config?.logoUrl,
+      telephone: eleve.tenant?.config?.telephone || eleve.tenant?.contact?.telephone,
+      adresse: eleve.tenant?.config?.adresse || eleve.tenant?.contact?.adresse,
+    };
+
+    // Générer token JWT signé 1 an pour le portail parent public
+    const portalToken = jwt.sign(
+      { eleveId: eleve.id, tenantId, scope: 'portail_parent' },
+      config.jwtSecret,
+      { expiresIn: '365d' }
+    );
+
+    const baseUrl = config.frontendUrl || `${req.protocol}://${req.get('host')}`;
+    const qrUrl = `${baseUrl}/portail-parent?token=${portalToken}`;
+
+    const pdfBuffer = await generateCarteScolairePdf({
+      eleve,
+      classe,
+      anneeScolaire,
+      ecole,
+      qrUrl,
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="carte_scolaire_${eleve.matricule}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Generate carte scolaire error');
+    res.status(500).json({ error: 'Erreur lors de la génération de la carte scolaire' });
+  }
+};
+

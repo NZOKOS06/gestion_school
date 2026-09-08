@@ -68,6 +68,11 @@ model Tenant {
   matieresNiveauAnnee MatiereNiveauAnnee[]
   matieresClasseAnnee MatiereClasseAnnee[]
   enseignantClassesQuittees EnseignantClasseQuittee[]
+  caisseSessions    CaisseSession[]
+  paiementAnnulations PaiementAnnulation[]
+  bulletinJobs      BulletinJob[]
+  relanceLogs       RelanceLog[]
+  facturationJobs   FacturationJob[]
 
   @@index([slug])
 }
@@ -223,6 +228,7 @@ model Staff {
   messagesRecus     Message[]          @relation("MessageDestinataireStaff")
   conseilParticipants ConseilParticipant[]
   conseilsPresides  ConseilDeClasse[]  @relation("ConseilPresident")
+  caisseSessions    CaisseSession[]    @relation("CaissierSession")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -353,6 +359,7 @@ model AnneeScolaire {
   depenses     Depense[]
   sanctions    Sanction[]
   periodesPaie PeriodePaie[]
+  facturationJobs FacturationJob[]
 
   @@unique([tenantId, libelle])
   @@index([tenantId])
@@ -582,6 +589,7 @@ model Eleve {
   sanctions    Sanction[]
   certificats  Certificat[]
   examenCandidatures ExamenCandidature[]
+  relanceLogs  RelanceLog[]
 
   @@index([tenantId])
   @@index([matricule])
@@ -868,6 +876,7 @@ model Paiement {
   datePaiement  DateTime     @default(now())
   motif         String? // ex: "Frais de Scolarité - Tranche 1"
   pdfUrl        String? // Reçu PDF archivé (Cloudinary) ou null
+  caisseSessionId String? // Session de caisse active lors de l'encaissement
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -875,11 +884,13 @@ model Paiement {
   inscription Inscription @relation(fields: [inscriptionId], references: [id], onDelete: Cascade)
   echeance    Echeance?   @relation(fields: [echeanceId], references: [id], onDelete: SetNull)
   recuPar     Staff       @relation("RecuPar", fields: [recuParId], references: [id])
+  caisseSession CaisseSession? @relation(fields: [caisseSessionId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, numeroRecu])
   @@index([tenantId])
   @@index([inscriptionId])
   @@index([echeanceId])
+  @@index([caisseSessionId])
   @@index([datePaiement])
 }
 
@@ -1522,3 +1533,146 @@ model ResultatExamen {
   @@index([tenantId])
   @@index([statut])
 }
+
+// ==================== FORTERESSE DE CAISSE ====================
+
+/// Session de caisse journalière — Ouverte au début de la journée, fermée avec billetterie physique.
+/// Toute anomalie entre montantTheorique et montantReel est tracée et justifiée.
+model CaisseSession {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  caissierId          String   // Référence vers Staff (rôle comptable)
+  statut              String   @default("ouverte") // ouverte | fermee | validee_direction
+  dateOuverture       DateTime @default(now())
+  dateCloture         DateTime?
+  /// Fond de caisse initial (espèces physiques en début de journée)
+  fondDeCaisse        Decimal  @default(0.00) @db.Decimal(12, 2)
+  /// Total théorique = fondDeCaisse + encaissements - décaissements de la session
+  montantTheorique    Decimal  @default(0.00) @db.Decimal(12, 2)
+  /// Montant réel compté physiquement lors de la clôture
+  montantReel         Decimal? @db.Decimal(12, 2)
+  /// Écart = montantReel - montantTheorique (négatif = manque, positif = surplus)
+  ecart               Decimal? @db.Decimal(12, 2)
+  justificationEcart  String?  // Obligatoire si ecart != 0
+  /// Détail du comptage physique des coupures (JSON : { "10000": 5, "5000": 10, "2000": 3, ... })
+  billetterie         Json?
+  /// Résumé automatique : nombre de paiements enregistrés pendant la session
+  nombrePaiements     Int      @default(0)
+  totalEncaisse       Decimal  @default(0.00) @db.Decimal(12, 2)
+  totalDecaisse       Decimal  @default(0.00) @db.Decimal(12, 2)
+  notesCloture        String?  // Notes libres du caissier lors de la clôture
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caissier Staff  @relation("CaissierSession", fields: [caissierId], references: [id])
+  paiements Paiement[]
+
+  @@index([tenantId])
+  @@index([caissierId])
+  @@index([dateOuverture])
+  @@index([statut])
+}
+
+/// Journal d'annulation immuable — Toute annulation de paiement génère une ligne ici.
+/// Aucune ligne ne peut être supprimée : c'est un Append-Only ledger.
+model PaiementAnnulation {
+  id              String   @id @default(uuid())
+  tenantId        String
+  paiementId      String   // Référence au paiement annulé (même si ce paiement est supprimé)
+  /// Snapshot du montant annulé
+  montantAnnule   Decimal  @db.Decimal(12, 2)
+  /// Snapshot du numéro de reçu annulé
+  numeroRecuRef   Int
+  /// Motif de l'annulation (obligatoire)
+  motif           String
+  /// Référence à l'avoir généré (numéro de reçu d'annulation)
+  numeroAvoir     Int?
+  /// ID du staff ayant effectué l'annulation
+  annulePar       String
+  /// ID du superviseur ayant autorisé l'annulation (directeur ou comptable senior)
+  autorisePar     String?
+  /// Snapshot JSON de l'objet Paiement au moment de l'annulation (preuve inaltérable)
+  snapshotPaiement Json
+  createdAt       DateTime @default(now())
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([paiementId])
+  @@index([createdAt])
+}
+
+// ==================== QUEUE ASYNCHRONE BULLETINS ====================
+
+/// Persistance des jobs de génération de bulletins en masse.
+/// Statuts : pending -> processing -> completed | failed
+model BulletinJob {
+  id           String   @id @default(uuid())
+  tenantId     String
+  /// Paramètres du job : { anneeScolaireId, classeId, periodeIndex, actorId, actorRole }
+  payload      Json
+  statut       String   @default("pending") // pending | processing | completed | failed
+  progression  Int      @default(0)   // Nombre de bulletins traités
+  total        Int      @default(0)   // Nombre total de bulletins à traiter
+  /// Résultat du job : { count, bulletinIds[], zipUrl? }
+  result       Json?
+  errorMessage String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([statut])
+  @@index([createdAt])
+}
+
+// ==================== LOGS DE RELANCES PARENTS ====================
+
+/// Audit et traçabilité des relances SMS, WhatsApp et Email envoyées aux parents
+model RelanceLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  eleveId   String
+  parentTel String   // Numéro ou identifiant utilisé
+  type      String   // paiement | absence | bulletin
+  canal     String   // sms | whatsapp | email
+  statut    String   // envoye | echec | simule
+  message   String   // Texte envoyé
+  provider  String?  // brevo | twilio | africas_talking | simulateur
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve  Eleve  @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([eleveId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ==================== FACTURATION ANNUELLE INDEXÉE ====================
+
+/// Historique et audit des générations de facturation annuelle (échéanciers)
+model FacturationJob {
+  id              String   @id @default(uuid())
+  tenantId        String
+  anneeScolaireId String
+  tauxIndexation  Decimal  @default(0.00) @db.Decimal(5, 2) // %
+  nbEleves        Int
+  totalGenere     Decimal  @db.Decimal(14, 2)
+  declenchePar    String   // staffId ou "system"
+  statut          String   // genere | annule
+  createdAt       DateTime @default(now())
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  anneeScolaire AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([anneeScolaireId])
+  @@index([createdAt])
+}
+

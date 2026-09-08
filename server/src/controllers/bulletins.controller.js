@@ -269,12 +269,49 @@ async function upsertBulletinFromComputed(tenantId, computed, meta, config, req)
   return bulletin;
 }
 
+export async function upsertBulletinFromComputedDirect(tenantId, computed, meta, config) {
+  return upsertBulletinFromComputed(tenantId, computed, meta, config, null);
+}
+
+export const getJobStatus = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { getBulletinJobStatus } = await import('../services/bulletinQueue.service.js');
+    const job = await getBulletinJobStatus(req.tenantId, jobId);
+    if (!job) {
+      return res.status(404).json({ error: 'Tâche de génération introuvable' });
+    }
+    res.json({ data: job });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId, jobId: req.params.jobId }, 'Get job status error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const genererMasse = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { anneeScolaireId, classeId, periodeIndex } = req.body;
+    const { anneeScolaireId, classeId, periodeIndex, sync: forceSync } = req.body;
     if (!anneeScolaireId || !classeId || periodeIndex == null) {
       return res.status(400).json({ error: 'anneeScolaireId, classeId et periodeIndex requis' });
+    }
+
+    // Mode Asynchrone par défaut pour immuniser le serveur contre les OOM (512 Mo)
+    if (!forceSync) {
+      const { enqueueBulletinMasse } = await import('../services/bulletinQueue.service.js');
+      const { jobId } = await enqueueBulletinMasse(tenantId, {
+        anneeScolaireId,
+        classeId,
+        periodeIndex: parseInt(periodeIndex, 10),
+        actorId: req.user?.id,
+        actorRole: req.user?.role,
+      });
+
+      return res.status(202).json({
+        async: true,
+        jobId,
+        message: 'Génération des bulletins lancée en arrière-plan avec succès. Suivi en temps réel disponible.',
+      });
     }
 
     const results = await calculerClasse(tenantId, {
@@ -548,14 +585,23 @@ export const downloadPdf = async (req, res) => {
     });
     if (!bulletin) return res.status(404).json({ error: 'Bulletin non trouvé' });
 
-    if (bulletin.pdfUrl && req.query.redirect === '1') {
+    if (bulletin.pdfUrl && req.query.redirect === '1' && !req.query.template) {
       return res.redirect(bulletin.pdfUrl);
     }
 
-    const buffer = await buildBulletinPdf(await bulletinPdfPayload(bulletin, tenantId, req));
+    const template = (req.query.template || req.query.modele || 'standard').toLowerCase();
+    const payload = await bulletinPdfPayload(bulletin, tenantId, req);
+
+    let buffer;
+    if (template === 'officiel_congo' || template === 'ministeriel' || template === 'officiel') {
+      const { buildBulletinMinisterielPdf } = await import('../services/pdf/bulletinMinisteriel.pdf.js');
+      buffer = await buildBulletinMinisterielPdf(payload);
+    } else {
+      buffer = await buildBulletinPdf(payload);
+    }
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="bulletin-${bulletin.eleve.matricule || id}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="bulletin-${bulletin.eleve?.matricule || id}.pdf"`);
     res.send(buffer);
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'downloadPdf error');

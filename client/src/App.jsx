@@ -13,6 +13,10 @@ import EnseignantLayout from './components/layouts/EnseignantLayout';
 import ParentLayout from './components/layouts/ParentLayout';
 import CaissierLayout from './components/layouts/CaissierLayout';
 
+// Offline-First & PWA
+import OfflineStatusBanner from './components/OfflineStatusBanner';
+import PwaInstallPrompt from './components/PwaInstallPrompt';
+
 // Helper pour recharger automatiquement si un chunk Vite/Vercel est introuvable après un redéploiement
 const lazyWithRetry = (componentImport) =>
   lazy(async () => {
@@ -305,7 +309,9 @@ function App() {
         <DensityProvider>
           <TenantProvider>
             <AuthProvider>
+              <OfflineStatusBanner />
               <AppRoutes />
+              <PwaInstallPrompt />
             </AuthProvider>
           </TenantProvider>
         </DensityProvider>

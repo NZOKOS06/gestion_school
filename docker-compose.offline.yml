@@ -1,0 +1,161 @@
+# ============================================================
+# GestSchool — Déploiement PHYSIQUE (Offline / LAN Scolaire)
+# ============================================================
+# Usage: docker compose -f docker-compose.offline.yml up -d
+#
+# Ce fichier est ENTIÈREMENT AUTO-CONTENU :
+#   - PostgreSQL local (données persistantes dans volumes Docker)
+#   - Redis local
+#   - Serveur API Node.js
+#   - Client React servi par Nginx (accessible sur port 80)
+#   - Aucune dépendance cloud (Cloudinary, Brevo, Render)
+#
+# 🌐 Accès réseau LAN : http://<IP-DU-PC-SERVEUR>
+# ============================================================
+version: '3.8'
+
+services:
+
+  # ─────────────────────────────────────────────────────────
+  # BASE DE DONNÉES LOCALE
+  # ─────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: gestschool-db-local
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gestschool
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-GestSchool2025!}
+      POSTGRES_DB: gestschool
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gestschool -d gestschool"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - gestschool_local
+
+  # ─────────────────────────────────────────────────────────
+  # CACHE REDIS LOCAL
+  # ─────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: gestschool-redis-local
+    restart: unless-stopped
+    volumes:
+      - redis_local_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", "60", "1"]
+    networks:
+      - gestschool_local
+
+  # ─────────────────────────────────────────────────────────
+  # SERVEUR API (Node.js)
+  # ─────────────────────────────────────────────────────────
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: gestschool-server-local
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://gestschool:${DB_PASSWORD:-GestSchool2025!}@db:5432/gestschool?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change_me_please_use_a_long_random_string_32chars}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh_secret_also_32chars_minimum}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      PORT: 3000
+      STORAGE_MODE: local
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-gestschool@ecole.local}
+      RUN_SEED: ${RUN_SEED:-false}
+      ASSERT_PROD_SOFT: false
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - server_uploads_local:/app/uploads
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - gestschool_local
+
+  # ─────────────────────────────────────────────────────────
+  # CLIENT WEB (React + Nginx) — Accessible sur LAN port 80
+  # ─────────────────────────────────────────────────────────
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: gestschool-client-local
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - gestschool_local
+
+  # ─────────────────────────────────────────────────────────
+  # SAUVEGARDE AUTOMATIQUE (pg_dump quotidien dans ./backups)
+  # ─────────────────────────────────────────────────────────
+  backup:
+    image: postgres:16-alpine
+    container_name: gestschool-backup
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-GestSchool2025!}
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - gestschool_local
+    entrypoint: >
+      sh -c "
+        echo 'Service de sauvegarde démarré.'
+        while true; do
+          sleep 86400
+          BACKUP_FILE=\"/backups/gestschool_$(date +%Y%m%d_%H%M).sql.gz\"
+          pg_dump -h db -U gestschool gestschool | gzip > $$BACKUP_FILE
+          echo \"Sauvegarde : $$BACKUP_FILE\"
+          find /backups -name '*.sql.gz' -mtime +30 -delete
+        done
+      "
+
+# ─────────────────────────────────────────────────────────
+# VOLUMES PERSISTANTS
+# ─────────────────────────────────────────────────────────
+volumes:
+  postgres_local_data:
+    driver: local
+  redis_local_data:
+    driver: local
+  server_uploads_local:
+    driver: local
+
+# ─────────────────────────────────────────────────────────
+# RÉSEAU INTERNE ISOLÉ
+# ─────────────────────────────────────────────────────────
+networks:
+  gestschool_local:
+    driver: bridge

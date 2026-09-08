@@ -18,6 +18,9 @@ export default defineConfig({
       // Cache navigateur actif (images CDN + uploads) — ne pas selfDestroying
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Page de fallback quand offline ET pas de cache disponible
+        navigateFallback: '/offline.html',
+
         runtimeCaching: [
           // Config publique — avant NetworkOnly /api
           {
@@ -31,8 +34,28 @@ export default defineConfig({
               },
             },
           },
+          // GET /api/ — NetworkFirst : sert le cache si réseau indisponible (offline POS)
           {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
+            urlPattern: ({ url, request }) =>
+              url.pathname.startsWith('/api/') && request.method === 'GET',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'GestSchool-api-cache',
+              networkTimeoutSeconds: 8,
+              expiration: {
+                maxEntries: 150,
+                maxAgeSeconds: 2 * 60, // 2 minutes max (données fraîches)
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          // POST/PUT/PATCH/DELETE — NetworkOnly (géré par offlineSync.js via IndexedDB)
+          {
+            urlPattern: ({ url, request }) =>
+              url.pathname.startsWith('/api/') &&
+              ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method),
             handler: 'NetworkOnly',
           },
           // Cloudinary CDN — CacheFirst longue durée

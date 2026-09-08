@@ -1,8 +1,14 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { authenticate, requireRole, requireTenantMatch } from '../middleware/authMiddleware.js';
 import { requireModule } from '../middleware/tenantMiddleware.js';
 import { evaluationValidator, paginationValidator, idParamValidator } from '../utils/validators.js';
 import * as ctrl from '../controllers/evaluations.controller.js';
+
+const uploadExcel = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // Max 10 Mo
+});
 
 const router = Router();
 
@@ -43,6 +49,25 @@ router.post('/:id/notes',
   requireModule('notes'),
   idParamValidator,
   ctrl.saveNotes
+);
+
+router.get('/:id/export-excel',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  requireModule('notes'),
+  idParamValidator,
+  ctrl.exportExcel
+);
+
+router.post('/:id/import-excel',
+  authenticate,
+  requireRole(...writeRoles),
+  requireTenantMatch,
+  requireModule('notes'),
+  idParamValidator,
+  uploadExcel.single('file'),
+  ctrl.importExcel
 );
 
 router.get('/:id',

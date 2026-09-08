@@ -55,10 +55,194 @@ function dottedField(doc, x, y, label, value, width) {
 }
 
 /**
+ * Reçu thermique 80mm (largeur rouleau standard ~226pt, hauteur dynamique ou adaptée).
+ * Optimisé pour les imprimantes de caisse POS / tickets de caisse en direct.
+ */
+export function buildRecuThermiquePdf(data) {
+  const width = 226; // 80mm
+  const margin = 10;
+  const usable = width - margin * 2;
+
+  const {
+    nomEcole = 'GestSchool',
+    adresse,
+    telephone,
+    numeroRecu,
+    datePaiement,
+    montant,
+    devise = 'FCFA',
+    modePaiement,
+    reference,
+    motif,
+    typePaiement,
+    eleve,
+    matricule,
+    classe,
+    anneeScolaire,
+    recuPar,
+    libelle,
+    periode,
+    dateEcheance,
+    lignes,
+  } = data;
+
+  const detailLines = Array.isArray(lignes) && lignes.length
+    ? lignes
+    : [{
+      designation: designationFromPayment({ motif, typePaiement, libelle }),
+      periode: periodeFromPayment({ periode, libelle, dateEcheance, datePaiement }),
+      montant: Number(montant) || 0,
+    }];
+
+  const total = detailLines.reduce((s, l) => s + Number(l.montant || 0), 0);
+
+  // Estimation hauteur selon lignes
+  const estimatedHeight = Math.max(480, 360 + detailLines.length * 28);
+  const doc = new PDFDocument({ size: [width, estimatedHeight], margin });
+  const done = toBuffer(doc);
+
+  let y = margin + 4;
+
+  // En-tête École
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#000')
+    .text((nomEcole || 'GestSchool').toUpperCase(), margin, y, { width: usable, align: 'center' });
+  y += 14;
+
+  if (adresse) {
+    doc.font('Helvetica').fontSize(7.5).fillColor('#333')
+      .text(adresse, margin, y, { width: usable, align: 'center' });
+    y += 10;
+  }
+  if (telephone) {
+    doc.font('Helvetica').fontSize(7.5).fillColor('#333')
+      .text(`Tél : ${telephone}`, margin, y, { width: usable, align: 'center' });
+    y += 10;
+  }
+
+  // Ligne de séparation
+  y += 2;
+  doc.moveTo(margin, y).lineTo(margin + usable, y).lineWidth(0.8).dash(2, { space: 2 }).stroke('#000');
+  doc.undash();
+  y += 8;
+
+  // Titre Reçu & Date
+  doc.font('Helvetica-Bold').fontSize(10).fillColor('#000')
+    .text('REÇU DE CAISSE', margin, y, { width: usable, align: 'center' });
+  y += 13;
+
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#000')
+    .text(formatRecuNumber(numeroRecu, datePaiement), margin, y, { width: usable, align: 'center' });
+  y += 11;
+
+  doc.font('Helvetica').fontSize(7.5).fillColor('#444')
+    .text(`Date : ${formatDateFr(datePaiement)}`, margin, y, { width: usable, align: 'center' });
+  y += 12;
+
+  // Ligne pointillée
+  doc.moveTo(margin, y).lineTo(margin + usable, y).lineWidth(0.5).dash(2, { space: 2 }).stroke('#666');
+  doc.undash();
+  y += 6;
+
+  // Infos Élève
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#000')
+    .text(`Élève : ${eleve || '—'}`, margin, y, { width: usable });
+  y += 11;
+
+  const subInfos = [
+    matricule ? `Matr: ${matricule}` : null,
+    classe ? `Classe: ${classe}` : null,
+  ].filter(Boolean).join('  ·  ');
+  if (subInfos) {
+    doc.font('Helvetica').fontSize(7.5).fillColor('#333').text(subInfos, margin, y, { width: usable });
+    y += 10;
+  }
+  if (anneeScolaire) {
+    doc.font('Helvetica').fontSize(7).fillColor('#555').text(`Année : ${anneeScolaire}`, margin, y, { width: usable });
+    y += 10;
+  }
+
+  // Ligne séparation
+  y += 2;
+  doc.moveTo(margin, y).lineTo(margin + usable, y).lineWidth(0.5).stroke('#000');
+  y += 6;
+
+  // Détails paiement
+  detailLines.forEach((line) => {
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('#000')
+      .text(line.designation || 'Paiement', margin, y, { width: usable * 0.65 });
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('#000')
+      .text(formatMontant(line.montant, devise), margin + usable * 0.65, y, {
+        width: usable * 0.35,
+        align: 'right',
+      });
+    y += 11;
+
+    if (line.periode && line.periode !== '—') {
+      doc.font('Helvetica-Oblique').fontSize(7).fillColor('#555')
+        .text(`Période : ${line.periode}`, margin + 4, y, { width: usable - 4 });
+      y += 9;
+    }
+  });
+
+  // Mode de règlement
+  y += 2;
+  doc.moveTo(margin, y).lineTo(margin + usable, y).lineWidth(0.5).stroke('#000');
+  y += 5;
+
+  const modeLabel = MODE_LABELS[modePaiement] || modePaiement || 'Espèces';
+  doc.font('Helvetica').fontSize(7.5).fillColor('#333')
+    .text(`Règlement : ${modeLabel}`, margin, y, { width: usable });
+  y += 10;
+  if (reference) {
+    doc.font('Helvetica').fontSize(7).fillColor('#555')
+      .text(`Réf Trans : ${reference}`, margin, y, { width: usable });
+    y += 9;
+  }
+
+  // Ligne double total
+  y += 2;
+  doc.moveTo(margin, y).lineTo(margin + usable, y).lineWidth(1).stroke('#000');
+  y += 5;
+
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#000')
+    .text(`TOTAL : ${formatMontant(total, devise)}`, margin, y, { width: usable, align: 'center' });
+  y += 15;
+
+  // Montant en toutes lettres
+  const lettres = montantEnLettres(total);
+  if (lettres) {
+    doc.font('Helvetica-Oblique').fontSize(6.5).fillColor('#333')
+      .text(`(${lettres})`, margin, y, { width: usable, align: 'center' });
+    y += 12;
+  }
+
+  // Caissier & Message
+  if (recuPar) {
+    doc.font('Helvetica').fontSize(7).fillColor('#444')
+      .text(`Encaissé par : ${recuPar}`, margin, y, { width: usable, align: 'center' });
+    y += 10;
+  }
+
+  y += 4;
+  doc.moveTo(margin, y).lineTo(margin + usable, y).lineWidth(0.5).dash(2, { space: 2 }).stroke('#888');
+  doc.undash();
+  y += 8;
+
+  doc.font('Helvetica-Bold').fontSize(7).fillColor('#000')
+    .text('Conservez précieusement ce reçu.', margin, y, { width: usable, align: 'center' });
+  y += 9;
+  doc.font('Helvetica').fontSize(6.5).fillColor('#666')
+    .text('Document certifié par GestSchool', margin, y, { width: usable, align: 'center' });
+
+  doc.end();
+  return done;
+}
+
+/**
  * Reçu de paiement scolaire (modèle administratif A4 / demi-page).
  * Une ligne de détail = un mois / une période / une avance.
  */
-export function buildRecuPdf(data) {
+export function buildRecuA4Pdf(data) {
   const doc = new PDFDocument({ size: 'A4', margin: 36 });
   const done = toBuffer(doc);
 
@@ -253,3 +437,21 @@ export function buildRecuPdf(data) {
   doc.end();
   return done;
 }
+
+/**
+ * Générateur principal de reçus supportant les deux formats :
+ * - 'a4' : Reçu administratif avec souche à découper (défaut).
+ * - 'thermique' : Ticket de caisse 80mm pour imprimantes thermiques POS.
+ *
+ * @param {object} data Données du paiement et de l'école
+ * @param {'a4'|'thermique'} [requestedFormat] Format forcé ou déduit de data.format
+ * @returns {Promise<Buffer>}
+ */
+export function buildRecuPdf(data, requestedFormat = null) {
+  const format = String(requestedFormat || data?.format || 'a4').toLowerCase();
+  if (format === 'thermique' || format === 'pos' || format === '80mm' || format === 'ticket') {
+    return buildRecuThermiquePdf(data);
+  }
+  return buildRecuA4Pdf(data);
+}
+

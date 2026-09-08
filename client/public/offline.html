@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GestSchool — Mode Hors-ligne</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0B1220;
+      --surface:  #111827;
+      --border:   rgba(255,255,255,0.08);
+      --accent:   #6366f1;
+      --accent2:  #8b5cf6;
+      --text:     #f1f5f9;
+      --muted:    #94a3b8;
+      --warning:  #f59e0b;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .container {
+      text-align: center;
+      max-width: 480px;
+    }
+
+    .icon-wrap {
+      width: 96px;
+      height: 96px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 2rem;
+      font-size: 2.5rem;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4); }
+      50%       { box-shadow: 0 0 0 16px rgba(99,102,241,0); }
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #f1f5f9, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(245,158,11,0.12);
+      border: 1px solid rgba(245,158,11,0.3);
+      color: var(--warning);
+      padding: 0.3rem 0.9rem;
+      border-radius: 99px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      text-align: left;
+    }
+
+    .card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+
+    .feature-list {
+      list-style: none;
+    }
+
+    .feature-list li {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.9rem;
+      color: var(--text);
+      padding: 0.35rem 0;
+    }
+
+    .feature-list li .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-green  { background: #22c55e; }
+    .dot-yellow { background: var(--warning); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      text-decoration: none;
+    }
+
+    .btn:hover  { opacity: 0.9; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warning);
+      display: inline-block;
+      animation: blink 1.2s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon-wrap">🏫</div>
+
+    <div class="badge">
+      <span class="status-dot"></span>
+      Mode hors-ligne actif
+    </div>
+
+    <h1>GestSchool fonctionne<br/>sans connexion</h1>
+
+    <p>
+      Vous êtes actuellement déconnecté d'Internet. GestSchool continue
+      de fonctionner grâce au mode hors-ligne. Vos données locales sont
+      disponibles et vos saisies seront synchronisées à la reconnexion.
+    </p>
+
+    <div class="card">
+      <h2>✅ Disponible hors-ligne</h2>
+      <ul class="feature-list">
+        <li><span class="dot dot-green"></span>Caisse &amp; encaissements (enregistrement local)</li>
+        <li><span class="dot dot-green"></span>Appel &amp; absences (file d'attente IndexedDB)</li>
+        <li><span class="dot dot-green"></span>Saisie de notes</li>
+        <li><span class="dot dot-green"></span>Consultation des données récentes</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>⏳ Synchronisé à la reconnexion</h2>
+      <ul class="feature-list">
+        <li><span class="dot dot-yellow"></span>Génération des bulletins PDF</li>
+        <li><span class="dot dot-yellow"></span>Envoi des reçus par email</li>
+        <li><span class="dot dot-yellow"></span>Rapports financiers en temps réel</li>
+      </ul>
+    </div>
+
+    <a href="/" class="btn" onclick="location.reload(); return false;">
+      🔄 Réessayer la connexion
+    </a>
+  </div>
+
+  <script>
+    // Rediriger automatiquement quand la connexion revient
+    window.addEventListener('online', () => {
+      setTimeout(() => window.location.replace('/'), 1500);
+    });
+  </script>
+</body>
+</html>

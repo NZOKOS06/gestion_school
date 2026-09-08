@@ -65,6 +65,11 @@ const TENANT_MODELS = new Set([
   'ExamenSession',
   'ExamenCandidature',
   'ResultatExamen',
+  'CaisseSession',
+  'PaiementAnnulation',
+  'BulletinJob',
+  'RelanceLog',
+  'FacturationJob',
 ]);
 
 const shouldIsolate = (model) => TENANT_MODELS.has(model);

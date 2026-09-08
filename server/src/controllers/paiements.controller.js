@@ -10,7 +10,7 @@ import {
   resteAPayer,
   syncInscriptionSolde,
 } from '../services/echeances.service.js';
-import { formatMontant } from '../utils/formatters.js';
+import { formatMontant, safeOrderBy } from '../utils/formatters.js';
 import { loadSchoolPdfMeta } from '../services/pdf/schoolMeta.js';
 import { buildRecuPdf } from '../services/pdf/recu.pdf.js';
 import { buildJournalCaissePdf } from '../services/pdf/journalCaisse.pdf.js';
@@ -218,6 +218,11 @@ async function createSplitPaiements(tx, {
   });
   let nextNumero = (lastPaiement?.numeroRecu || 0) + 1;
 
+  const activeSession = await tx.caisseSession.findFirst({
+    where: { tenantId, caissierId: recuParId, statut: 'ouverte' },
+    select: { id: true },
+  });
+
   const created = [];
   for (const alloc of allocations) {
     const isAvance = Boolean(alloc.avance) || /^avance/i.test(String(alloc.libelle || ''));
@@ -226,6 +231,7 @@ async function createSplitPaiements(tx, {
         tenantId,
         inscriptionId,
         echeanceId: alloc.echeanceId || null,
+        caisseSessionId: activeSession?.id || null,
         numeroRecu: nextNumero,
         montant: Number(alloc.montant),
         typePaiement: isAvance ? 'autre' : (typePaiement || 'scolarite'),
@@ -285,8 +291,13 @@ export const getAll = async (req, res) => {
       };
     }
 
-    const orderBy = {};
-    orderBy[sortBy] = order;
+    const orderBy = safeOrderBy(
+      sortBy,
+      order,
+      ['datePaiement', 'numeroRecu', 'montant', 'createdAt'],
+      'datePaiement',
+      'desc'
+    );
 
     const [rows, total] = await Promise.all([
       prisma.paiement.findMany({
@@ -649,10 +660,17 @@ export const getRecuPdf = async (req, res) => {
       }
     }
 
-    const buffer = await buildRecuPdf(await recuPdfPayload(paiement, req.tenantId, req));
+    const format = (req.query.format || 'a4').toLowerCase();
+    const payload = await recuPdfPayload(paiement, req.tenantId, req);
+    payload.format = format;
+    const buffer = await buildRecuPdf(payload, format);
+
+    const filename = format === 'thermique' || format === 'pos'
+      ? `recu-${paiement.numeroRecu}-ticket.pdf`
+      : `recu-${paiement.numeroRecu}.pdf`;
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="recu-${paiement.numeroRecu}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     res.send(buffer);
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Get recu PDF error');

@@ -38,6 +38,7 @@ import inscriptionsRoutes from './routes/inscriptions.js';
 import evaluationsRoutes from './routes/evaluations.js';
 import bulletinsRoutes from './routes/bulletins.js';
 import paiementsRoutes from './routes/paiements.js';
+import caisseRoutes from './routes/caisse.js';
 import depensesRoutes from './routes/depenses.js';
 import emploisDuTempsRoutes from './routes/emploisDuTemps.js';
 import absencesRoutes from './routes/absences.js';
@@ -63,6 +64,8 @@ import notificationsRoutes from './routes/notifications.js';
 import pointageRoutes from './routes/pointage.js';
 import heuresEnseigneesRoutes from './routes/heuresEnseignees.js';
 import paieRoutes from './routes/paie.js';
+import relancesRoutes from './routes/relances.js';
+import facturationRoutes from './routes/facturation.js';
 
 const app = express();
 if (process.env.NODE_ENV === 'production') {
@@ -296,6 +299,7 @@ app.use('/api/inscriptions', tenantMiddleware, inscriptionsRoutes);
 app.use('/api/evaluations', tenantMiddleware, evaluationsRoutes);
 app.use('/api/bulletins', tenantMiddleware, bulletinsRoutes);
 app.use('/api/paiements', tenantMiddleware, paiementsRoutes);
+app.use('/api/caisse', tenantMiddleware, caisseRoutes);
 app.use('/api/depenses', tenantMiddleware, depensesRoutes);
 app.use('/api/emplois-du-temps', tenantMiddleware, emploisDuTempsRoutes);
 app.use('/api/absences', tenantMiddleware, absencesRoutes);
@@ -318,6 +322,8 @@ app.use('/api/notifications', tenantMiddleware, notificationsRoutes);
 app.use('/api/pointage', tenantMiddleware, pointageRoutes);
 app.use('/api/heures-enseignees', tenantMiddleware, heuresEnseigneesRoutes);
 app.use('/api/paie', tenantMiddleware, paieRoutes);
+app.use('/api/relances', tenantMiddleware, relancesRoutes);
+app.use('/api/facturation', tenantMiddleware, facturationRoutes);
 
 // Super admin routes
 app.use('/api/superadmin', superadminRoutes);

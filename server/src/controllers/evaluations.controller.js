@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { broadcastNote } from '../utils/notifications.js';
+import { safeOrderBy } from '../utils/formatters.js';
 
 const log = createLogger('EvaluationsController');
 
@@ -17,8 +18,13 @@ export const getAll = async (req, res) => {
     if (matiereId) where.matiereId = matiereId;
     if (anneeScolaireId) where.anneeScolaireId = anneeScolaireId;
 
-    const orderBy = {};
-    orderBy[sortBy] = order;
+    const orderBy = safeOrderBy(
+      sortBy,
+      order,
+      ['dateEvaluation', 'nom', 'coefficient', 'createdAt'],
+      'dateEvaluation',
+      'desc'
+    );
 
     const [rows, total] = await Promise.all([
       prisma.evaluation.findMany({
@@ -344,3 +350,70 @@ export const getNotes = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const exportExcel = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+
+    const { exportEvaluationExcelTemplate } = await import('../services/evaluations.excel.service.js');
+    const buffer = await exportEvaluationExcelTemplate(tenantId, id);
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="grille-notes-${id.slice(0, 8)}.xlsx"`
+    );
+    res.send(buffer);
+  } catch (error) {
+    if (error.message === 'EVALUATION_NOT_FOUND') {
+      return res.status(404).json({ error: 'Évaluation non trouvée' });
+    }
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Export Excel evaluation error');
+    res.status(500).json({ error: 'Erreur lors de l\'exportation de la grille Excel.' });
+  }
+};
+
+export const importExcel = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'Veuillez téléverser un fichier Excel (.xlsx valide).' });
+    }
+
+    const { importEvaluationNotesFromExcel } = await import('../services/evaluations.excel.service.js');
+    const result = await importEvaluationNotesFromExcel(
+      tenantId,
+      id,
+      req.file.buffer,
+      req.user.id,
+      req.user.role
+    );
+
+    await logAudit(req, 'notes_imported_excel', 'Evaluation', id, {
+      totalLignes: result.totalLignes,
+      totalTraite: result.totalTraite,
+      erreursCount: result.erreurs?.length || 0,
+    });
+
+    res.json({
+      message: `Import terminé : ${result.totalTraite} note(s) traitée(s).`,
+      ...result,
+    });
+  } catch (error) {
+    if (error.message === 'EVALUATION_NOT_FOUND') {
+      return res.status(404).json({ error: 'Évaluation non trouvée' });
+    }
+    if (error.message === 'SAISIE_FERMEE') {
+      return res.status(403).json({ error: 'La saisie des notes est actuellement fermée par la direction.' });
+    }
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Import Excel evaluation error');
+    res.status(500).json({ error: error.message || 'Erreur lors de l\'importation des notes Excel.' });
+  }
+};
+

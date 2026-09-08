@@ -24,6 +24,15 @@ router.get('/:id',
   ctrl.getById
 );
 
+router.get('/:id/carte-scolaire',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  idParamValidator,
+  ctrl.getCarteScolaire
+);
+
+
 router.post('/',
   authenticate,
   requireRole(...writeRoles),

@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { broadcastAbsence } from '../utils/notifications.js';
+import { safeOrderBy } from '../utils/formatters.js';
 
 const log = createLogger('AbsencesController');
 
@@ -42,8 +43,13 @@ export const getAll = async (req, res) => {
       };
     }
 
-    const orderBy = {};
-    orderBy[sortBy] = order;
+    const orderBy = safeOrderBy(
+      sortBy,
+      order,
+      ['dateAbsence', 'typeAbsence', 'justifiee', 'createdAt'],
+      'dateAbsence',
+      'desc'
+    );
 
     const [rows, total] = await Promise.all([
       prisma.absence.findMany({
