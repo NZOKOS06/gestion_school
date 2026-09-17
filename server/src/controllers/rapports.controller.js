@@ -58,9 +58,14 @@ export const getRapports = async (req, res) => {
           datePaiement: { gte: debut, lte: fin },
           ...paiementYearFilter,
         },
-        include: {
+        select: {
+          id: true,
+          montant: true,
+          datePaiement: true,
+          modePaiement: true,
           inscription: {
-            include: {
+            select: {
+              classeId: true,
               classe: { select: { id: true, nom: true } },
               eleve: { select: { id: true } },
             },

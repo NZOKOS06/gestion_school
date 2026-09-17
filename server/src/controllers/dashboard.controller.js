@@ -169,7 +169,11 @@ export const getKpis = async (req, res) => {
         },
         orderBy: { datePaiement: 'desc' },
         take: 5,
-        include: {
+        select: {
+          id: true,
+          montant: true,
+          datePaiement: true,
+          modePaiement: true,
           inscription: {
             select: {
               eleve: { select: { nom: true, prenom: true } },
@@ -254,16 +258,21 @@ export const getCaisse = async (req, res) => {
     const [paiements, statsPaiement] = await Promise.all([
       prisma.paiement.findMany({
         where: { tenantId, datePaiement: { gte: today, lt: tomorrow } },
-        include: {
+        select: {
+          id: true,
+          montant: true,
+          datePaiement: true,
+          modePaiement: true,
+          numeroRecu: true,
           inscription: {
             select: {
               eleve: { select: { matricule: true, nom: true, prenom: true } },
-              classe: { select: { nom: true } }
-            }
+              classe: { select: { nom: true } },
+            },
           },
-          recuPar: { select: { nom: true, prenom: true } }
+          recuPar: { select: { nom: true, prenom: true } },
         },
-        orderBy: { datePaiement: 'desc' }
+        orderBy: { datePaiement: 'desc' },
       }),
       prisma.paiement.groupBy({
         by: ['modePaiement'],

@@ -23,7 +23,7 @@ GestSchool est un SaaS scolaire multi-tenant sécurisé :
 |---|---|---|---|
 | 17/09/2026 | **Auth Multi-Tenant** | Erreur 401 à la connexion sur `/e/:slug/login` | Le slug résolu depuis l'URL `/e/:slug` n'était pas injecté dans le header `X-Tenant-Slug` lors du POST `/api/auth/login`. Corrigé dans `Login.jsx`. |
 | 17/09/2026 | **SuperAdmin Staff** | Impossibilité de réinitialiser le mot de passe d'un staff d'école depuis le superadmin | Ajout de la route `PUT /api/superadmin/tenants/:id/staff/:staffId/password` et du modal de réinitialisation dans `SuperAdminPanel.jsx`. |
-| 17/09/2026 | **Contrôle des Modules** | Barrières bloquant le superadmin pour activer/désactiver des modules selon le plan | Suppression des verrous `locked` et `isModuleAvailableForPlan` dans `SharedUI.jsx` / `SuperAdminPanel.jsx` pour donner le plein contrôle au superadmin. |
+| 17/09/2026 | **Contrôle des Modules** | Barrières bloquant le superadmin pour activer/désactiver des modules selon le plan | Suppression des verrous `locked` et `isModuleAvailableForPlan` dans `SharedUI.jsx` / `SuperAdminPanel.jsx`, et suppression de `enforceModuleConstraints` dans `superadmin.controller.js` pour donner le plein contrôle au superadmin indépendamment du plan souscrit. |
 | 17/09/2026 | **Cohérence Navigation UI** | Des modules désactivés par l'école restaient visibles dans la sidebar (ex: Salles) | Association systématique de chaque item de menu à son module (`module: 'emploiDuTemps'`, `module: 'salles'`, etc.) et filtrage strict dans `AppShell.jsx`. |
 | 17/09/2026 | **Stabilité Dashboards** | Erreurs 500 sur Dashboard, Paiements et Rapports | Audit et sécurisation des requêtes Prisma avec gestion résiliente de l'absence d'année scolaire active ou de données vides. |
 

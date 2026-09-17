@@ -308,7 +308,22 @@ export const getAll = async (req, res) => {
     const [rows, total] = await Promise.all([
       prisma.paiement.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          tenantId: true,
+          inscriptionId: true,
+          echeanceId: true,
+          recuParId: true,
+          numeroRecu: true,
+          montant: true,
+          typePaiement: true,
+          modePaiement: true,
+          reference: true,
+          datePaiement: true,
+          motif: true,
+          pdfUrl: true,
+          createdAt: true,
+          updatedAt: true,
           inscription: {
             select: {
               id: true,
@@ -714,7 +729,12 @@ export const getJournalPdf = async (req, res) => {
 
     const rows = await prisma.paiement.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        numeroRecu: true,
+        datePaiement: true,
+        montant: true,
+        modePaiement: true,
         inscription: {
           select: {
             eleve: { select: { nom: true, prenom: true } },
