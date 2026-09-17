@@ -9,7 +9,7 @@ import { ThemeToggle } from '../../components/ui/ThemeToggle';
 const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const { config } = useTenant();
+  const { config, slug } = useTenant();
   const { t } = useI18n();
 
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -24,7 +24,7 @@ const Login = () => {
     setLoading(true);
     setError('');
     try {
-      const user = await login(formData.email, formData.password, selectedTenantSlug || undefined);
+      const user = await login(formData.email, formData.password, selectedTenantSlug || slug);
       // La redirection post-login est gérée par AuthContext selon le rôle
     } catch (err) {
       const message = err.response?.data?.error || err.response?.data?.message || 'Erreur de connexion';

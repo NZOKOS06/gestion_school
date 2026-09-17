@@ -25,6 +25,7 @@ router.put('/tenants/:id/config/about-video', idParamValidator, requireCloudinar
 router.delete('/tenants/:id', idParamValidator, ctrl.deleteTenant);
 router.get('/tenants/:id/staff', idParamValidator, ctrl.getTenantStaff);
 router.post('/tenants/:id/staff', idParamValidator, ctrl.createTenantStaff);
+router.put('/tenants/:id/staff/:staffId/password', idParamValidator, ctrl.updateTenantStaffPassword);
 router.get('/stats', ctrl.getStats);
 
 // Audit & traçabilité

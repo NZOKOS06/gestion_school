@@ -10,7 +10,7 @@ import {
   Plus, Edit2, Trash2, LogOut, Settings, ExternalLink, X,
   GraduationCap, BookOpen, FileText, BarChart2, Award,
   AlertTriangle, Copy, ChevronLeft, ChevronRight,
-  Upload, UserPlus, ArrowRight, Building,
+  Upload, UserPlus, ArrowRight, Building, KeyRound,
   PauseCircle, PlayCircle, Shield, LayoutDashboard, Sparkles,
   Globe, Sun, Moon, ChevronDown, Smartphone, Link2, QrCode, History,
   Filter, Calendar, ArrowDown, ArrowUp, Cookie, ClipboardList
@@ -531,10 +531,13 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
   const [logoPreview, setLogoPreview] = useState(null);
 
   const [staffModalOpen, setStaffModalOpen] = useState(false);
-  const [staffForm, setStaffForm] = useState({ nom: '', prenom: '', email: '', role: 'directeur' });
+  const [staffForm, setStaffForm] = useState({ nom: '', prenom: '', email: '', role: 'directeur', motDePasse: '' });
   const [createdStaff, setCreatedStaff] = useState(null);
   const [staffList, setStaffList] = useState([]);
   const [viewStaffModalOpen, setViewStaffModalOpen] = useState(false);
+  const [resetPasswordStaffId, setResetPasswordStaffId] = useState(null);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [resetResult, setResetResult] = useState(null);
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState(null);
@@ -762,13 +765,16 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
 
   const openStaffModal = (tenant) => {
     setSelectedTenant(tenant);
-    setStaffForm({ nom: '', prenom: '', email: '', role: 'directeur' });
+    setStaffForm({ nom: '', prenom: '', email: '', role: 'directeur', motDePasse: '' });
     setCreatedStaff(null);
     setStaffModalOpen(true);
   };
 
   const openViewStaffModal = async (tenant) => {
     setSelectedTenant(tenant);
+    setResetPasswordStaffId(null);
+    setResetResult(null);
+    setNewPasswordInput('');
     try {
       const res = await get(`/api/superadmin/tenants/${tenant.id}/staff`);
       setStaffList(res || []);
@@ -779,21 +785,33 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
   };
 
   const handleCreateStaff = async () => {
-    const defaultPassword = 'Azerty123';
     try {
       const res = await post(`/api/superadmin/tenants/${selectedTenant.id}/staff`, {
         ...staffForm,
-        motDePasse: defaultPassword
+        motDePasse: staffForm.motDePasse?.trim() || undefined
       });
       const staffData = res.data || res;
-      // Ensure password is available for display
-      if (!staffData.motDePasseProvisoire && !staffData.staff?.motDePasseProvisoire) {
-        staffData.motDePasseProvisoire = defaultPassword;
-      }
       setCreatedStaff(staffData);
-      toast.success('Compte gérant créé');
+      toast.success('Compte gérant créé avec succès');
     } catch (error) {
-      toast.error('Erreur lors de la création');
+      toast.error(error.response?.data?.error || 'Erreur lors de la création');
+    }
+  };
+
+  const handleResetStaffPassword = async (staffId) => {
+    try {
+      const res = await put(`/api/superadmin/tenants/${selectedTenant.id}/staff/${staffId}/password`, {
+        password: newPasswordInput.trim() || undefined
+      });
+      const data = res.data || res;
+      setResetResult({ staffId, password: data.motDePasseProvisoire });
+      setNewPasswordInput('');
+      setResetPasswordStaffId(null);
+      toast.success('Mot de passe mis à jour avec succès !');
+      const updated = await get(`/api/superadmin/tenants/${selectedTenant.id}/staff`);
+      setStaffList(updated || []);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erreur lors de la réinitialisation');
     }
   };
 
@@ -2714,6 +2732,17 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
             </div>
             <div><label className="block text-sm font-medium mb-1 text-slate-700">Email *</label><input type="email" value={staffForm.email} onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900" /></div>
             <div><label className="block text-sm font-medium mb-1 text-slate-700">Rôle</label><select value={staffForm.role} onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900"><option value="directeur">Directeur</option><option value="admin">Admin</option></select></div>
+            <div>
+              <label className="block text-sm font-medium mb-1 text-slate-700">Mot de passe initial (optionnel)</label>
+              <input 
+                type="text" 
+                placeholder="Laisser vide pour générer automatiquement" 
+                value={staffForm.motDePasse || ''} 
+                onChange={(e) => setStaffForm({ ...staffForm, motDePasse: e.target.value })} 
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 font-mono text-sm" 
+              />
+              <p className="text-xs text-slate-500 mt-1">Si vous laissez vide, un mot de passe fort sera généré et affiché.</p>
+            </div>
           </div>
         )}
       </Modal>
@@ -2733,7 +2762,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
             <p className="text-center text-slate-500 py-4">Aucun gérant enregistré</p>
           ) : (
             staffList.map((staff) => (
-              <div key={staff.id} className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+              <div key={staff.id} className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-medium text-slate-900">{staff.prenom} {staff.nom}</p>
@@ -2750,10 +2779,74 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
                       )}
                     </div>
                   </div>
-                  <div className="text-right text-xs text-slate-400">
-                    Créé le {new Date(staff.createdAt).toLocaleDateString('fr-FR')}
+                  <div className="text-right space-y-2">
+                    <div className="text-xs text-slate-400">
+                      Créé le {new Date(staff.createdAt).toLocaleDateString('fr-FR')}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (resetPasswordStaffId === staff.id) {
+                          setResetPasswordStaffId(null);
+                        } else {
+                          setResetPasswordStaffId(staff.id);
+                          setNewPasswordInput('');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" />
+                      Modifier mot de passe
+                    </button>
                   </div>
                 </div>
+
+                {resetResult?.staffId === staff.id && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-md text-sm text-green-800 flex items-center justify-between">
+                    <div>
+                      <span className="font-medium">Nouveau mot de passe : </span>
+                      <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-green-300">{resetResult.password}</span>
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(resetResult.password)}
+                      className="p-1 hover:bg-green-100 rounded text-green-700"
+                      title="Copier"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
+                {resetPasswordStaffId === staff.id && (
+                  <div className="p-3 bg-white border border-slate-200 rounded-md space-y-2">
+                    <label className="block text-xs font-medium text-slate-700">
+                      Définir le nouveau mot de passe pour {staff.email} :
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ex: MonMotDePasse123! (ou vide pour auto-générer)"
+                        value={newPasswordInput}
+                        onChange={(e) => setNewPasswordInput(e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 text-xs font-mono rounded border border-slate-300 bg-slate-50"
+                      />
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => handleResetStaffPassword(staff.id)}
+                      >
+                        Enregistrer
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setResetPasswordStaffId(null)}
+                      >
+                        Annuler
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           )}

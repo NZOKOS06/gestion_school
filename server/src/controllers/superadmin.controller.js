@@ -332,10 +332,10 @@ export const createTenantStaff = async (req, res) => {
       return res.status(404).json({ error: 'École introuvable' });
     }
 
-    const defaultPassword = generateRandomPassword();
+    const defaultPassword = req.body.motDePasse || req.body.password || generateRandomPassword();
     const passwordHash = await bcrypt.hash(defaultPassword, 12);
     const staff = await prisma.staff.create({
-      data: { tenantId, email, passwordHash, nom, prenom, role, mustChangePassword: true }
+      data: { tenantId, email, passwordHash, nom, prenom, role, mustChangePassword: !req.body.motDePasse && !req.body.password }
     });
 
     // Enregistrer dans les logs d'audit
@@ -392,6 +392,50 @@ export const getTenantStaff = async (req, res) => {
     res.json(staff);
   } catch (error) {
     log.error({ err: error, tenantId: req.params.id }, 'Get tenant staff error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateTenantStaffPassword = async (req, res) => {
+  try {
+    const { id: tenantId, staffId } = req.params;
+    const { password, motDePasse } = req.body;
+
+    const newPassword = password || motDePasse || generateRandomPassword();
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères' });
+    }
+
+    const staff = await prisma.staff.findFirst({
+      where: { id: staffId, tenantId }
+    });
+
+    if (!staff) {
+      return res.status(404).json({ error: 'Membre du personnel introuvable' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.staff.update({
+      where: { id: staffId },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        actif: true
+      }
+    });
+
+    await logAudit(req, 'staff_password_reset', 'Staff', staffId, {
+      email: staff.email,
+      resetBy: req.user?.email
+    });
+
+    res.json({
+      success: true,
+      message: 'Mot de passe mis à jour avec succès',
+      motDePasseProvisoire: newPassword
+    });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.params.id, staffId: req.params.staffId }, 'Update tenant staff password error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

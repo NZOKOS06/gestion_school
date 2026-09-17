@@ -122,12 +122,16 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password, tenantSlug = null) => {
     try {
+      const targetSlug = tenantSlug || activeSlug;
+      const isSuperAdminRoute = window.location.pathname.startsWith('/super-admin');
+      const headers = (targetSlug && targetSlug !== 'default' && !isSuperAdminRoute)
+        ? { 'X-Tenant-Slug': targetSlug }
+        : {};
+
       const response = await axiosInstance.post('/api/auth/login', {
         email: email.trim().toLowerCase(),
         password
-      }, {
-        headers: tenantSlug ? { 'X-Tenant-Slug': tenantSlug } : {}
-      });
+      }, { headers });
 
       const userData = response.data.user || response.data.staff;
 
