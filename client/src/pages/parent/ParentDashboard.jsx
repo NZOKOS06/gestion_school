@@ -58,12 +58,17 @@ const ParentDashboard = () => {
     );
   }
 
+  const showBulletins = isModuleActive('bulletins');
+  const showPaiements = isModuleActive('paiements');
+  const showPresences = isModuleActive('presences');
+  const showNotes = isModuleActive('notes');
+
   const stats = [
     { label: 'Mes enfants', value: data.nbEnfants ?? 0, icon: Users, color: 'blue', delay: 0 },
-    { label: 'Bulletins disponibles', value: data.nbBulletins ?? 0, icon: FileText, color: 'green', delay: 100 },
-    { label: 'Solde à payer', value: formatPrice(data.soldeTotal ?? 0), icon: Wallet, color: 'red', delay: 200 },
-    { label: 'Absences non justifiées', value: data.nbAbsencesNonJustifiees ?? 0, icon: CalendarX, color: 'orange', delay: 300 },
-  ];
+    showBulletins && { label: 'Bulletins disponibles', value: data.nbBulletins ?? 0, icon: FileText, color: 'green', delay: 100 },
+    showPaiements && { label: 'Solde à payer', value: formatPrice(data.soldeTotal ?? 0), icon: Wallet, color: 'red', delay: 200 },
+    showPresences && { label: 'Absences non justifiées', value: data.nbAbsencesNonJustifiees ?? 0, icon: CalendarX, color: 'orange', delay: 300 },
+  ].filter(Boolean);
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -72,11 +77,13 @@ const ParentDashboard = () => {
         subtitle="Suivez la scolarité de vos enfants"
       />
 
-      <KpiGrid cols={4}>
-        {stats.map((stat, i) => (
-          <KpiCard key={i} {...stat} />
-        ))}
-      </KpiGrid>
+      {stats.length > 0 && (
+        <KpiGrid cols={Math.min(stats.length, 4)}>
+          {stats.map((stat, i) => (
+            <KpiCard key={i} {...stat} />
+          ))}
+        </KpiGrid>
+      )}
 
       {data.enfants?.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -92,34 +99,46 @@ const ParentDashboard = () => {
                   <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{enfant.classeNom} · {enfant.matricule}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
-                <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
-                  <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Moyenne</p>
-                  <p className="font-bold text-sm sm:text-base" style={{ color: 'var(--color-primary)' }}>{enfant.moyenneGenerale ? Number(enfant.moyenneGenerale).toFixed(2) : '—'}</p>
-                </div>
-                <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
-                  <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Rang</p>
-                  <p className="font-bold text-sm sm:text-base" style={{ color: 'var(--text-primary)' }}>{enfant.rang ? `${enfant.rang}e` : '—'}</p>
-                </div>
-                <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
-                  <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Absences</p>
-                  <p className="font-bold text-sm sm:text-base" style={{ color: enfant.nbAbsencesNonJustifiees > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
-                    {enfant.nbAbsencesNonJustifiees ?? 0}
-                  </p>
-                </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 text-center">
+                {(showNotes || showBulletins) && (
+                  <>
+                    <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
+                      <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Moyenne</p>
+                      <p className="font-bold text-sm sm:text-base" style={{ color: 'var(--color-primary)' }}>{enfant.moyenneGenerale ? Number(enfant.moyenneGenerale).toFixed(2) : 'N/A'}</p>
+                    </div>
+                    <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
+                      <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Rang</p>
+                      <p className="font-bold text-sm sm:text-base" style={{ color: 'var(--color-primary)' }}>{enfant.rang ? `${enfant.rang}e` : 'N/A'}</p>
+                    </div>
+                  </>
+                )}
+                {showPresences && (
+                  <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
+                    <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Absences</p>
+                    <p className="font-bold text-sm sm:text-base" style={{ color: enfant.nbAbsencesNonJustifiees > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                      {enfant.nbAbsencesNonJustifiees ?? 0}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="mt-4 flex gap-2">
-                <Link to="/parent/bulletins" className="flex-1">
-                  <span className="block text-center text-xs font-medium py-2.5 rounded-md min-h-[40px]" style={{ background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', color: 'var(--color-primary)' }}>
-                    Voir bulletins
-                  </span>
-                </Link>
-                <Link to="/parent/facturation" className="flex-1">
-                  <span className="block text-center text-xs font-medium py-2.5 rounded-md min-h-[40px]" style={{ background: 'var(--surface-overlay)', color: 'var(--text-secondary)' }}>
-                    Facturation
-                  </span>
-                </Link>
-              </div>
+              {(showBulletins || showPaiements) && (
+                <div className="mt-4 flex gap-2">
+                  {showBulletins && (
+                    <Link to="/parent/bulletins" className="flex-1">
+                      <span className="block text-center text-xs font-medium py-2.5 rounded-md min-h-[40px]" style={{ background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', color: 'var(--color-primary)' }}>
+                        Voir bulletins
+                      </span>
+                    </Link>
+                  )}
+                  {showPaiements && (
+                    <Link to="/parent/facturation" className="flex-1">
+                      <span className="block text-center text-xs font-medium py-2.5 rounded-md min-h-[40px]" style={{ background: 'var(--surface-overlay)', color: 'var(--text-secondary)' }}>
+                        Facturation
+                      </span>
+                    </Link>
+                  )}
+                </div>
+              )}
             </Card>
           ))}
         </div>

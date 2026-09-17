@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
 import { PageHeader, Card, KpiCard, KpiGrid, Badge, DataTable, Skeleton, EmptyState, Button } from '../../components/ui';
 import { Users, BookOpen, CalendarCheck, Clock, Plus, ClipboardEdit, NotebookPen } from 'lucide-react';
 
 const EnseignantDashboard = () => {
   const { get } = useAxios();
   const { user } = useAuth();
+  const { isModuleActive } = useTenant();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,12 +59,17 @@ const EnseignantDashboard = () => {
     );
   }
 
+  const showClasses = isModuleActive('classes');
+  const showNotes = isModuleActive('notes');
+  const showEmploi = isModuleActive('emploiDuTemps');
+  const showPresences = isModuleActive('presences');
+
   const stats = [
-    { label: 'Mes classes', value: data.nbClasses ?? 0, icon: Users, color: 'blue', delay: 0 },
+    showClasses && { label: 'Mes classes', value: data.nbClasses ?? 0, icon: Users, color: 'blue', delay: 0 },
     { label: 'Mes matières', value: data.nbMatieres ?? 0, icon: BookOpen, color: 'green', delay: 100 },
-    { label: 'Cours aujourd\'hui', value: data.coursAujourdhui?.length ?? 0, icon: CalendarCheck, color: 'primary', delay: 200 },
-    { label: 'Évaluations à corriger', value: data.evaluationsACorriger ?? 0, icon: Clock, color: 'orange', delay: 300 },
-  ];
+    showEmploi && { label: 'Cours aujourd\'hui', value: data.coursAujourdhui?.length ?? 0, icon: CalendarCheck, color: 'primary', delay: 200 },
+    showNotes && { label: 'Évaluations à corriger', value: data.evaluationsACorriger ?? 0, icon: Clock, color: 'orange', delay: 300 },
+  ].filter(Boolean);
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -70,24 +77,28 @@ const EnseignantDashboard = () => {
         title={`Bonjour ${user?.prenom || ''}`}
         subtitle="Votre espace enseignant"
         actions={
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <Button icon={Plus} onClick={() => navigate('/enseignant/saisie-notes?nouveau=1')} className="flex-1 sm:flex-none">
-              Évaluation
-            </Button>
-            <Button variant="secondary" icon={ClipboardEdit} onClick={() => navigate('/enseignant/saisie-notes')} className="flex-1 sm:flex-none">
-              Notes
-            </Button>
-          </div>
+          showNotes ? (
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <Button icon={Plus} onClick={() => navigate('/enseignant/saisie-notes?nouveau=1')} className="flex-1 sm:flex-none">
+                Évaluation
+              </Button>
+              <Button variant="secondary" icon={ClipboardEdit} onClick={() => navigate('/enseignant/saisie-notes')} className="flex-1 sm:flex-none">
+                Notes
+              </Button>
+            </div>
+          ) : null
         }
       />
 
-      <KpiGrid cols={4}>
-        {stats.map((stat, i) => (
-          <KpiCard key={i} {...stat} />
-        ))}
-      </KpiGrid>
+      {stats.length > 0 && (
+        <KpiGrid cols={Math.min(stats.length, 4)}>
+          {stats.map((stat, i) => (
+            <KpiCard key={i} {...stat} />
+          ))}
+        </KpiGrid>
+      )}
 
-      {data.coursAujourdhui?.length > 0 && (
+      {showEmploi && data.coursAujourdhui?.length > 0 && (
         <Card title="Cours d'aujourd'hui" icon={CalendarCheck}>
           <div className="space-y-2">
             {data.coursAujourdhui.map((cours) => (
@@ -102,19 +113,21 @@ const EnseignantDashboard = () => {
                   </div>
                   <div className="min-w-0">
                     <p className="font-medium truncate" style={{ color: 'var(--text-primary)' }}>{cours.matiereNom}</p>
-                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{cours.classeNom} · Salle {cours.salle || '—'}</p>
+                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{cours.classeNom} · Salle {cours.salle || 'N/A'}</p>
                     <div className="mt-1.5 sm:hidden">
-                      <Badge variant="info">{cours.heureDebut} — {cours.heureFin}</Badge>
+                      <Badge variant="info">{cours.heureDebut} à {cours.heureFin}</Badge>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 flex-wrap">
                   <span className="hidden sm:inline-flex">
-                    <Badge variant="info">{cours.heureDebut} — {cours.heureFin}</Badge>
+                    <Badge variant="info">{cours.heureDebut} à {cours.heureFin}</Badge>
                   </span>
-                  <Button size="sm" variant="secondary" icon={CalendarCheck} onClick={() => navigate(`/enseignant/appel?coursId=${cours.id}`)} className="flex-1 sm:flex-none">
-                    Appel
-                  </Button>
+                  {showPresences && (
+                    <Button size="sm" variant="secondary" icon={CalendarCheck} onClick={() => navigate(`/enseignant/appel?coursId=${cours.id}`)} className="flex-1 sm:flex-none">
+                      Appel
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="secondary"
@@ -131,7 +144,7 @@ const EnseignantDashboard = () => {
         </Card>
       )}
 
-      {data.dernieresEvaluations?.length > 0 && (
+      {showNotes && data.dernieresEvaluations?.length > 0 && (
         <Card title="Dernières évaluations">
           <DataTable
             columns={[

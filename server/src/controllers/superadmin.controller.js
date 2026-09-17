@@ -273,19 +273,41 @@ export const updateTenantConfig = async (req, res) => {
     }
 
     // Le SuperAdmin a le contrôle total des modules du tenant (pas de bride par plan commercial)
+    // IMPORTANT: on exclut ipWhitelist du payload upsert car Prisma n'autorise pas
+    // deleteMany dans un upsert — on les gère séparément dans une transaction.
     const updatePayload = toPrismaTenantConfig(configData);
-    if (ipWhitelist !== undefined) {
-      updatePayload.ipWhitelist = {
-        deleteMany: {},
-        create: Array.isArray(ipWhitelist) ? ipWhitelist.map(ip => ({ ip })) : []
-      };
-    }
 
-    const config = await rawPrisma.tenantConfig.upsert({
-      where: { tenantId },
-      update: updatePayload,
-      create: { tenantId, ...updatePayload },
-      include: { ipWhitelist: true }
+    const [config] = await rawPrisma.$transaction(async (tx) => {
+      // Étape 1 : upsert du TenantConfig (sans la relation ipWhitelist)
+      const upserted = await tx.tenantConfig.upsert({
+        where: { tenantId },
+        update: updatePayload,
+        create: { tenantId, ...updatePayload },
+      });
+
+      // Étape 2 : gestion de la whitelist IP en deux passes distinctes
+      if (ipWhitelist !== undefined) {
+        await tx.tenantIpWhitelist.deleteMany({ where: { tenantId } });
+        if (Array.isArray(ipWhitelist) && ipWhitelist.length > 0) {
+          const cleanIps = [...new Set(
+            ipWhitelist
+              .map(item => (typeof item === 'string' ? item : item?.ip)?.trim())
+              .filter(Boolean)
+          )];
+          if (cleanIps.length > 0) {
+            await tx.tenantIpWhitelist.createMany({
+              data: cleanIps.map(ip => ({ ip, tenantId })),
+            });
+          }
+        }
+      }
+
+      // Retourner la config complète avec les IPs
+      const full = await tx.tenantConfig.findUnique({
+        where: { id: upserted.id },
+        include: { ipWhitelist: true },
+      });
+      return [full];
     });
 
     await invalidateTenantConfigCache(tenantId);

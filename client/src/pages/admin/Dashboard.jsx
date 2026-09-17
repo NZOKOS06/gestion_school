@@ -25,7 +25,7 @@ const CYCLE_LABELS = {
 };
 
 const Dashboard = () => {
-  const { formatPrice } = useTenant();
+  const { formatPrice, isModuleActive } = useTenant();
   const { get } = useAxios();
   const [data, setData] = useState(null);
   const [evolution, setEvolution] = useState([]);
@@ -115,17 +115,24 @@ const Dashboard = () => {
 
   const { totalEleves, tauxPresence, recettesMois, objectifMois, tauxImpayes, repartitionCycles, dernieresAbsences, derniersPaiements } = data;
 
-  const stats = [
-    { label: 'Élèves inscrits', value: totalEleves ?? 0, subtitle: 'Cette année', icon: Users, color: 'blue', delay: 0 },
-    { label: 'Taux de présence', value: `${tauxPresence ?? 0}%`, subtitle: "Aujourd'hui", icon: TrendingUp, color: 'green', delay: 100 },
-    { label: 'Recettes du mois', value: formatPrice(recettesMois ?? 0), subtitle: `Objectif: ${formatPrice(objectifMois ?? 0)}`, icon: Wallet, color: 'primary', delay: 200 },
-    { label: 'Taux d\'impayés', value: `${tauxImpayes ?? 0}%`, subtitle: 'Échéances en retard', icon: AlertTriangle, color: 'red', delay: 300 },
-  ];
+  const showEleves = isModuleActive('eleves');
+  const showPresences = isModuleActive('presences');
+  const showPaiements = isModuleActive('paiements');
 
-  const cycleData = (repartitionCycles || []).map((c) => ({
+  const stats = [
+    showEleves && { label: 'Élèves inscrits', value: totalEleves ?? 0, subtitle: 'Cette année', icon: Users, color: 'blue', delay: 0 },
+    showPresences && { label: 'Taux de présence', value: `${tauxPresence ?? 0}%`, subtitle: "Aujourd'hui", icon: TrendingUp, color: 'green', delay: 100 },
+    showPaiements && { label: 'Recettes du mois', value: formatPrice(recettesMois ?? 0), subtitle: `Objectif : ${formatPrice(objectifMois ?? 0)}`, icon: Wallet, color: 'primary', delay: 200 },
+    showPaiements && { label: 'Taux d\'impayés', value: `${tauxImpayes ?? 0}%`, subtitle: 'Échéances en retard', icon: AlertTriangle, color: 'red', delay: 300 },
+  ].filter(Boolean);
+
+  const cycleData = showEleves ? (repartitionCycles || []).map((c) => ({
     name: CYCLE_LABELS[c.cycle] || c.cycle,
     value: c.count,
-  })).filter((c) => c.value > 0);
+  })).filter((c) => c.value > 0) : [];
+
+  const showEvolutionChart = showPaiements && evolution.length > 0;
+  const showCyclesChart = showEleves && cycleData.length > 0;
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -149,17 +156,19 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* KPI: grille 2×2 mobile, 4 colonnes desktop */}
-      <KpiGrid cols={4}>
-        {stats.map((stat, index) => (
-          <KpiCard key={index} {...stat} />
-        ))}
-      </KpiGrid>
+      {/* KPI: grille dynamique selon modules actifs */}
+      {stats.length > 0 && (
+        <KpiGrid cols={Math.min(stats.length, 4)}>
+          {stats.map((stat, index) => (
+            <KpiCard key={index} {...stat} />
+          ))}
+        </KpiGrid>
+      )}
 
-      {(cycleData.length > 0 || evolution.length > 0) && (
-        <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${cycleData.length > 0 && evolution.length > 0 ? 'lg:grid-cols-2' : ''}`}>
-          {cycleData.length > 0 && (
-            <Card title="Répartition par cycle" className={evolution.length === 0 ? 'lg:col-span-1' : ''}>
+      {(showCyclesChart || showEvolutionChart) && (
+        <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${showCyclesChart && showEvolutionChart ? 'lg:grid-cols-2' : ''}`}>
+          {showCyclesChart && (
+            <Card title="Répartition par cycle" className={!showEvolutionChart ? 'lg:col-span-1' : ''}>
               <div style={{ height: 240 }} className="sm:h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -172,7 +181,7 @@ const Dashboard = () => {
                       outerRadius={78}
                       innerRadius={28}
                       paddingAngle={2}
-                      label={({ name, value }) => `${name}: ${value}`}
+                      label={({ name, value }) => `${name} : ${value}`}
                       labelLine={{ stroke: 'var(--text-muted)', strokeWidth: 1 }}
                     >
                       {cycleData.map((entry, i) => (
@@ -197,9 +206,9 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {evolution.length > 0 && (
-            <Card title="Évolution des paiements — 30 j">
-              <div style={{ height: cycleData.length === 0 ? 260 : 220 }}>
+          {showEvolutionChart && (
+            <Card title="Évolution des paiements (30 j)">
+              <div style={{ height: !showCyclesChart ? 260 : 220 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={evolution} margin={{ left: 0, right: 4, top: 8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
@@ -226,91 +235,97 @@ const Dashboard = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <Card title="5 dernières absences non justifiées">
-          <DataTable
-            columns={[
-              {
-                key: 'eleve',
-                label: 'Élève',
-                primary: true,
-                render: (_, row) => (
-                  <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {row.elevePrenom} {row.eleveNom}
-                  </span>
-                ),
-              },
-              {
-                key: 'classe',
-                label: 'Classe',
-                secondary: true,
-                hideOnMobile: false,
-                render: (_, row) => row.classeNom,
-                mobileRender: (_, row) => row.classeNom,
-              },
-              {
-                key: 'dateAbsence',
-                label: 'Date',
-                render: (val) => (
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    {new Date(val).toLocaleDateString('fr-FR')}
-                  </span>
-                ),
-              },
-              {
-                key: 'statut',
-                label: 'Statut',
-                badge: true,
-                render: () => <Badge variant="danger">Non justifiée</Badge>,
-              },
-            ]}
-            data={dernieresAbsences || []}
-            emptyMessage="Aucune absence non justifiée"
-            emptyDescription="Tout est en ordre pour le moment."
-          />
-        </Card>
+      {(showPresences || showPaiements) && (
+        <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${showPresences && showPaiements ? 'lg:grid-cols-2' : ''}`}>
+          {showPresences && (
+            <Card title="5 dernières absences non justifiées">
+              <DataTable
+                columns={[
+                  {
+                    key: 'eleve',
+                    label: 'Élève',
+                    primary: true,
+                    render: (_, row) => (
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                        {row.elevePrenom} {row.eleveNom}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'classe',
+                    label: 'Classe',
+                    secondary: true,
+                    hideOnMobile: false,
+                    render: (_, row) => row.classeNom,
+                    mobileRender: (_, row) => row.classeNom,
+                  },
+                  {
+                    key: 'dateAbsence',
+                    label: 'Date',
+                    render: (val) => (
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        {new Date(val).toLocaleDateString('fr-FR')}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'statut',
+                    label: 'Statut',
+                    badge: true,
+                    render: () => <Badge variant="danger">Non justifiée</Badge>,
+                  },
+                ]}
+                data={dernieresAbsences || []}
+                emptyMessage="Aucune absence non justifiée"
+                emptyDescription="Tout est en ordre pour le moment."
+              />
+            </Card>
+          )}
 
-        <Card title="5 derniers paiements encaissés">
-          <DataTable
-            columns={[
-              {
-                key: 'eleve',
-                label: 'Élève',
-                primary: true,
-                render: (_, row) => (
-                  <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {row.elevePrenom} {row.eleveNom}
-                  </span>
-                ),
-              },
-              {
-                key: 'recu',
-                label: 'Reçu',
-                secondary: true,
-                render: (_, row) => `Reçu n°${row.numeroRecu}`,
-              },
-              {
-                key: 'montant',
-                label: 'Montant',
-                render: (val) => (
-                  <span className="font-medium" style={{ color: 'var(--color-success)' }}>
-                    {formatPrice(val)}
-                  </span>
-                ),
-              },
-              {
-                key: 'modePaiement',
-                label: 'Mode',
-                badge: true,
-                render: (val) => <Badge variant="info">{val === 'especes' ? 'Espèces' : val}</Badge>,
-              },
-            ]}
-            data={derniersPaiements || []}
-            emptyMessage="Aucun paiement récent"
-            emptyDescription="Les encaissements récents s'afficheront ici."
-          />
-        </Card>
-      </div>
+          {showPaiements && (
+            <Card title="5 derniers paiements encaissés">
+              <DataTable
+                columns={[
+                  {
+                    key: 'eleve',
+                    label: 'Élève',
+                    primary: true,
+                    render: (_, row) => (
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                        {row.elevePrenom} {row.eleveNom}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'recu',
+                    label: 'Reçu',
+                    secondary: true,
+                    render: (_, row) => `Reçu n° ${row.numeroRecu}`,
+                  },
+                  {
+                    key: 'montant',
+                    label: 'Montant',
+                    render: (val) => (
+                      <span className="font-medium" style={{ color: 'var(--color-success)' }}>
+                        {formatPrice(val)}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'modePaiement',
+                    label: 'Mode',
+                    badge: true,
+                    render: (val) => <Badge variant="info">{val === 'especes' ? 'Espèces' : val}</Badge>,
+                  },
+                ]}
+                data={derniersPaiements || []}
+                emptyMessage="Aucun paiement récent"
+                emptyDescription="Les encaissements récents s'afficheront ici."
+              />
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 };
