@@ -1,12 +1,13 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
+import { resolveAnneeScolaireId } from '../utils/anneeScolaire.js';
 
 const log = createLogger('DashboardController');
 
 export const getKpis = async (req, res) => {
   const tenantId = req.tenantId;
   try {
-    const isEnseignantView = req.query.enseignant === 'true' || req.user.role === 'enseignant';
+    const isEnseignantView = req.query.enseignant === 'true' || req.user?.role === 'enseignant';
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -15,7 +16,7 @@ export const getKpis = async (req, res) => {
 
     if (isEnseignantView) {
       const [mesClasses, mesEvaluations, mesAbsencesAujourdhui] = await Promise.all([
-        prisma.staff.findUnique({
+        req.user?.id ? prisma.staff.findUnique({
           where: { id: req.user.id },
           select: {
             enseignantClasses: {
@@ -29,7 +30,7 @@ export const getKpis = async (req, res) => {
               }
             }
           }
-        }),
+        }) : Promise.resolve(null),
         prisma.evaluation.count({
           where: { tenantId, dateEvaluation: { gte: today, lt: tomorrow } }
         }),
@@ -38,22 +39,25 @@ export const getKpis = async (req, res) => {
         })
       ]);
 
-      return res.json({
-        mes_classes: mesClasses?.enseignantClasses?.map(ec => ({
+      const classesFormatted = (mesClasses?.enseignantClasses || [])
+        .filter(ec => ec && ec.classe)
+        .map(ec => ({
           id: ec.classe.id,
           nom: ec.classe.nom,
           niveau: ec.classe.niveau,
-          effectif: ec.classe._count.inscriptions
-        })) || [],
-        evaluations_aujourdhui: mesEvaluations,
-        absences_aujourdhui: mesAbsencesAujourdhui
+          effectif: ec.classe._count?.inscriptions || 0
+        }));
+
+      return res.json({
+        mes_classes: classesFormatted,
+        evaluations_aujourdhui: mesEvaluations || 0,
+        absences_aujourdhui: mesAbsencesAujourdhui || 0
       });
     }
 
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 
-    const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
     const anneeActiveId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
     const inscriptionWhere = {
       tenantId,
@@ -169,25 +173,26 @@ export const getKpis = async (req, res) => {
       }),
     ]);
 
-    const recettesMois = Number(paiementsMonth._sum.montant || 0);
-    const objectifMois = Number(objectifMoisAgg._sum.montantAttendu || 0);
-    const totalReste = echeancesStats.reduce((s, e) => s + Math.max(0, Number(e.montantAttendu) - Number(e.montantPaye)), 0);
-    const resteRetard = echeancesStats
-      .filter((e) => e.statut === 'en_retard' || e.dateEcheance < today)
-      .reduce((s, e) => s + Math.max(0, Number(e.montantAttendu) - Number(e.montantPaye)), 0);
+    const recettesMois = Number(paiementsMonth?._sum?.montant || 0);
+    const objectifMois = Number(objectifMoisAgg?._sum?.montantAttendu || 0);
+    const echeancesList = Array.isArray(echeancesStats) ? echeancesStats : [];
+    const totalReste = echeancesList.reduce((s, e) => s + Math.max(0, Number(e?.montantAttendu || 0) - Number(e?.montantPaye || 0)), 0);
+    const resteRetard = echeancesList
+      .filter((e) => e?.statut === 'en_retard' || (e?.dateEcheance && new Date(e.dateEcheance) < today))
+      .reduce((s, e) => s + Math.max(0, Number(e?.montantAttendu || 0) - Number(e?.montantPaye || 0)), 0);
     const tauxImpayes = totalReste > 0 ? Math.round((resteRetard / totalReste) * 1000) / 10 : 0;
     const tauxPresence = totalEleves > 0
-      ? Math.round(((totalEleves - Math.min(absencesToday, totalEleves)) / totalEleves) * 1000) / 10
+      ? Math.round(((totalEleves - Math.min(absencesToday || 0, totalEleves)) / totalEleves) * 1000) / 10
       : 0;
 
     const cycleCounts = {};
-    for (const row of inscriptionsParClasse) {
-      const cycle = row.classe?.cycle || 'autre';
+    for (const row of (inscriptionsParClasse || [])) {
+      const cycle = row?.classe?.cycle || 'autre';
       cycleCounts[cycle] = (cycleCounts[cycle] || 0) + 1;
     }
     const repartitionCycles = Object.entries(cycleCounts).map(([cycle, count]) => ({ cycle, count }));
 
-    const dernieresAbsences = dernieresAbsencesRaw.map((a) => ({
+    const dernieresAbsences = (dernieresAbsencesRaw || []).map((a) => ({
       id: a.id,
       dateAbsence: a.dateAbsence,
       eleveNom: a.eleve?.nom || '',
@@ -196,9 +201,9 @@ export const getKpis = async (req, res) => {
       statut: 'non_justifiee',
     }));
 
-    const derniersPaiements = derniersPaiementsRaw.map((p) => ({
+    const derniersPaiements = (derniersPaiementsRaw || []).map((p) => ({
       id: p.id,
-      montant: Number(p.montant),
+      montant: Number(p.montant || 0),
       modePaiement: p.modePaiement,
       numeroRecu: p.numeroRecu,
       eleveNom: p.inscription?.eleve?.nom || '',
@@ -206,20 +211,20 @@ export const getKpis = async (req, res) => {
     }));
 
     res.json({
-      eleves: { total: totalEleves },
-      totalEleves,
+      eleves: { total: totalEleves || 0 },
+      totalEleves: totalEleves || 0,
       tauxPresence,
       repartitionCycles,
       dernieresAbsences,
       derniersPaiements,
-      classes: { total: totalClasses },
+      classes: { total: totalClasses || 0 },
       paiements: {
-        today: { count: paiementsToday._count.id, montant: paiementsToday._sum.montant || 0 },
-        month: { count: paiementsMonth._count.id, montant: paiementsMonth._sum.montant || 0 }
+        today: { count: paiementsToday?._count?.id || 0, montant: paiementsToday?._sum?.montant || 0 },
+        month: { count: paiementsMonth?._count?.id || 0, montant: paiementsMonth?._sum?.montant || 0 }
       },
       alertes: {
-        inscriptions_en_attente: inscriptionsEnAttente,
-        absences_aujourdhui: absencesToday
+        inscriptions_en_attente: inscriptionsEnAttente || 0,
+        absences_aujourdhui: absencesToday || 0
       },
       recettesMois,
       objectifMois,
@@ -287,7 +292,6 @@ export const getEvolution = async (req, res) => {
   try {
     const { periode = '30' } = req.query;
     const jours = parseInt(periode);
-    const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
     const anneeId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
     const yearFilter = anneeId ? { inscription: { anneeScolaireId: anneeId } } : {};
 

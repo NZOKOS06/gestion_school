@@ -18,8 +18,9 @@ export default defineConfig({
       // Cache navigateur actif (images CDN + uploads) — ne pas selfDestroying
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Page de fallback quand offline ET pas de cache disponible
-        navigateFallback: '/offline.html',
+        // SPA Fallback pour le routage React Router
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^\/socket.io\//, /^\/uploads\//],
 
         runtimeCaching: [
           // Config publique — avant NetworkOnly /api

@@ -20,18 +20,6 @@ if (savedTheme === 'dark') {
   document.documentElement.classList.add('dark');
 }
 
-// Désinscrire l'ancien service worker qui interceptait les requêtes API et causait des erreurs CORS
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    registrations.forEach((registration) => {
-      registration.unregister().then(() => {
-        console.log('[SW] Service worker désinscrit');
-      }).catch((err) => {
-        console.error('[SW] Échec de désinscription:', err);
-      });
-    });
-  });
-}
 
 // Base URL API — production via env var, dev via proxy Vite
 axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
