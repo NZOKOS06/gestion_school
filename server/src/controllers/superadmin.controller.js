@@ -9,7 +9,6 @@ import { buildTenantUrl } from '../utils/tenantUrl.js';
 import {
   CRITICAL_MODULES,
   MODULES_BY_PLAN,
-  enforceModuleConstraints,
   moduleFlagsForPlan,
 } from '../config/v1Modules.js';
 import { cacheDel, CacheKeys } from '../utils/cache.js';
@@ -173,7 +172,6 @@ export const createTenant = async (req, res) => {
 
     const moduleDefaults = {
       ...moduleFlagsForPlan(plan),
-      ...enforceModuleConstraints({}, plan),
     };
     // Ne garder que les clés module réellement présentes sur TenantConfig (Prisma)
     const configCreate = { nomEcole: nom };
@@ -233,11 +231,12 @@ export const updateTenant = async (req, res) => {
 
     const tenant = await rawPrisma.tenant.update({ where: { id: tenantId }, data, include: { config: true } });
 
-    // Si le plan a changé, réajuster les modules
+    // Si le plan a changé, appliquer les nouveaux defaults du plan
+    // sans forcer la désactivation — le SuperAdmin garde le contrôle total
     if (plan && plan !== existing.plan && tenant.config) {
-      const adjusted = enforceModuleConstraints({}, plan);
+      const defaults = moduleFlagsForPlan(plan);
       const moduleOnly = {};
-      for (const [key, value] of Object.entries(adjusted)) {
+      for (const [key, value] of Object.entries(defaults)) {
         if (key.startsWith('module') && typeof value === 'boolean' && VALID_CONFIG_FIELDS.has(key)) {
           moduleOnly[key] = value;
         }
