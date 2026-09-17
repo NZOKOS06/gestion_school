@@ -6,15 +6,19 @@ import { prisma } from './prisma.js';
  */
 export async function getAnneeOperationnelle(tenantId) {
   if (!tenantId) return null;
-  const byStatut = await prisma.anneeScolaire.findFirst({
-    where: { tenantId, statut: 'active' },
-    orderBy: { dateDebut: 'desc' },
-  });
-  if (byStatut) return byStatut;
-  return prisma.anneeScolaire.findFirst({
-    where: { tenantId, actif: true },
-    orderBy: { dateDebut: 'desc' },
-  });
+  try {
+    const byStatut = await prisma.anneeScolaire.findFirst({
+      where: { tenantId, statut: 'active' },
+      orderBy: { dateDebut: 'desc' },
+    });
+    if (byStatut) return byStatut;
+    return await prisma.anneeScolaire.findFirst({
+      where: { tenantId, actif: true },
+      orderBy: { dateDebut: 'desc' },
+    });
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -23,6 +27,10 @@ export async function getAnneeOperationnelle(tenantId) {
  */
 export async function resolveAnneeScolaireId(tenantId, queryAnneeId) {
   if (queryAnneeId) return queryAnneeId;
-  const active = await getAnneeOperationnelle(tenantId);
-  return active?.id || null;
+  try {
+    const active = await getAnneeOperationnelle(tenantId);
+    return active?.id || null;
+  } catch {
+    return null;
+  }
 }

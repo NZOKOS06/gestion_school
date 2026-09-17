@@ -49,11 +49,8 @@ export const PlanBadge = ({ plan }) => {
 
 export const ModuleToggle = ({ module, value, onChange, onConfirm, tenantPlan, 'data-testid': testId }) => {
   const Icon = module.icon;
-  const isLocked = module.locked;
-  const available = isModuleAvailableForPlan(module.planMinimum, tenantPlan);
 
   const handleToggle = () => {
-    if (isLocked || !available) return;
     if (value && onConfirm) {
       onConfirm(module, () => onChange(!value));
     } else {
@@ -62,7 +59,7 @@ export const ModuleToggle = ({ module, value, onChange, onConfirm, tenantPlan, '
   };
 
   return (
-    <div className={`flex items-start gap-3 p-3 rounded-lg ${!available ? 'opacity-60' : ''}`} style={{ background: 'var(--surface-overlay)' }}>
+    <div className="flex items-start gap-3 p-3 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
       <div
         className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
         style={{ background: value ? 'color-mix(in srgb, var(--color-primary) 15%, transparent)' : 'var(--surface-hover)' }}
@@ -73,20 +70,18 @@ export const ModuleToggle = ({ module, value, onChange, onConfirm, tenantPlan, '
         <div className="flex items-center justify-between">
           <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
             {module.label}
-            {isLocked && <Shield className="h-3 w-3 inline ml-1" style={{ color: 'var(--color-primary)' }} title="Obligatoire" />}
-            {!available && <Badge variant="warning" className="ml-2 text-[10px] px-1.5 py-0">{module.planMinimum}+</Badge>}
+            {module.planMinimum && (
+              <Badge variant="neutral" className="ml-2 text-[10px] px-1.5 py-0 opacity-70">{module.planMinimum}</Badge>
+            )}
           </span>
           <button
             data-testid={testId}
             role="switch"
             aria-checked={value}
             onClick={handleToggle}
-            disabled={isLocked || !available}
-            className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+            className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer"
             style={{
               background: value ? 'var(--color-primary)' : 'var(--border-default)',
-              cursor: (isLocked || !available) ? 'not-allowed' : 'pointer',
-              opacity: (isLocked || !available) ? 0.5 : 1,
             }}
           >
             <span

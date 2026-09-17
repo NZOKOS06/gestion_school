@@ -255,11 +255,17 @@ export const getAll = async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { page = 1, limit = 20, search, inscriptionId, typePaiement, modePaiement, type, dateDebut, dateFin, anneeScolaireId, sortBy = 'datePaiement', order = 'desc' } = req.query;
-    const take = parseInt(limit);
-    const skip = (parseInt(page) - 1) * take;
+    const take = Math.max(1, Math.min(500, parseInt(limit, 10) || 20));
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const skip = (pageNum - 1) * take;
 
-    const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
-    const resolvedAnneeId = await resolveAnneeScolaireId(tenantId, anneeScolaireId || null);
+    let resolvedAnneeId = null;
+    try {
+      const { resolveAnneeScolaireId } = await import('../utils/anneeScolaire.js');
+      resolvedAnneeId = await resolveAnneeScolaireId(tenantId, anneeScolaireId || null);
+    } catch (anneeErr) {
+      log.warn({ err: anneeErr, tenantId }, 'resolveAnneeScolaireId in paiements');
+    }
 
     const where = { tenantId };
     if (inscriptionId) where.inscriptionId = inscriptionId;
@@ -316,32 +322,35 @@ export const getAll = async (req, res) => {
         skip,
         take,
         orderBy,
+      }).catch((findErr) => {
+        log.warn({ err: findErr, tenantId }, 'paiement.findMany fallback');
+        return [];
       }),
-      prisma.paiement.count({ where }),
+      prisma.paiement.count({ where }).catch(() => 0),
     ]);
 
-    const data = rows.map((p) => ({
+    const data = (rows || []).map((p) => ({
       ...p,
       elevePrenom: p.inscription?.eleve?.prenom,
       eleveNom: p.inscription?.eleve?.nom,
       matricule: p.inscription?.eleve?.matricule,
       classeNom: p.inscription?.classe?.nom,
-      montant: Number(p.montant),
+      montant: Number(p.montant || 0),
     }));
 
     res.json({
       data,
       anneeScolaireId: resolvedAnneeId,
       pagination: {
-        page: parseInt(page),
+        page: pageNum,
         limit: take,
         total,
-        totalPages: Math.ceil(total / take),
+        totalPages: Math.ceil(total / take) || 1,
       },
     });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'Get all paiements error');
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', message: error?.message });
   }
 };
 

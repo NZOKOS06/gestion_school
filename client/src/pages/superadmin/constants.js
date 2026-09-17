@@ -24,10 +24,10 @@ export const PALETTES = [
 ];
 
 export const MODULES_CONFIG = [
-  { key: 'moduleEleves',          label: 'Élèves',          icon: GraduationCap,  desc: 'Dossiers élèves',                 locked: true,  planMinimum: 'starter',     required: true,  v1: true },
-  { key: 'moduleClasses',         label: 'Classes',         icon: Building2,      desc: 'Classes, niveaux et cycles',      locked: true,  planMinimum: 'starter',     required: true,  v1: true },
-  { key: 'moduleInscriptions',    label: 'Inscriptions',    icon: ClipboardList,  desc: 'Scolarisation et dossier financier', locked: true, planMinimum: 'starter', required: true, v1: true },
-  { key: 'modulePaiements',       label: 'Paiements',       icon: ShoppingCart,   desc: 'Scolarités et échéances',         locked: true,  planMinimum: 'starter',     required: true,  v1: true },
+  { key: 'moduleEleves',          label: 'Élèves',          icon: GraduationCap,  desc: 'Dossiers élèves',                 locked: false, planMinimum: 'starter',     required: true,  v1: true },
+  { key: 'moduleClasses',         label: 'Classes',         icon: Building2,      desc: 'Classes, niveaux et cycles',      locked: false, planMinimum: 'starter',     required: true,  v1: true },
+  { key: 'moduleInscriptions',    label: 'Inscriptions',    icon: ClipboardList,  desc: 'Scolarisation et dossier financier', locked: false, planMinimum: 'starter', required: true, v1: true },
+  { key: 'modulePaiements',       label: 'Paiements',       icon: ShoppingCart,   desc: 'Scolarités et échéances',         locked: false, planMinimum: 'starter',     required: true,  v1: true },
   { key: 'moduleNotes',           label: 'Notes',           icon: FileText,       desc: 'Saisie des notes',                locked: false, planMinimum: 'basique',     required: false, v1: true },
   { key: 'moduleBulletins',       label: 'Bulletins',       icon: FileText,       desc: 'Bulletins périodiques',           locked: false, planMinimum: 'basique',     required: false, v1: true },
   { key: 'modulePersonnel',       label: 'Personnel',       icon: Users,          desc: 'Comptes et rôles',                locked: false, planMinimum: 'basique',     required: false, v1: true },

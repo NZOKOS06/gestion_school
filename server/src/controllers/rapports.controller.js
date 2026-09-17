@@ -96,23 +96,23 @@ export const getRapports = async (req, res) => {
       prisma.depense.aggregate({
         where: { tenantId, dateDepense: { gte: debut, lte: fin } },
         _sum: { montant: true },
-      }),
+      }).catch(() => ({ _sum: { montant: 0 } })),
     ]);
 
-    const caTotal = paiements.reduce((s, p) => s + Number(p.montant), 0);
-    const caPrev = paiementsPrev.reduce((s, p) => s + Number(p.montant), 0);
-    const totalDepenses = Number(depensesAgg._sum.montant || 0);
+    const caTotal = (paiements || []).reduce((s, p) => s + Number(p?.montant || 0), 0);
+    const caPrev = (paiementsPrev || []).reduce((s, p) => s + Number(p?.montant || 0), 0);
+    const totalDepenses = Number(depensesAgg?._sum?.montant || 0);
     const beneficeNet = caTotal - totalDepenses;
 
-    const totalAttendu = inscriptions.reduce((s, i) => {
+    const totalAttendu = (inscriptions || []).reduce((s, i) => {
       if (i.echeances?.length) {
-        return s + i.echeances.reduce((es, e) => es + Number(e.montantAttendu), 0);
+        return s + i.echeances.reduce((es, e) => es + Number(e?.montantAttendu || 0), 0);
       }
       return s + Number(i.soldeScolarite || 0);
     }, 0);
-    const totalPayeInscriptions = inscriptions.reduce((s, i) => {
+    const totalPayeInscriptions = (inscriptions || []).reduce((s, i) => {
       if (i.echeances?.length) {
-        return s + i.echeances.reduce((es, e) => es + Number(e.montantPaye), 0);
+        return s + i.echeances.reduce((es, e) => es + Number(e?.montantPaye || 0), 0);
       }
       return s;
     }, 0) || caTotal;
@@ -122,11 +122,13 @@ export const getRapports = async (req, res) => {
       : (caTotal > 0 ? 100 : 0);
 
     // Paiements par jour
+    // Paiements par jour
     const byDay = new Map();
-    for (const p of paiements) {
-      const key = p.datePaiement.toISOString().split('T')[0];
+    for (const p of (paiements || [])) {
+      if (!p?.datePaiement) continue;
+      const key = new Date(p.datePaiement).toISOString().split('T')[0];
       const entry = byDay.get(key) || { date: key, montant: 0, nb: 0 };
-      entry.montant += Number(p.montant);
+      entry.montant += Number(p.montant || 0);
       entry.nb += 1;
       byDay.set(key, entry);
     }
@@ -134,10 +136,10 @@ export const getRapports = async (req, res) => {
 
     // Répartition par mode
     const byMode = new Map();
-    for (const p of paiements) {
-      const mode = p.modePaiement || 'autre';
+    for (const p of (paiements || [])) {
+      const mode = p?.modePaiement || 'autre';
       const entry = byMode.get(mode) || { mode, montant: 0, nb: 0 };
-      entry.montant += Number(p.montant);
+      entry.montant += Number(p?.montant || 0);
       entry.nb += 1;
       byMode.set(mode, entry);
     }
@@ -145,8 +147,8 @@ export const getRapports = async (req, res) => {
 
     // Top classes by receipts in period
     const byClasse = new Map();
-    for (const p of paiements) {
-      const classe = p.inscription?.classe;
+    for (const p of (paiements || [])) {
+      const classe = p?.inscription?.classe;
       if (!classe) continue;
       const entry = byClasse.get(classe.id) || {
         id: classe.id,
@@ -154,22 +156,22 @@ export const getRapports = async (req, res) => {
         montant: 0,
         eleves: new Set(),
       };
-      entry.montant += Number(p.montant);
-      if (p.inscription?.eleve?.id) entry.eleves.add(p.inscription.eleve.id);
+      entry.montant += Number(p?.montant || 0);
+      if (p?.inscription?.eleve?.id) entry.eleves.add(p.inscription.eleve.id);
       byClasse.set(classe.id, entry);
     }
 
     // Enrich with expected totals per class from inscriptions
     const attenduByClasse = new Map();
     const elevesByClasse = new Map();
-    for (const insc of inscriptions) {
-      if (!insc.classeId) continue;
+    for (const insc of (inscriptions || [])) {
+      if (!insc?.classeId) continue;
       const total = insc.echeances?.length
-        ? insc.echeances.reduce((s, e) => s + Number(e.montantAttendu), 0)
+        ? insc.echeances.reduce((s, e) => s + Number(e?.montantAttendu || 0), 0)
         : Number(insc.soldeScolarite || 0);
       attenduByClasse.set(insc.classeId, (attenduByClasse.get(insc.classeId) || 0) + total);
       if (!elevesByClasse.has(insc.classeId)) elevesByClasse.set(insc.classeId, new Set());
-      elevesByClasse.get(insc.classeId).add(insc.eleveId);
+      if (insc.eleveId) elevesByClasse.get(insc.classeId).add(insc.eleveId);
     }
 
     const top_classes = [...byClasse.values()]
@@ -195,9 +197,9 @@ export const getRapports = async (req, res) => {
       ca_total: Math.round(caTotal),
       total_paiements: Math.round(caTotal),
       ca_evolution_pct: pctChange(caTotal, caPrev),
-      nb_paiements: paiements.length,
-      nb_ventes: paiements.length,
-      nb_ventes_evolution_pct: pctChange(paiements.length, paiementsPrev.length),
+      nb_paiements: (paiements || []).length,
+      nb_ventes: (paiements || []).length,
+      nb_ventes_evolution_pct: pctChange((paiements || []).length, (paiementsPrev || []).length),
       total_attendu: Math.round(attendu),
       taux_recouvrement: tauxRecouvrement,
       paiements_par_jour,
@@ -209,7 +211,7 @@ export const getRapports = async (req, res) => {
     });
   } catch (error) {
     log.error({ err: error, tenantId }, 'getRapports error');
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', message: error?.message });
   }
 };
 

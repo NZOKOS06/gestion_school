@@ -2552,7 +2552,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
           <div className="space-y-3">
             <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 text-blue-700 text-xs">
               <Shield className="h-4 w-4" />
-              <span>Plan actuel : <strong>{PLANS[selectedTenant?.plan]?.label || selectedTenant?.plan}</strong>. Les modules grisés nécessitent un plan supérieur. Les modules marqués d'un bouclier sont obligatoires.</span>
+              <span>Plan actuel : <strong>{PLANS[selectedTenant?.plan]?.label || selectedTenant?.plan}</strong>. En tant que SuperAdmin, vous pouvez activer ou désactiver chaque module pour cet établissement en toute liberté.</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
               {MODULES_CONFIG.map((m) => (

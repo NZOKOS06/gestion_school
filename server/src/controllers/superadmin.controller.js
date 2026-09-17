@@ -273,8 +273,7 @@ export const updateTenantConfig = async (req, res) => {
       await rawPrisma.tenant.update({ where: { id: tenantId }, data: { nom: schoolName } });
     }
 
-    // Appliquer les contraintes de modules puis mapper vers les colonnes Prisma
-    configData = enforceModuleConstraints(configData, tenant.plan);
+    // Le SuperAdmin a le contrôle total des modules du tenant (pas de bride par plan commercial)
     const updatePayload = toPrismaTenantConfig(configData);
     if (ipWhitelist !== undefined) {
       updatePayload.ipWhitelist = {

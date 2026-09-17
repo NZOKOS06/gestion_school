@@ -30,13 +30,13 @@ export const getKpis = async (req, res) => {
               }
             }
           }
-        }) : Promise.resolve(null),
+        }).catch(() => null) : Promise.resolve(null),
         prisma.evaluation.count({
           where: { tenantId, dateEvaluation: { gte: today, lt: tomorrow } }
-        }),
+        }).catch(() => 0),
         prisma.absence.count({
           where: { tenantId, dateAbsence: { gte: today, lt: tomorrow } }
-        })
+        }).catch(() => 0)
       ]);
 
       const classesFormatted = (mesClasses?.enseignantClasses || [])
@@ -58,7 +58,13 @@ export const getKpis = async (req, res) => {
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 
-    const anneeActiveId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
+    let anneeActiveId = null;
+    try {
+      anneeActiveId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
+    } catch (anneeErr) {
+      log.warn({ err: anneeErr, tenantId }, 'resolveAnneeScolaireId failed in KPIs');
+    }
+
     const inscriptionWhere = {
       tenantId,
       statut: 'validee',
@@ -78,13 +84,13 @@ export const getKpis = async (req, res) => {
       dernieresAbsencesRaw,
       derniersPaiementsRaw,
     ] = await Promise.all([
-      prisma.inscription.count({ where: inscriptionWhere }),
+      prisma.inscription.count({ where: inscriptionWhere }).catch(() => 0),
       prisma.classe.count({
         where: {
           tenantId,
-          ...(anneeActiveId ? { anneeScolaireId: anneeActiveId } : { anneeScolaire: { actif: true } }),
+          ...(anneeActiveId ? { anneeScolaireId: anneeActiveId } : {}),
         },
-      }),
+      }).catch(() => 0),
       prisma.paiement.aggregate({
         where: {
           tenantId,
@@ -93,7 +99,7 @@ export const getKpis = async (req, res) => {
         },
         _sum: { montant: true },
         _count: { id: true }
-      }),
+      }).catch(() => ({ _sum: { montant: 0 }, _count: { id: 0 } })),
       prisma.paiement.aggregate({
         where: {
           tenantId,
@@ -102,14 +108,14 @@ export const getKpis = async (req, res) => {
         },
         _sum: { montant: true },
         _count: { id: true }
-      }),
+      }).catch(() => ({ _sum: { montant: 0 }, _count: { id: 0 } })),
       prisma.inscription.count({
         where: {
           tenantId,
           statut: 'en_attente',
           ...(anneeActiveId ? { anneeScolaireId: anneeActiveId } : {}),
         },
-      }),
+      }).catch(() => 0),
       prisma.absence.count({
         where: {
           tenantId,
@@ -117,7 +123,7 @@ export const getKpis = async (req, res) => {
           typeAbsence: 'absent',
           justifiee: false,
         },
-      }),
+      }).catch(() => 0),
       prisma.echeance.aggregate({
         where: {
           tenantId,
@@ -125,7 +131,7 @@ export const getKpis = async (req, res) => {
           ...(anneeActiveId ? { inscription: { anneeScolaireId: anneeActiveId } } : {}),
         },
         _sum: { montantAttendu: true },
-      }),
+      }).catch(() => ({ _sum: { montantAttendu: 0 } })),
       prisma.echeance.findMany({
         where: {
           tenantId,
@@ -133,11 +139,11 @@ export const getKpis = async (req, res) => {
           ...(anneeActiveId ? { inscription: { anneeScolaireId: anneeActiveId } } : {}),
         },
         select: { statut: true, montantAttendu: true, montantPaye: true, dateEcheance: true },
-      }),
+      }).catch(() => []),
       prisma.inscription.findMany({
         where: inscriptionWhere,
         select: { classe: { select: { cycle: true } } },
-      }),
+      }).catch(() => []),
       prisma.absence.findMany({
         where: { tenantId, justifiee: false, typeAbsence: 'absent' },
         orderBy: { dateAbsence: 'desc' },
@@ -155,7 +161,7 @@ export const getKpis = async (req, res) => {
             },
           },
         },
-      }),
+      }).catch(() => []),
       prisma.paiement.findMany({
         where: {
           tenantId,
@@ -170,7 +176,7 @@ export const getKpis = async (req, res) => {
             },
           },
         },
-      }),
+      }).catch(() => []),
     ]);
 
     const recettesMois = Number(paiementsMonth?._sum?.montant || 0);
@@ -181,8 +187,9 @@ export const getKpis = async (req, res) => {
       .filter((e) => e?.statut === 'en_retard' || (e?.dateEcheance && new Date(e.dateEcheance) < today))
       .reduce((s, e) => s + Math.max(0, Number(e?.montantAttendu || 0) - Number(e?.montantPaye || 0)), 0);
     const tauxImpayes = totalReste > 0 ? Math.round((resteRetard / totalReste) * 1000) / 10 : 0;
-    const tauxPresence = totalEleves > 0
-      ? Math.round(((totalEleves - Math.min(absencesToday || 0, totalEleves)) / totalEleves) * 1000) / 10
+    const totalElevesCount = Number(totalEleves || 0);
+    const tauxPresence = totalElevesCount > 0
+      ? Math.round(((totalElevesCount - Math.min(absencesToday || 0, totalElevesCount)) / totalElevesCount) * 1000) / 10
       : 0;
 
     const cycleCounts = {};
@@ -211,8 +218,8 @@ export const getKpis = async (req, res) => {
     }));
 
     res.json({
-      eleves: { total: totalEleves || 0 },
-      totalEleves: totalEleves || 0,
+      eleves: { total: totalElevesCount },
+      totalEleves: totalElevesCount,
       tauxPresence,
       repartitionCycles,
       dernieresAbsences,
@@ -232,7 +239,7 @@ export const getKpis = async (req, res) => {
     });
   } catch (error) {
     log.error({ err: error, tenantId }, 'Get KPIs error');
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', message: error?.message });
   }
 };
 
@@ -266,24 +273,24 @@ export const getCaisse = async (req, res) => {
       })
     ]);
 
-    const totalRecu = paiements.reduce((sum, p) => sum + parseFloat(p.montant), 0);
+    const totalRecu = (paiements || []).reduce((sum, p) => sum + parseFloat(p?.montant || 0), 0);
 
     res.json({
       date: today.toISOString().split('T')[0],
       paiements: {
-        count: paiements.length,
+        count: (paiements || []).length,
         total: totalRecu,
-        liste: paiements
+        liste: paiements || []
       },
-      parModePaiement: statsPaiement.map(s => ({
+      parModePaiement: (statsPaiement || []).map(s => ({
         mode: s.modePaiement,
-        count: s._count.id,
-        montant: s._sum.montant
+        count: s._count?.id || 0,
+        montant: s._sum?.montant || 0
       }))
     });
   } catch (error) {
     log.error({ err: error, tenantId }, 'Get caisse error');
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', message: error?.message });
   }
 };
 
@@ -291,8 +298,13 @@ export const getEvolution = async (req, res) => {
   const tenantId = req.tenantId;
   try {
     const { periode = '30' } = req.query;
-    const jours = parseInt(periode);
-    const anneeId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
+    const jours = Math.min(90, Math.max(1, parseInt(periode, 10) || 30));
+    let anneeId = null;
+    try {
+      anneeId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
+    } catch {
+      anneeId = null;
+    }
     const yearFilter = anneeId ? { inscription: { anneeScolaireId: anneeId } } : {};
 
     const data = [];
@@ -310,12 +322,12 @@ export const getEvolution = async (req, res) => {
         where: { tenantId, datePaiement: { gte: date, lt: nextDay }, ...yearFilter },
         _sum: { montant: true },
         _count: { id: true }
-      });
+      }).catch(() => ({ _sum: { montant: 0 }, _count: { id: 0 } }));
 
       data.push({
         date: date.toISOString().split('T')[0],
-        montant: paiements._sum.montant || 0,
-        count: paiements._count.id
+        montant: Number(paiements?._sum?.montant || 0),
+        count: Number(paiements?._count?.id || 0)
       });
     }
 
