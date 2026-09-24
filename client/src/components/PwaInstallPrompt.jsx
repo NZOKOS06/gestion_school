@@ -2,19 +2,26 @@
  * PwaInstallPrompt.jsx
  *
  * Bouton d'installation native Desktop / Mobile de GestSchool via PWA.
- * Permet d'installer l'application sur le bureau physique de l'école en 1 clic.
+ * Exports:
+ *   - usePwaInstall()   → hook partagé
+ *   - PwaNavButton      → bouton compact pour la barre de navigation (header)
+ *   - default           → ancien composant flottant (conservé pour compatibilité)
  */
 
 import React, { useState, useEffect } from 'react';
-import { Download, Monitor, Check } from 'lucide-react';
+import { Download, Monitor } from 'lucide-react';
 
-export default function PwaInstallPrompt() {
+// ─── Hook partagé ───────────────────────────────────────────────────────────
+
+export function usePwaInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
-    // Vérifier si déjà en mode standalone (PWA installée)
-    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+    if (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true
+    ) {
       setIsInstalled(true);
       return;
     }
@@ -37,15 +44,45 @@ export default function PwaInstallPrompt() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstalled(true);
-    }
+    if (outcome === 'accepted') setIsInstalled(true);
     setDeferredPrompt(null);
   };
 
-  if (isInstalled || !deferredPrompt) {
-    return null;
-  }
+  return { deferredPrompt, isInstalled, handleInstall };
+}
+
+// ─── Bouton navbar compact ───────────────────────────────────────────────────
+// Visible uniquement quand l'installation PWA est disponible
+
+export function PwaNavButton() {
+  const { deferredPrompt, isInstalled, handleInstall } = usePwaInstall();
+
+  if (isInstalled || !deferredPrompt) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={handleInstall}
+      className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold transition-all active:scale-95 shrink-0"
+      style={{
+        background: 'var(--color-primary)',
+        color: 'var(--color-primary-fg)',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.18)',
+      }}
+      title="Installer GestSchool comme application (PWA)"
+    >
+      <Download className="w-3.5 h-3.5 shrink-0" />
+      <span className="hidden sm:inline whitespace-nowrap">Installer l'app</span>
+    </button>
+  );
+}
+
+// ─── Composant flottant par défaut (non utilisé après intégration navbar) ───
+
+export default function PwaInstallPrompt() {
+  const { deferredPrompt, isInstalled, handleInstall } = usePwaInstall();
+
+  if (isInstalled || !deferredPrompt) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-50 bg-slate-900/95 backdrop-blur border border-slate-700 text-white p-3.5 rounded-xl shadow-2xl flex items-center space-x-3.5 max-w-md animate-in fade-in slide-in-from-bottom-4">

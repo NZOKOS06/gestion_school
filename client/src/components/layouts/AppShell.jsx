@@ -23,6 +23,7 @@ import { useI18n } from '../../contexts/I18nContext';
 import { useDensity } from '../../contexts/DensityContext';
 import CommandPalette from '../CommandPalette';
 import { buildBreadcrumbs, ROLE_DISPLAY_LABELS } from './navConfig';
+import { PwaNavButton } from '../PwaInstallPrompt';
 
 const BOTTOM_NAV_SLOTS = 4;
 
@@ -407,6 +408,9 @@ const AppShell = ({
                 <AlignJustify className="h-4 w-4" />
               </button>
             )}
+
+            {/* Bouton PWA dans la barre de navigation */}
+            <PwaNavButton />
 
             <div className="hidden sm:block">
               <ThemeToggle />

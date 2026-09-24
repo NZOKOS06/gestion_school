@@ -15,7 +15,7 @@ import CaissierLayout from './components/layouts/CaissierLayout';
 
 // Offline-First & PWA
 import OfflineStatusBanner from './components/OfflineStatusBanner';
-import PwaInstallPrompt from './components/PwaInstallPrompt';
+// PwaInstallPrompt intégré dans AppShell (navbar)
 
 // Helper pour recharger automatiquement si un chunk Vite/Vercel est introuvable après un redéploiement
 const lazyWithRetry = (componentImport) =>
@@ -311,7 +311,6 @@ function App() {
             <AuthProvider>
               <OfflineStatusBanner />
               <AppRoutes />
-              <PwaInstallPrompt />
             </AuthProvider>
           </TenantProvider>
         </DensityProvider>

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { useAxios } from '../../hooks/useAxios';
@@ -172,43 +172,23 @@ const TenantAccessSection = ({ tenant }) => {
   };
 
   // ── URLs ───────────────────────────────────────────────────────────────────
-  // URL de production : priorité absolue
+  // URL d'accès tenant : toujours basé sur l'origine du site actuel (dynamique)
   const prodUrl = useMemo(() => {
     if (!tenant) return '';
-    const frontendBase = import.meta.env.VITE_FRONTEND_URL || '';
-    const apiBase      = import.meta.env.VITE_API_URL || '';
-    const isSubdomain  = import.meta.env.VITE_SUBDOMAIN_MODE === 'true';
+    const isSubdomain = import.meta.env.VITE_SUBDOMAIN_MODE === 'true';
+    const origin = window.location.origin; // URL réelle du site en cours d'exécution
 
-    // Base de production : VITE_FRONTEND_URL en priorité, sinon on déduit depuis VITE_API_URL
-    let base = frontendBase;
-    if (!base && apiBase) {
-      // ex: https://GestSchool-api.onrender.com → https://GestSchool-two.vercel.app
-      try {
-        const apiOrigin = new URL(apiBase).origin;
-        // Remplace le pattern -api.onrender.com par -two.vercel.app si possible
-        base = apiOrigin
-          .replace(/-api\.onrender\.com$/, '-two.vercel.app')
-          .replace(/\.onrender\.com$/, '.vercel.app');
-        if (base === apiOrigin) base = ''; // Pas de remplacement trouvé
-      } catch { base = ''; }
-    }
-
-    if (base) {
-      const cleanBase = base.replace(/\/$/, '');
-      if (isSubdomain) {
-        try {
-          const host = new URL(cleanBase).hostname;
-          const parts = host.split('.');
-          if (parts.length >= 2) {
-            const domain = parts.slice(-2).join('.');
-            return `https://${tenant.slug}.${domain}/login`;
-          }
-        } catch { /* ignore */ }
+    if (isSubdomain) {
+      // Mode sous-domaine : slug.domaine.tld/login
+      const host = window.location.hostname;
+      const parts = host.split('.');
+      if (parts.length >= 2) {
+        const domain = parts.slice(-2).join('.');
+        return `${window.location.protocol}//${tenant.slug}.${domain}/login`;
       }
-      return `${cleanBase}/login?tenant=${tenant.slug}`;
     }
-    // Fallback : origine courante (dev)
-    return `${window.location.origin}/login?tenant=${tenant.slug}`;
+    // Mode query string : /login?tenant=slug
+    return `${origin}/login?tenant=${tenant.slug}`;
   }, [tenant]);
 
   // URL réseau local (LAN)
@@ -1046,7 +1026,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
           <div className="space-y-8">
             {/* KPI Cards */}
             {stats && (
-              <KpiGrid cols={6}>
+              <KpiGrid cols={3}>
                 <KpiCard
                   label="Total établissements"
                   value={stats?.totalTenants ?? stats?.total_tenants ?? 0}
