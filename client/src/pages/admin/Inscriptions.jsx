@@ -438,6 +438,7 @@ const Inscriptions = () => {
   const classesForAnnee = classes.filter(
     (c) => !form.anneeScolaireId || c.anneeScolaireId === form.anneeScolaireId
   );
+  const selectedClasse = classesForAnnee.find((c) => c.id === form.classeId);
   const fraisInscriptionPreview = Number(selectedClasse?.fraisInscription || 0) || fraisInscriptionDefault;
   const fraisScolaritePreview = Number(selectedClasse?.fraisScolarite ?? 0);
   const totalFraisPreview = fraisInscriptionPreview + fraisScolaritePreview;
