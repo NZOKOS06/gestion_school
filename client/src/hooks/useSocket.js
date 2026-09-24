@@ -31,44 +31,38 @@ export const useSocket = () => {
 
     // Événements scolaires — Staff
     socket.on('nouvelleNote', (data) => {
-      toast.success(`Nouvelle note saisie : ${data.valeur}/20`, {
+      toast.success(`Nouvelle note saisie : ${data.valeur}/20`, {
         duration: 5000,
-        icon: '📝',
       });
     });
 
     socket.on('nouvelleAbsence', (data) => {
-      toast.warning(`Absence enregistrée : ${data.eleveNom}`, {
+      toast(`Absence enregistrée : ${data.eleveNom}`, {
         duration: 5000,
-        icon: '📋',
       });
     });
 
     socket.on('nouvelleSanction', (data) => {
       toast(`Sanction attribuée à ${data.eleveNom}`, {
         duration: 5000,
-        icon: '⚠️',
       });
     });
 
     socket.on('paiementEncaisse', (data) => {
-      toast.success(`Paiement encaissé : ${data.montant} FCFA`, {
+      toast.success(`Paiement encaissé : ${data.montant} FCFA`, {
         duration: 5000,
-        icon: '💰',
       });
     });
 
     socket.on('actualitePubliee', (data) => {
-      toast(`Nouvelle actualité : ${data.titre}`, {
+      toast(`Nouvelle actualité : ${data.titre}`, {
         duration: 5000,
-        icon: '📢',
       });
     });
 
     socket.on('notification', (data) => {
       toast(data.message || data.titre, {
         duration: 5000,
-        icon: data.type === 'success' ? '✅' : data.type === 'warning' ? '⚠️' : 'ℹ️',
       });
     });
 

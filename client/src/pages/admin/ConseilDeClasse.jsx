@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import {
   PageHeader, DataTable, Badge, Button, Modal,
@@ -95,7 +95,7 @@ const ConseilDeClasse = () => {
     <div className="space-y-6">
       <PageHeader
         title="Conseil de classe"
-        subtitle="Réunion collective des enseignants — décisions et mentions"
+        subtitle="Réunion collective des enseignants : décisions et mentions"
         actions={<Button icon={Plus} onClick={openCreate}>Nouveau conseil</Button>}
       />
 
@@ -223,7 +223,7 @@ const ConseilDeClasse = () => {
       <Modal
         open={!!detailModal}
         onClose={() => setDetailModal(null)}
-        title={`Conseil — ${detailModal?.classe?.nom || ''} (Période ${detailModal?.periodeIndex})`}
+        title={`Conseil : ${detailModal?.classe?.nom || ''} (Période ${detailModal?.periodeIndex})`}
         size="md"
         footer={<Button variant="secondary" onClick={() => setDetailModal(null)}>Fermer</Button>}
       >

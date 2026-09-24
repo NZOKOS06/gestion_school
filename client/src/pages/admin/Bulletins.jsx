@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
@@ -344,7 +344,7 @@ const Bulletins = () => {
         </div>
         {selectedClasseObj && (
           <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
-            Cycle {selectedClasseObj.cycle} — périodes filtrées automatiquement
+            Cycle {selectedClasseObj.cycle} : périodes filtrées automatiquement
             {['prescolaire', 'primaire'].includes(selectedClasseObj.cycle)
               ? ' (compositions mensuelles)'
               : ' (trimestres)'}
@@ -368,7 +368,7 @@ const Bulletins = () => {
       )}
 
       {!selectedClasse && stats?.top5?.length > 0 && (
-        <Card title="Top 5 — établissement">
+        <Card title="Top 5 établissement">
           <DataTable
             columns={[
               {
@@ -466,7 +466,7 @@ const Bulletins = () => {
       <Modal
         open={!!detail}
         onClose={() => setDetail(null)}
-        title={detail ? `Détail — ${eleveLabel(detail)}` : 'Détail'}
+        title={detail ? `Détail : ${eleveLabel(detail)}` : 'Détail'}
         size="lg"
         footer={
           <>

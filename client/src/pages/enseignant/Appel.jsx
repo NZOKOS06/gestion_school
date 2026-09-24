@@ -113,7 +113,7 @@ const Appel = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant="info">{c.heureDebut} — {c.heureFin}</Badge>
+                    <Badge variant="info">{c.heureDebut}–{c.heureFin}</Badge>
                     {c.appelFait ? <Badge variant="success" dot>Fait</Badge> : <Badge variant="warning">À faire</Badge>}
                   </div>
                 </div>
@@ -123,8 +123,8 @@ const Appel = () => {
         </div>
       ) : (
         <Card
-          title={`Appel — ${selectedCours.matiereNom}`}
-          subtitle={`${selectedCours.classeNom} · ${selectedCours.heureDebut}—${selectedCours.heureFin}`}
+          title={`Appel : ${selectedCours.matiereNom}`}
+          subtitle={`${selectedCours.classeNom} · ${selectedCours.heureDebut}–${selectedCours.heureFin}`}
           action={
             <div className="flex items-center gap-2">
               <Button size="sm" variant="secondary" onClick={() => markAll('present')}>Tous présents</Button>

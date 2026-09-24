@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import {
@@ -257,8 +257,8 @@ const EleveDetailModal = ({ open, onClose, eleve, detail, loadingDetail, onPaid,
 
           {/* Tabs */}
           <div className="flex gap-2 p-1 rounded-xl" style={{ background: 'var(--surface-overlay)' }}>
-            <button style={tabStyle('echeances')} onClick={() => setActiveTab('echeances')}>📅 Échéancier</button>
-            <button style={tabStyle('paiements')} onClick={() => setActiveTab('paiements')}>💳 Historique paiements</button>
+            <button style={tabStyle('echeances')} onClick={() => setActiveTab('echeances')}>Échéancier</button>
+            <button style={tabStyle('paiements')} onClick={() => setActiveTab('paiements')}>Historique paiements</button>
           </div>
 
           {activeTab === 'echeances' && (
@@ -284,7 +284,7 @@ const EleveDetailModal = ({ open, onClose, eleve, detail, loadingDetail, onPaid,
                 <div className="rounded-xl p-4 space-y-3"
                   style={{ background: 'color-mix(in srgb, var(--color-primary) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)' }}>
                   <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    💰 Entrer un paiement
+                    Enregistrer un paiement
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <FormField label="Montant reçu (FCFA)">
@@ -411,7 +411,7 @@ const EleveDetailModal = ({ open, onClose, eleve, detail, loadingDetail, onPaid,
                     style={{ background: 'var(--surface-overlay)', border: '1px solid var(--border-subtle)' }}>
                     <div>
                       <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                        Reçu n°{p.numeroRecu} — {p.motif || p.typePaiement}
+                        Reçu n°{p.numeroRecu} · {p.motif || p.typePaiement}
                       </p>
                       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                         {new Date(p.datePaiement).toLocaleDateString('fr-FR')} · {MODE_LABELS[p.modePaiement] || p.modePaiement}
@@ -533,7 +533,7 @@ const ElevesFinances = () => {
     <div className="space-y-6">
       <PageHeader
         title="Élèves & Finances"
-        subtitle="Suivi financier des élèves — cliquez sur un élève pour gérer son échéancier"
+        subtitle="Suivi financier des élèves : cliquez sur un élève pour gérer son échéancier"
       />
 
       <FilterBar>

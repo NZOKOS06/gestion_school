@@ -14,7 +14,8 @@ async function resolveFees(tenantId, classeId) {
     prisma.tenantConfig.findUnique({ where: { tenantId } }),
   ]);
   const fraisScolarite = Number(classe?.fraisScolarite ?? config?.fraisScolariteDefault ?? 0);
-  const fraisInscription = Number(config?.fraisInscriptionDefault ?? 0);
+  const fi = Number(classe?.fraisInscription ?? 0);
+  const fraisInscription = fi > 0 ? fi : Number(config?.fraisInscriptionDefault ?? 0);
   return { classe, config, fraisScolarite, fraisInscription };
 }
 

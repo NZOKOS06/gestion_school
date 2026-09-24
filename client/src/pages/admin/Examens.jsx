@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, DataTable, Badge, Button, Modal, QuickSearchSelect } from '../../components/ui';
 import { Award, Plus } from 'lucide-react';
@@ -252,11 +252,11 @@ const Examens = () => {
           <div>
             <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Classe concernée</label>
             <select style={{ ...inputStyle, appearance: 'auto' }} value={form.classeId} onChange={(e) => setForm({ ...form, classeId: e.target.value })}>
-              <option value="">— Optionnel (filtrer les candidats) —</option>
+              <option value="">Optionnel (filtrer les candidats)</option>
               {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
             </select>
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              Si renseignée, les élèves de cette classe seront proposés / inscrits — pas ceux des autres classes.
+              Si renseignée, les élèves de cette classe seront proposés / inscrits, pas ceux des autres classes.
             </p>
           </div>
           <div>

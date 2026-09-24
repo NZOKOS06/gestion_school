@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
@@ -176,7 +176,7 @@ const CahierDeTextes = () => {
     <div className="space-y-6">
       <PageHeader
         title="Cahier de textes"
-        subtitle="Suivi quotidien des leçons — obligatoire pour l'inspection"
+        subtitle="Suivi quotidien des leçons, obligatoire pour l'inspection"
         actions={<Button icon={Plus} onClick={() => openCreate()}>Nouvelle entrée</Button>}
       />
 
@@ -190,7 +190,7 @@ const CahierDeTextes = () => {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? 'Modifier l\'entrée' : 'Nouvelle entrée — Cahier de textes'}
+        title={editing ? 'Modifier l\'entrée' : 'Nouvelle entrée au cahier de textes'}
         size="lg"
         footer={
           <>

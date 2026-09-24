@@ -175,7 +175,7 @@ const Inscriptions = () => {
       setParentQuickOpen(false);
       setParentForm({ nom: '', prenom: '', email: '', telephone: '' });
       if (created.temporaryPassword) {
-        toast.success(`Parent créé — mot de passe temporaire : ${created.temporaryPassword}`);
+        toast.success(`Parent créé. Mot de passe temporaire : ${created.temporaryPassword}`);
       } else {
         toast.success('Parent créé');
       }
@@ -275,7 +275,7 @@ const Inscriptions = () => {
       }
     }
     if (!form.parentId) {
-      toast('Aucun parent lié — recommandé pour les mineurs', { icon: '!' });
+      toast('Aucun parent lié (recommandé pour les mineurs)', { icon: '!' });
     }
     setSaving(true);
     try {
@@ -306,7 +306,7 @@ const Inscriptions = () => {
   const validateInscription = async (insc) => {
     try {
       await put(`/api/inscriptions/${insc.id}/validate`, {});
-      toast.success('Inscription validée — élève scolarisé');
+      toast.success('Inscription validée : élève scolarisé');
       fetchInscriptions();
     } catch { /* silent */ }
   };
@@ -438,9 +438,9 @@ const Inscriptions = () => {
   const classesForAnnee = classes.filter(
     (c) => !form.anneeScolaireId || c.anneeScolaireId === form.anneeScolaireId
   );
-  const selectedClasse = classesForAnnee.find((c) => c.id === form.classeId);
+  const fraisInscriptionPreview = Number(selectedClasse?.fraisInscription || 0) || fraisInscriptionDefault;
   const fraisScolaritePreview = Number(selectedClasse?.fraisScolarite ?? 0);
-  const totalFraisPreview = fraisInscriptionDefault + fraisScolaritePreview;
+  const totalFraisPreview = fraisInscriptionPreview + fraisScolaritePreview;
 
   return (
     <div className="space-y-6" data-testid="page-inscriptions">
@@ -674,7 +674,7 @@ const Inscriptions = () => {
         subtitle={
           reinscriptionLoading
             ? 'Chargement des élèves éligibles…'
-            : `${reinscriptionMeta.data.length} élève(s) — ${selectedReinscriptionCount} sélectionné(s)`
+            : `${reinscriptionMeta.data.length} élève(s), ${selectedReinscriptionCount} sélectionné(s)`
         }
         size="xl"
         footer={
@@ -801,7 +801,7 @@ const Inscriptions = () => {
         )}
         {!canDecideFinAnnee && reinscriptionMeta.data.length > 0 && (
           <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
-            Consultation seule — seule la direction peut valider la réinscription.
+            Consultation seule : seule la direction peut valider la réinscription.
           </p>
         )}
       </Modal>

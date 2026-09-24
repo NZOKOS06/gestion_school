@@ -91,7 +91,7 @@ const MesEnfants = () => {
       </div>
 
       {selected && detail && (
-        <Card title={`Dossier — ${selected.prenom} ${selected.nom}`} subtitle={selected.classeNom}>
+        <Card title={`Dossier de ${selected.prenom} ${selected.nom}`} subtitle={selected.classeNom}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
               <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Notes récentes</h4>

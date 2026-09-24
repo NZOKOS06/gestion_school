@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
@@ -363,11 +363,11 @@ const AnneesScolaires = () => {
       const libelle = annee?.libelle || '';
       if (stats) {
         toast.success(
-          `${libelle} créée — ${stats.classes || 0} classe(s), ${stats.affectations || 0} affectation(s), ${stats.creneaux || 0} créneau(x). Pensez à l'activer.`,
+          `${libelle} créée. ${stats.classes || 0} classe(s), ${stats.affectations || 0} affectation(s), ${stats.creneaux || 0} créneau(x). Pensez à l'activer.`,
           { duration: 6000 }
         );
       } else {
-        toast.success(`Année ${libelle} créée — pensez à l'activer`);
+        toast.success(`Année ${libelle} créée. Pensez à l'activer`);
       }
       fetchAnnees();
     } catch (err) {
@@ -407,7 +407,7 @@ const AnneesScolaires = () => {
     <div className="space-y-6">
       <PageHeader
         title="Années scolaires & périodes"
-        subtitle="Cadre temporel de l'établissement — trimestres, compositions et frise de l'année"
+        subtitle="Cadre temporel de l'établissement : trimestres, compositions et frise de l'année"
         actions={canWrite ? <Button icon={Plus} onClick={() => setCreateOpen(true)}>Nouvelle année</Button> : null}
       />
 
@@ -478,7 +478,7 @@ const AnneesScolaires = () => {
                 <div>
                   <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
                     <CalendarRange className="inline h-4 w-4 mr-1" />
-                    Périodes — {selected.libelle}
+                    Périodes : {selected.libelle}
                   </h3>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                     Trimestres (collège/lycée) et compositions mensuelles (préscolaire/primaire)
@@ -507,7 +507,7 @@ const AnneesScolaires = () => {
                 )}
                 {isArchivee && !isDirecteur && (
                   <p className="text-xs w-full" style={{ color: 'var(--text-muted)' }}>
-                    Année archivée — modification réservée au directeur.
+                    Année archivée : modification réservée au directeur.
                   </p>
                 )}
               </div>
@@ -753,7 +753,7 @@ const AnneesScolaires = () => {
               <option value="">Version active par défaut</option>
               {versions.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.libelle} ({v.code}){v.actif ? ' — actif' : ''}
+                  {v.libelle} ({v.code}){v.actif ? ' (actif)' : ''}
                 </option>
               ))}
             </select>

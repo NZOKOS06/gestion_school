@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, DataTable, Badge, Button, Modal, SegmentedControl, QuickSearchSelect } from '../../components/ui';
 import { Plus, Pencil, Trash2, Link2 } from 'lucide-react';
@@ -435,7 +435,7 @@ const Matieres = () => {
                 ))}
                 {programme.length === 0 && (
                   <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>
-                    Aucune matière pour ce niveau cette année — le catalogue reste disponible, mais sans programme les bulletins utilisent le coef. défaut.
+                    Aucune matière pour ce niveau cette année. Le catalogue reste disponible, mais sans programme les bulletins utilisent le coef. défaut.
                   </p>
                 )}
               </div>
@@ -575,14 +575,14 @@ const Matieres = () => {
               <div>
                 <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Enseignant (optionnel)</label>
                 <select style={inputStyle} value={form.enseignantId} onChange={(e) => setForm({ ...form, enseignantId: e.target.value })}>
-                  <option value="">— Aucun —</option>
+                  <option value="">Aucun</option>
                   {staff.map((s) => <option key={s.id} value={s.id}>{s.prenom} {s.nom}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Classe (si enseignant)</label>
                 <select style={inputStyle} value={form.classeId} onChange={(e) => setForm({ ...form, classeId: e.target.value })}>
-                  <option value="">— Aucune —</option>
+                  <option value="">Aucune</option>
                   {classes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
                 </select>
               </div>
@@ -594,7 +594,7 @@ const Matieres = () => {
       <Modal
         open={affectOpen}
         onClose={() => setAffectOpen(false)}
-        title={`Affectations — ${selectedMatiere?.nom || ''}`}
+        title={`Affectations : ${selectedMatiere?.nom || ''}`}
         subtitle="Enseignant ↔ Classe"
         size="lg"
       >

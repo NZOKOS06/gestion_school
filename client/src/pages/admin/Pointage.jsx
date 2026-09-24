@@ -65,7 +65,7 @@ const Pointage = () => {
     <div className="space-y-6">
       <PageHeader
         title="Pointage du jour"
-        subtitle="Sessions de cours liées à l'emploi du temps — arrivée, départ, absence"
+        subtitle="Sessions de cours liées à l'emploi du temps : arrivée, départ, absence"
         icon={Clock}
         actions={
           <Button variant="secondary" icon={RefreshCw} onClick={fetchSessions} loading={loading}>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, DataTable, Badge, Button, Modal, QuickSearchSelect, SegmentedControl } from '../../components/ui';
 import { Gavel, Plus } from 'lucide-react';
@@ -114,7 +114,7 @@ const Sanctions = () => {
       <PageHeader
         title="Sanctions"
         subtitle={isArchiveView
-          ? `Archive — ${anneePrev?.libelle || 'année précédente'}`
+          ? `Archive\u00a0: ${anneePrev?.libelle || 'ann\u00e9e pr\u00e9c\u00e9dente'}`
           : 'Suivi disciplinaire de l’année en cours'}
         actions={!isArchiveView ? <Button icon={Plus} onClick={openCreate}>Nouvelle sanction</Button> : null}
       />

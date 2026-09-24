@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
@@ -255,7 +255,7 @@ const Eleves = () => {
     <div className="space-y-6">
       <PageHeader
         title="Élèves"
-        subtitle="Annuaire des élèves — la scolarisation passe par une inscription"
+        subtitle="Annuaire des élèves (la scolarisation passe par une inscription)"
         actions={
           <div className="flex gap-2 flex-wrap">
             <Button variant="secondary" icon={Printer} onClick={openPrint}>Imprimer</Button>
@@ -402,7 +402,7 @@ const Eleves = () => {
         open={createOpen}
         onClose={() => { setCreateOpen(false); setForm(EMPTY_FORM); }}
         title="Fiche identité"
-        subtitle="Crée uniquement l'identité — pour scolariser, utilisez Nouvelle inscription"
+        subtitle="Crée uniquement l'identité. Pour scolariser, utilisez Nouvelle inscription."
         size="lg"
         footer={
           <div className="flex justify-end gap-2">

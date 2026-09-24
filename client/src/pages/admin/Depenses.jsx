@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import {
@@ -98,7 +98,7 @@ const Depenses = () => {
 
   const openEdit = (dep) => {
     if (isArchiveView) {
-      toast.error('Consultation archive — modification désactivée');
+      toast.error('Consultation archive : modification désactivée');
       return;
     }
     setEditing(dep);
@@ -162,7 +162,7 @@ const Depenses = () => {
       <PageHeader
         title="Dépenses"
         subtitle={isArchiveView
-          ? `Archive — ${anneePrev?.libelle || 'année précédente'}`
+          ? `Archive : ${anneePrev?.libelle || 'ann\u00e9e pr\u00e9c\u00e9dente'}`
           : 'Suivi des sorties de caisse de l’année en cours'}
         actions={
           <>

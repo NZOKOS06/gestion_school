@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axios';
 import { useAxios } from '../../hooks/useAxios';
@@ -302,7 +302,7 @@ const TenantAccessSection = ({ tenant }) => {
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3" style={{ background: '#16A34A' }}>
           <ExternalLink className="h-4 w-4 text-white" />
-          <span className="text-sm font-semibold text-white">🌐 Lien d'accès en production (Internet)</span>
+          <span className="text-sm font-semibold text-white">Lien d’accès en production (Internet)</span>
           <span
             className="ml-auto text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
             style={{ background: '#FFFFFF33', color: '#FFFFFF' }}
@@ -412,7 +412,7 @@ const TenantAccessSection = ({ tenant }) => {
                       className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-900"
                     >
                       {addresses.map(a => (
-                        <option key={a.ip} value={a.ip}>{a.interface} — {a.ip}</option>
+                        <option key={a.ip} value={a.ip}>{a.interface} · {a.ip}</option>
                       ))}
                     </select>
                   </div>
@@ -442,7 +442,7 @@ const TenantAccessSection = ({ tenant }) => {
                     <div className="p-2 bg-white rounded-lg shadow-sm border border-slate-200">
                       <img src={lanQr} alt="QR Code LAN" style={{ width: 160, height: 160 }} />
                     </div>
-                    <p className="text-xs text-slate-400 mt-2">QR LAN — même réseau uniquement</p>
+                    <p className="text-xs text-slate-400 mt-2">QR LAN (même réseau uniquement)</p>
                   </div>
                 )}
               </>
@@ -1469,7 +1469,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
                             <Copy className="h-4 w-4 text-slate-500" />
                           </button>
                         </div>
-                        <p className="text-xs mt-2 text-amber-600">⚠️ Notez ce mot de passe maintenant. Il ne sera plus affiché.</p>
+                        <p className="text-xs mt-2 text-amber-600">Attention : notez ce mot de passe maintenant. Il ne sera plus affiché.</p>
                       </div>
                     )}
                   </div>
@@ -1821,7 +1821,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
               {auditTotal > 50 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50">
                   <p className="text-xs text-slate-500">
-                    Page {auditPage} sur {Math.ceil(auditTotal / 50)} — {auditTotal} résultats
+                    Page {auditPage} sur {Math.ceil(auditTotal / 50)} · {auditTotal} résultats
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -1876,7 +1876,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
         <p className="text-sm text-slate-700">Êtes-vous sûr de vouloir supprimer <strong>{tenantToDelete?.nom}</strong> ?<br />Cette action est irréversible.</p>
       </Modal>
 
-      <Modal open={configModalOpen} onClose={() => setConfigModalOpen(false)} title={`Configurer — ${selectedTenant?.nom}`} size="lg" footer={<><Button variant="ghost" onClick={() => setConfigModalOpen(false)}>Annuler</Button><Button variant="primary" onClick={handleSaveConfig} loading={loading}>Sauvegarder</Button></>}>
+      <Modal open={configModalOpen} onClose={() => setConfigModalOpen(false)} title={`Configurer : ${selectedTenant?.nom}`} size="lg" footer={<><Button variant="ghost" onClick={() => setConfigModalOpen(false)}>Annuler</Button><Button variant="primary" onClick={handleSaveConfig} loading={loading}>Sauvegarder</Button></>}>
         <div className="overflow-x-auto mb-4 pb-2 border-b border-slate-200">
           <div className="flex min-w-max gap-1">
             {['identity', 'appearance', 'modules', 'settings', 'access'].map((tab) => (
@@ -2694,7 +2694,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
         {configModalTab === 'access' && <TenantAccessSection tenant={selectedTenant} />}
       </Modal>
 
-      <Modal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} title={`Créer gérant — ${selectedTenant?.nom}`} size="md" footer={<><Button variant="ghost" onClick={() => setStaffModalOpen(false)}>Fermer</Button>{!createdStaff && <Button variant="primary" onClick={handleCreateStaff} loading={loading}>Créer</Button>}</>}>
+      <Modal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} title={`Créer un gérant : ${selectedTenant?.nom}`} size="md" footer={<><Button variant="ghost" onClick={() => setStaffModalOpen(false)}>Fermer</Button>{!createdStaff && <Button variant="primary" onClick={handleCreateStaff} loading={loading}>Créer</Button>}</>}>
         {createdStaff ? (
           <div className="text-center space-y-4">
             <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center bg-green-100">
@@ -2718,7 +2718,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
                       <Copy className="h-4 w-4 text-slate-500" />
                     </button>
                   </div>
-                  <p className="text-xs mt-2 text-amber-600">⚠️ Notez ce mot de passe maintenant. Il ne sera plus affiché.</p>
+                  <p className="text-xs mt-2 text-amber-600">Attention : notez ce mot de passe maintenant. Il ne sera plus affiché.</p>
                 </div>
               )}
             </div>
@@ -2753,7 +2753,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
       <Modal
         open={viewStaffModalOpen}
         onClose={() => setViewStaffModalOpen(false)}
-        title={`Gérants — ${selectedTenant?.nom}`}
+        title={`Gérants : ${selectedTenant?.nom}`}
         size="lg"
         footer={<Button variant="ghost" onClick={() => setViewStaffModalOpen(false)}>Fermer</Button>}
       >

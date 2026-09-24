@@ -81,7 +81,7 @@ const MesClasses = () => {
       </div>
 
       {selectedClasse && (
-        <Card title={`Élèves — ${selectedClasse.nom}`}>
+        <Card title={`Élèves\u00a0: ${selectedClasse.nom}`}>
           <DataTable
             columns={[
               { key: 'matricule', label: 'Matricule', render: (v) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{v}</span> },

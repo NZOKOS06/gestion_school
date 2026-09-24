@@ -441,6 +441,9 @@ async function main() {
     const existing = await prisma.classe.findFirst({
       where: { tenantId: demoTenant.id, anneeScolaireId: anneeScolaire.id, nom: c.nom },
     });
+    const fi = c.fraisInscription || 25000;
+    const fm = c.fraisMensuel || Math.round(c.fraisScolarite / 9);
+    const nm = c.nombreMois || 9;
     if (existing) {
       classesMap[c.nom] = await prisma.classe.update({
         where: { id: existing.id },
@@ -450,6 +453,9 @@ async function main() {
           filiere: fil?.libelle || null,
           niveauOfficielId: niv?.id || null,
           filiereOfficielleId: fil?.id || null,
+          fraisInscription: fi,
+          fraisMensuel: fm,
+          nombreMois: nm,
         },
       });
     } else {
@@ -465,6 +471,9 @@ async function main() {
           filiereOfficielleId: fil?.id || null,
           capacite: c.capacite,
           fraisScolarite: c.fraisScolarite,
+          fraisInscription: fi,
+          fraisMensuel: fm,
+          nombreMois: nm,
         },
       });
     }

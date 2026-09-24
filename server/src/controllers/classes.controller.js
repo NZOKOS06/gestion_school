@@ -122,6 +122,7 @@ export const create = async (req, res) => {
     const {
       nom, niveau, anneeScolaireId, filiere, capacite, fraisScolarite, cycle,
       niveauOfficielId, filiereOfficielleId,
+      fraisInscription, fraisMensuel, nombreMois,
     } = req.body;
 
     let targetAnneeId = anneeScolaireId;
@@ -207,7 +208,19 @@ export const create = async (req, res) => {
         niveauOfficielId: niveauOfficielId || null,
         filiereOfficielleId: filiereOfficielleId || null,
         capacite: capacite != null ? parseInt(capacite, 10) : 40,
-        fraisScolarite: fraisScolarite != null ? parseFloat(fraisScolarite) : 0,
+        // Frais détaillés
+        fraisInscription: fraisInscription != null ? parseFloat(fraisInscription) : 0,
+        fraisMensuel: fraisMensuel != null ? parseFloat(fraisMensuel) : 0,
+        nombreMois: nombreMois != null ? parseInt(nombreMois, 10) : 9,
+        // fraisScolarite = fraisMensuel * nombreMois (scolarité annuelle, hors frais d'inscription)
+        fraisScolarite: (() => {
+          if (fraisMensuel != null) {
+            const fm = parseFloat(fraisMensuel || 0);
+            const nm = parseInt(nombreMois || 9, 10);
+            return fm * nm;
+          }
+          return fraisScolarite != null ? parseFloat(fraisScolarite) : 0;
+        })(),
       },
       include: {
         niveauOfficiel: true,
@@ -228,7 +241,7 @@ export const update = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
-    const { nom, niveau, filiere, capacite, fraisScolarite, actif } = req.body;
+    const { nom, niveau, filiere, capacite, fraisScolarite, actif, fraisInscription, fraisMensuel, nombreMois } = req.body;
 
     const existing = await prisma.classe.findFirst({ where: { id, tenantId } });
     if (!existing) {
@@ -240,7 +253,17 @@ export const update = async (req, res) => {
     if (niveau !== undefined) data.niveau = niveau;
     if (filiere !== undefined) data.filiere = filiere;
     if (capacite !== undefined) data.capacite = capacite;
-    if (fraisScolarite !== undefined) data.fraisScolarite = fraisScolarite ? parseFloat(fraisScolarite) : null;
+    if (fraisInscription !== undefined) data.fraisInscription = parseFloat(fraisInscription) || 0;
+    if (fraisMensuel !== undefined) data.fraisMensuel = parseFloat(fraisMensuel) || 0;
+    if (nombreMois !== undefined) data.nombreMois = parseInt(nombreMois, 10) || 9;
+    // Recalcul de la scolarité annuelle si les champs détaillés sont fournis
+    if (fraisMensuel !== undefined || nombreMois !== undefined) {
+      const fm = parseFloat(data.fraisMensuel ?? existing.fraisMensuel ?? 0);
+      const nm = parseInt(data.nombreMois ?? existing.nombreMois ?? 9, 10);
+      data.fraisScolarite = fm * nm;
+    } else if (fraisScolarite !== undefined) {
+      data.fraisScolarite = fraisScolarite ? parseFloat(fraisScolarite) : null;
+    }
     if (actif !== undefined) data.actif = actif;
 
     const classe = await prisma.classe.update({ where: { id }, data });

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+﻿import { useEffect, useState, useRef } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import {
@@ -605,7 +605,7 @@ const Configuration = () => {
           {(form.modulePointagePersonnel || form.modulePaie) && (
             <div className="border-t border-[var(--border-subtle)] pt-6 space-y-4">
               <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                <Banknote className="h-4 w-4" /> RH — pointage & paie
+                <Banknote className="h-4 w-4" /> RH : pointage & paie
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {form.modulePaie && (

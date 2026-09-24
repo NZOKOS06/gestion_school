@@ -168,7 +168,7 @@ const Paiements = () => {
       <PageHeader
         title={isCaissier ? 'Journal de caisse' : 'Paiements & Échéances'}
         subtitle={isCaissier
-          ? 'Historique des encaissements — imprimez un reçu ou le journal du jour'
+          ? 'Historique des encaissements : imprimez un reçu ou le journal du jour'
           : 'Encaissements et suivi des impayés'}
         data-testid="page-paiements"
         actions={
@@ -337,7 +337,7 @@ const Paiements = () => {
               <option value="">Sélectionner</option>
               {inscriptions.map((insc) => (
                 <option key={insc.id} value={insc.id}>
-                  {insc.elevePrenom || insc.eleve?.prenom} {insc.eleveNom || insc.eleve?.nom} — {insc.classeNom || insc.classe?.nom}
+                  {insc.elevePrenom || insc.eleve?.prenom} {insc.eleveNom || insc.eleve?.nom} · {insc.classeNom || insc.classe?.nom}
                 </option>
               ))}
             </Select>
@@ -351,7 +351,7 @@ const Paiements = () => {
                 <option value="">Pas d'échéance spécifique</option>
                 {echeances.map((ech) => (
                   <option key={ech.id} value={ech.id}>
-                    {ech.libelle} — {formatPrice(ech.montantAttendu - ech.montantPaye)} restant
+                    {ech.libelle} · {formatPrice(ech.montantAttendu - ech.montantPaye)} restant
                   </option>
                 ))}
               </Select>

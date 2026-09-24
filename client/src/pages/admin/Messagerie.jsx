@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader, Badge, Button, Modal } from '../../components/ui';
@@ -328,7 +328,7 @@ const Messagerie = () => {
             plus visible dans votre boîte de réception.
           </p>
           <p className="text-xs p-3 rounded-lg" style={{ background: 'var(--surface-overlay)', color: 'var(--text-muted)' }}>
-            ℹ️ L'archivage est définitif — le message reste consultable dans l'onglet <strong>Archives</strong>
+            ℹ️ L'archivage est définitif : le message reste consultable dans l'onglet <strong>Archives</strong>
             {' '}et n'est pas supprimé du système.
           </p>
         </div>

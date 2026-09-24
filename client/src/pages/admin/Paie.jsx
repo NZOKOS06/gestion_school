@@ -133,7 +133,7 @@ const Paie = () => {
     const html = `<!DOCTYPE html>
     <html>
       <head>
-        <title>Bulletin de Paie — ${b.staff?.nom || ''} ${b.staff?.prenom || ''}</title>
+        <title>Bulletin de Paie – ${b.staff?.nom || ''} ${b.staff?.prenom || ''}</title>
         <style>
           body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; padding: 30px; margin: 0; }
           .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 20px; }
@@ -164,7 +164,7 @@ const Paie = () => {
           </div>
         </div>
 
-        <div class="doc-title">BULLETIN DE SALAIRE & REÇU DE DÉCAISSEMENT — ${moisNom.toUpperCase()} ${anneeCiv}</div>
+        <div class="doc-title">BULLETIN DE SALAIRE &amp; REÇU DE DÉCAISSEMENT – ${moisNom.toUpperCase()} ${anneeCiv}</div>
 
         <div class="grid">
           <div class="info-box">
@@ -266,7 +266,7 @@ const Paie = () => {
     <div className="space-y-6">
       <PageHeader
         title="Paie du personnel"
-        subtitle={`Méthode école : ${methode} — calcul, validation et sortie caisse (Salaires)`}
+        subtitle={`Méthode école : ${methode} – calcul, validation et sortie caisse (Salaires)`}
         icon={Banknote}
       />
 

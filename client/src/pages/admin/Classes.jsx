@@ -20,13 +20,14 @@ const Classes = () => {
   const [filterCycle, setFilterCycle] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(null);
-  const [editForm, setEditForm] = useState({ nom: '', capacite: 40, fraisScolarite: 0 });
+  const [editForm, setEditForm] = useState({ nom: '', capacite: 40, fraisInscription: 0, fraisMensuel: 0, nombreMois: 9 });
   const [detail, setDetail] = useState(null);
   const [niveaux, setNiveaux] = useState([]);
   const [filieres, setFilieres] = useState([]);
   const [anneeId, setAnneeId] = useState('');
   const [form, setForm] = useState({
-    nom: '', niveauOfficielId: '', filiereOfficielleId: '', capacite: 40, fraisScolarite: 0,
+    nom: '', niveauOfficielId: '', filiereOfficielleId: '', capacite: 40,
+    fraisInscription: 0, fraisMensuel: 0, nombreMois: 9,
   });
 
   const printClasseListe = () => {
@@ -46,7 +47,7 @@ const Classes = () => {
         table{width:100%;border-collapse:collapse;font-size:12px}
         th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f5f5f5}
       </style></head><body>
-      <h1>Liste de classe — ${detail.nom}</h1>
+      <h1>Liste de la classe ${detail.nom}</h1>
       <p class="meta">${detail.anneeScolaire?.libelle || ''} · ${rows.length} élève(s) · ${new Date().toLocaleDateString('fr-FR')}</p>
       <table><thead><tr><th>#</th><th>Matricule</th><th>Nom</th></tr></thead><tbody>${body || '<tr><td colspan="3">Aucun élève</td></tr>'}</tbody></table>
       <script>window.onload=function(){window.print();}</script>
@@ -95,18 +96,24 @@ const Classes = () => {
       return;
     }
     try {
+      const fi = parseFloat(form.fraisInscription) || 0;
+      const fm = parseFloat(form.fraisMensuel) || 0;
+      const nm = parseInt(form.nombreMois, 10) || 9;
       const payload = {
         nom: form.nom.trim(),
         niveauOfficielId: form.niveauOfficielId,
         capacite: parseInt(form.capacite, 10) || 40,
-        fraisScolarite: parseFloat(form.fraisScolarite) || 0,
+        fraisInscription: fi,
+        fraisMensuel: fm,
+        nombreMois: nm,
+        fraisScolarite: fm * nm,
       };
       if (anneeId) payload.anneeScolaireId = anneeId;
       if (form.filiereOfficielleId) payload.filiereOfficielleId = form.filiereOfficielleId;
 
       await post('/api/classes', payload);
       setCreateOpen(false);
-      setForm({ nom: '', niveauOfficielId: '', filiereOfficielleId: '', capacite: 40, fraisScolarite: 0 });
+      setForm({ nom: '', niveauOfficielId: '', filiereOfficielleId: '', capacite: 40, fraisInscription: 0, fraisMensuel: 0, nombreMois: 9 });
       toast.success('Classe créée');
       fetchClasses();
     } catch (err) {
@@ -121,17 +128,25 @@ const Classes = () => {
     setEditForm({
       nom: classe.nom || '',
       capacite: classe.capacite ?? 40,
-      fraisScolarite: Number(classe.fraisScolarite) || 0,
+      fraisInscription: Number(classe.fraisInscription) || 0,
+      fraisMensuel: Number(classe.fraisMensuel) || 0,
+      nombreMois: classe.nombreMois ?? 9,
     });
   };
 
   const handleEdit = async () => {
     if (!editOpen) return;
     try {
+      const fi = parseFloat(editForm.fraisInscription) || 0;
+      const fm = parseFloat(editForm.fraisMensuel) || 0;
+      const nm = parseInt(editForm.nombreMois, 10) || 9;
       await put(`/api/classes/${editOpen.id}`, {
         nom: editForm.nom,
         capacite: editForm.capacite,
-        fraisScolarite: editForm.fraisScolarite,
+        fraisInscription: fi,
+        fraisMensuel: fm,
+        nombreMois: nm,
+        fraisScolarite: fm * nm,
       });
       toast.success('Classe mise à jour');
       setEditOpen(null);
@@ -220,8 +235,11 @@ const Classes = () => {
               </div>
               <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
                 <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {classe.effectif || 0}/{classe.capacite}</span>
-                <span className="flex items-center gap-1"><BookOpen className="h-3.5 w-3.5" /> {classe.nbAffectations ?? classe.nbMatieres ?? 0} affectations</span>
-                <span>{formatPrice(classe.fraisScolarite || 0)}</span>
+                <span title={`Scolarité : ${formatPrice(classe.fraisScolarite || 0)}${Number(classe.fraisInscription || 0) > 0 ? ` + ${formatPrice(classe.fraisInscription)} inscr.` : ''}`}>
+                  {Number(classe.fraisMensuel || 0) > 0
+                    ? `${formatPrice(classe.fraisMensuel)}/m`
+                    : formatPrice(classe.fraisScolarite || 0)}
+                </span>
               </div>
             </div>
           ))
@@ -268,7 +286,7 @@ const Classes = () => {
                 .filter((n) => !allowedCycles.length || allowedCycles.includes(n.cycle))
                 .map((n) => (
                   <option key={n.id} value={n.id}>
-                    {n.libelle} ({n.code}) — {CYCLE_LABELS[n.cycle] || n.cycle}
+                    {n.libelle} ({n.code}) · {CYCLE_LABELS[n.cycle] || n.cycle}
                   </option>
                 ))}
             </Select>
@@ -285,9 +303,26 @@ const Classes = () => {
             <FormField label="Capacité">
               <Input type="number" value={form.capacite} onChange={(e) => setForm({ ...form, capacite: parseInt(e.target.value) || 0 })} />
             </FormField>
-            <FormField label="Frais de scolarité">
-              <Input type="number" value={form.fraisScolarite} onChange={(e) => setForm({ ...form, fraisScolarite: parseFloat(e.target.value) || 0 })} />
+            <FormField label="Nombre de mois" hint="Durée de la scolarité en mois">
+              <Input type="number" value={form.nombreMois} onChange={(e) => setForm({ ...form, nombreMois: parseInt(e.target.value) || 9 })} min={1} max={12} />
             </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Frais d'inscription (FCFA)" hint="Montant dû à l'inscription">
+              <Input type="number" value={form.fraisInscription} onChange={(e) => setForm({ ...form, fraisInscription: parseFloat(e.target.value) || 0 })} min={0} />
+            </FormField>
+            <FormField label="Mensualité (FCFA)" hint="Montant mensuel de scolarité">
+              <Input type="number" value={form.fraisMensuel} onChange={(e) => setForm({ ...form, fraisMensuel: parseFloat(e.target.value) || 0 })} min={0} />
+            </FormField>
+          </div>
+          <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'color-mix(in srgb, var(--color-primary) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Montant annuel : </span>
+            <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+              {formatPrice((parseFloat(form.fraisMensuel) || 0) * (parseInt(form.nombreMois) || 9) + (parseFloat(form.fraisInscription) || 0))}
+            </span>
+            <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
+              = {form.fraisMensuel ? `${formatPrice(parseFloat(form.fraisMensuel))} × ${form.nombreMois} mois` : '0 × mois'} + {formatPrice(parseFloat(form.fraisInscription) || 0)} inscr.
+            </span>
           </div>
         </div>
       </Modal>
@@ -313,9 +348,23 @@ const Classes = () => {
             <FormField label="Capacité">
               <Input type="number" value={editForm.capacite} onChange={(e) => setEditForm({ ...editForm, capacite: parseInt(e.target.value, 10) || 0 })} />
             </FormField>
-            <FormField label="Frais de scolarité">
-              <Input type="number" value={editForm.fraisScolarite} onChange={(e) => setEditForm({ ...editForm, fraisScolarite: parseFloat(e.target.value) || 0 })} />
+            <FormField label="Nombre de mois" hint="Durée de la scolarité en mois">
+              <Input type="number" value={editForm.nombreMois} onChange={(e) => setEditForm({ ...editForm, nombreMois: parseInt(e.target.value, 10) || 9 })} min={1} max={12} />
             </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Frais d'inscription (FCFA)">
+              <Input type="number" value={editForm.fraisInscription} onChange={(e) => setEditForm({ ...editForm, fraisInscription: parseFloat(e.target.value) || 0 })} min={0} />
+            </FormField>
+            <FormField label="Mensualité (FCFA)">
+              <Input type="number" value={editForm.fraisMensuel} onChange={(e) => setEditForm({ ...editForm, fraisMensuel: parseFloat(e.target.value) || 0 })} min={0} />
+            </FormField>
+          </div>
+          <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'color-mix(in srgb, var(--color-primary) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Montant annuel : </span>
+            <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+              {formatPrice((parseFloat(editForm.fraisMensuel) || 0) * (parseInt(editForm.nombreMois) || 9) + (parseFloat(editForm.fraisInscription) || 0))}
+            </span>
           </div>
         </div>
       </Modal>

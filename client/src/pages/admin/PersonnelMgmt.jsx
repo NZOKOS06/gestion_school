@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { useAxios } from '../../hooks/useAxios';
 import {
@@ -541,7 +541,7 @@ const PersonnelMgmt = () => {
               value={form.deviceBiometricId}
               onChange={(e) => setForm({ ...form, deviceBiometricId: e.target.value })}
               className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-              placeholder="Ex. 101 — optionnel"
+              placeholder="Ex. 101 (optionnel)"
             />
           </div>
         </form>

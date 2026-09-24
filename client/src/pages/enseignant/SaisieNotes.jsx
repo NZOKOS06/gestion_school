@@ -253,7 +253,7 @@ const SaisieNotes = () => {
         ]}
         data={displayed}
         loading={loading}
-        emptyMessage="Aucune évaluation — programmez un devoir pour commencer"
+        emptyMessage="Aucune évaluation. Programmez un devoir pour commencer."
       />
 
       <Modal
@@ -395,7 +395,7 @@ const SaisieNotes = () => {
                   </span>
                   {eleve.verrouillee && (
                     <span className="text-[11px] font-medium" style={{ color: 'var(--color-warning, #f59e0b)' }}>
-                      🔒 Verrouillé (&gt; 2h)
+                      {'Verrouillé (> 2h)'}
                     </span>
                   )}
                 </div>

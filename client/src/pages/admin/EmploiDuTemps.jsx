@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, Button, Modal } from '../../components/ui';
 import { Plus, AlertCircle } from 'lucide-react';
@@ -260,7 +260,7 @@ const EmploiDuTemps = () => {
           )}
           {isPrimaryCycle && (
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Cycle primaire / préscolaire : la matière suffit. Salle et enseignant sont optionnels — sans sélection, le titulaire assigné à la classe est utilisé.
+              Cycle primaire / préscolaire : la matière suffit. Salle et enseignant sont optionnels ; sans sélection, le titulaire assigné à la classe est utilisé.
             </p>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -275,7 +275,7 @@ const EmploiDuTemps = () => {
                 Salle{isPrimaryCycle ? ' (optionnel)' : ''}
               </label>
               <select style={inputStyle} value={form.salleId} onChange={(e) => setForm({ ...form, salleId: e.target.value })}>
-                <option value="">— Aucune —</option>
+                <option value="">Aucune</option>
                 {salles.map((s) => <option key={s.id} value={s.id}>{s.nom}{s.batiment ? ` (${s.batiment})` : ''}</option>)}
               </select>
             </div>
@@ -299,10 +299,10 @@ const EmploiDuTemps = () => {
           </div>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-              Enseignant{isPrimaryCycle ? ' (optionnel — titulaire de classe sinon)' : ''}
+              Enseignant{isPrimaryCycle ? ' (optionnel, titulaire de classe sinon)' : ''}
             </label>
             <select style={inputStyle} value={form.enseignantId} onChange={(e) => setForm({ ...form, enseignantId: e.target.value })}>
-              <option value="">{isPrimaryCycle ? '— Auto (titulaire classe) —' : 'Sélectionner'}</option>
+              <option value="">{isPrimaryCycle ? 'Auto (titulaire classe)' : 'Sélectionner'}</option>
               {staff.map((s) => <option key={s.id} value={s.id}>{s.prenom} {s.nom}</option>)}
             </select>
           </div>

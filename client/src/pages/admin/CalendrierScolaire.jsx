@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader, Badge, Button, Modal } from '../../components/ui';
@@ -208,7 +208,7 @@ const CalendrierScolaire = () => {
             </div>
           ) : (
             <span className="text-xs flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-              <Lock className="h-3.5 w-3.5" /> Lecture seule — modification réservée à la direction
+              <Lock className="h-3.5 w-3.5" /> Lecture seule : modification réservée à la direction
             </span>
           )
         }
@@ -271,7 +271,7 @@ const CalendrierScolaire = () => {
                   {event.titre}
                   {isRentree && (
                     <span className="text-xs ml-2 font-normal" style={{ color: 'var(--text-muted)' }}>
-                      (auto — année scolaire)
+                      (auto, année scolaire)
                     </span>
                   )}
                 </span>

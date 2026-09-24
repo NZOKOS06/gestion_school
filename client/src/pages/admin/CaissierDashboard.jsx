@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { Wallet, TrendingDown, AlertTriangle, TrendingUp, Users, ArrowUpRight, Printer } from 'lucide-react';
@@ -187,7 +187,7 @@ const CaissierDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Évolution recettes */}
         {evolution.length > 0 && (
-          <Card title="Évolution des recettes — 30 derniers jours" className="lg:col-span-2">
+          <Card title="Évolution des recettes (30 derniers jours)" className="lg:col-span-2">
             <div style={{ height: 240 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>

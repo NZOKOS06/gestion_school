@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, DataTable, Badge, Button } from '../../components/ui';
 import { Timer, Check, X, CheckCheck } from 'lucide-react';
@@ -82,7 +82,7 @@ const HeuresEnseignees = () => {
     <div className="space-y-6">
       <PageHeader
         title="Validation des heures"
-        subtitle="Heures issues du pointage — à valider avant la paie"
+        subtitle="Heures issues du pointage : à valider avant la paie"
         icon={Timer}
         actions={
           selected.length > 0 && (

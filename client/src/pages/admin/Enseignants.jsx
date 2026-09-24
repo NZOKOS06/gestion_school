@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { useAxios } from '../../hooks/useAxios';
 import {
@@ -171,7 +171,7 @@ const Enseignants = () => {
           return;
         }
         if (classesLiberees.length) {
-          toast(`Retiré de ${classesLiberees.join(', ')} — retour désormais impossible`, { icon: '⚠️' });
+          toast.warning(`Retiré de ${classesLiberees.join(', ')} : retour désormais impossible`);
         }
         toast.success(ok ? `Titulaire assigné (${ok} matière${ok > 1 ? 's' : ''})` : 'Affectations déjà présentes');
       } else {
@@ -184,7 +184,7 @@ const Enseignants = () => {
           classeId: assignForm.classeId,
         });
         if (res?.classesLiberees?.length) {
-          toast(`Retiré de ${res.classesLiberees.join(', ')} — retour désormais impossible`, { icon: '⚠️' });
+          toast.warning(`Retiré de ${res.classesLiberees.join(', ')} : retour désormais impossible`);
         }
         toast.success('Affectation enregistrée');
       }
@@ -376,7 +376,7 @@ const Enseignants = () => {
       <Modal
         open={assignOpen}
         onClose={() => setAssignOpen(false)}
-        title={selected ? `Affectations — ${selected.prenom} ${selected.nom}` : 'Affectations'}
+        title={selected ? `Affectations : ${selected.prenom} ${selected.nom}` : 'Affectations'}
         size="lg"
         footer={<Button variant="secondary" onClick={() => setAssignOpen(false)}>Fermer</Button>}
       >
@@ -402,7 +402,7 @@ const Enseignants = () => {
                   Matière{isTitulaireMode ? ' (optionnel)' : ''}
                 </label>
                 <select style={inputStyle} value={assignForm.matiereId} onChange={(e) => setAssignForm({ ...assignForm, matiereId: e.target.value })}>
-                  <option value="">{isTitulaireMode ? '— Toutes (titulaire) —' : 'Sélectionner'}</option>
+                  <option value="">{isTitulaireMode ? 'Toutes (titulaire)' : 'Sélectionner'}</option>
                   {matieres.filter((m) => m.actif !== false).map((m) => (
                     <option key={m.id} value={m.id}>{m.nom}</option>
                   ))}

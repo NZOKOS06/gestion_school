@@ -78,8 +78,9 @@ export default function InscriptionWizard({
     [classes, classeId]
   );
 
+  const fraisInscription = Number(selectedClasse?.fraisInscription || 0) || Number(fraisInscriptionDefault || 0);
   const fraisScolarite = Number(selectedClasse?.fraisScolarite || 0);
-  const totalFrais = Number(fraisInscriptionDefault || 0) + fraisScolarite;
+  const totalFrais = fraisInscription + fraisScolarite;
 
   const inputStyle = {
     width: '100%',
@@ -294,7 +295,7 @@ export default function InscriptionWizard({
                 >
                   <option value="">Sélectionner une classe</option>
                   {availableClasses.map((c) => (
-                    <option key={c.id} value={c.id}>{c.nom} ({c.cycle}) — {formatPrice(c.fraisScolarite || 0)}</option>
+                    <option key={c.id} value={c.id}>{c.nom} ({c.cycle}) · {formatPrice(c.fraisScolarite || 0)}</option>
                   ))}
                 </select>
               </div>
@@ -562,11 +563,13 @@ export default function InscriptionWizard({
                 <CreditCard className="h-3.5 w-3.5" /> Frais scolaires associés
               </h4>
               <div className="flex justify-between text-sm py-1 border-b border-[var(--border-subtle)]">
-                <span style={{ color: 'var(--text-secondary)' }}>Frais d'inscription de base</span>
-                <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatPrice(fraisInscriptionDefault)}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Frais d'inscription</span>
+                <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatPrice(fraisInscription)}</span>
               </div>
               <div className="flex justify-between text-sm py-1 border-b border-[var(--border-subtle)]">
-                <span style={{ color: 'var(--text-secondary)' }}>Frais de scolarité annuels ({selectedClasse?.nom})</span>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  Frais de scolarité ({selectedClasse?.nom || ''}{Number(selectedClasse?.fraisMensuel || 0) > 0 ? ` · ${formatPrice(selectedClasse.fraisMensuel)}/m` : ''})
+                </span>
                 <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatPrice(fraisScolarite)}</span>
               </div>
               <div className="flex justify-between text-base font-bold pt-1">

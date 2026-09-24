@@ -464,6 +464,9 @@ model Classe {
   filiereOfficielleId String?
   capacite        Int      @default(40)
   fraisScolarite  Decimal  @db.Decimal(12, 2)
+  fraisInscription Decimal @default(0) @db.Decimal(12, 2)
+  fraisMensuel    Decimal  @default(0) @db.Decimal(12, 2)
+  nombreMois      Int      @default(9)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
