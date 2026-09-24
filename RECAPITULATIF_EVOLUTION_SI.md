@@ -27,6 +27,7 @@ GestSchool est un SaaS scolaire multi-tenant sécurisé :
 | 17/09/2026 | **Cohérence Navigation UI** | Des modules désactivés par l'école restaient visibles dans la sidebar (ex: Salles) | Association systématique de chaque item de menu à son module (`module: 'emploiDuTemps'`, `module: 'salles'`, etc.) et filtrage strict dans `AppShell.jsx`. |
 | 17/09/2026 | **Stabilité Dashboards** | Erreurs 500 sur Dashboard, Paiements et Rapports | Audit et sécurisation des requêtes Prisma avec gestion résiliente de l'absence d'année scolaire active ou de données vides. |
 | 18/09/2026 | **Structure Financière des Classes** | Les frais étaient saisis sous forme d'un montant annuel brut unique sans distinction de l'inscription et des mensualités | Ajout de `fraisInscription`, `fraisMensuel` et `nombreMois` sur `Classe` (migration `20260918100000_classe_frais_detail`), calcul automatique transparent de la scolarité annuelle et intégration au wizard et aperçus d'inscription. |
+| 18/09/2026 | **Page Inscriptions** | `ReferenceError: selectedClasse is not defined` au chargement de la page | Rétablissement de la variable `selectedClasse` dérivée de `classesForAnnee` pour le calcul de l'aperçu financier. |
 
 ---
 
