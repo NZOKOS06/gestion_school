@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
@@ -142,7 +142,18 @@ const Bulletins = () => {
   }, [fetchBulletins, fetchStats]);
 
   const calculerMoyennes = async () => {
-    if (!selectedAnnee || !selectedClasse || selectedPeriode === '') return;
+    if (!selectedAnnee) {
+      toast.error('Sélectionnez une année scolaire');
+      return;
+    }
+    if (!selectedClasse) {
+      toast.error('Sélectionnez une classe');
+      return;
+    }
+    if (selectedPeriode === '' || selectedPeriode == null || isNaN(parseInt(selectedPeriode, 10))) {
+      toast.error('Sélectionnez une période valide');
+      return;
+    }
     setCalculating(true);
     try {
       const res = await post('/api/bulletins/calculer', {
@@ -157,8 +168,16 @@ const Bulletins = () => {
   };
 
   const genererPDFs = async () => {
+    if (!selectedAnnee) {
+      toast.error('Sélectionnez une année scolaire');
+      return;
+    }
     if (!selectedClasse) {
       toast.error('Sélectionnez une classe pour générer les bulletins');
+      return;
+    }
+    if (selectedPeriode === '' || selectedPeriode == null || isNaN(parseInt(selectedPeriode, 10))) {
+      toast.error('Sélectionnez une période valide');
       return;
     }
     setGenerating(true);
@@ -176,7 +195,18 @@ const Bulletins = () => {
   };
 
   const publier = async () => {
-    if (!selectedClasse) return;
+    if (!selectedAnnee) {
+      toast.error('Sélectionnez une année scolaire');
+      return;
+    }
+    if (!selectedClasse) {
+      toast.error('Sélectionnez une classe');
+      return;
+    }
+    if (selectedPeriode === '' || selectedPeriode == null || isNaN(parseInt(selectedPeriode, 10))) {
+      toast.error('Sélectionnez une période valide');
+      return;
+    }
     try {
       await put('/api/bulletins/publier', {
         anneeScolaireId: selectedAnnee,
@@ -397,10 +427,22 @@ const Bulletins = () => {
       {selectedClasse && (
         <Card title="Résultats de la classe">
           <div className="flex flex-wrap gap-2 mb-4">
-            <Button icon={FileDown} onClick={genererPDFs} loading={generating} disabled={!listeAffichee.length && !resultats.length}>
+            <Button
+              icon={FileDown}
+              onClick={genererPDFs}
+              loading={generating}
+              disabled={selectedPeriode === '' || (!listeAffichee.length && !resultats.length)}
+            >
               Générer les PDFs
             </Button>
-            <Button icon={CheckCircle} variant="secondary" onClick={publier}>Valider et publier</Button>
+            <Button
+              icon={CheckCircle}
+              variant="secondary"
+              onClick={publier}
+              disabled={selectedPeriode === '' || (!listeAffichee.length && !resultats.length)}
+            >
+              Valider et publier
+            </Button>
           </div>
           <DataTable
             columns={[

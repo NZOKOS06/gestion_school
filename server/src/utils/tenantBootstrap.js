@@ -160,29 +160,7 @@ export async function bootstrapTenantReferentiel(tenantId, prismaClient) {
       });
 
       // Périodes scolaires adaptées aux cycles choisis
-      for (const p of PERIODES_2025_2026) {
-        const concernsSec = p.concerneCycles?.some(c => ['college', 'lycee'].includes(c));
-        const concernsPrim = p.concerneCycles?.some(c => ['prescolaire', 'primaire'].includes(c));
-
-        // N'inclure que si le cycle est proposé par l'école
-        if (concernsSec && !isSecondaire) continue;
-        if (concernsPrim && !isPrimaire && p.index >= 10) continue;
-
-        await prismaClient.periodeScolaire.create({
-          data: {
-            tenantId,
-            anneeScolaireId: nouvelleAnnee.id,
-            index: p.index,
-            libelle: p.libelle,
-            dateDebut: new Date(p.dateDebut),
-            dateFin: new Date(p.dateFin),
-            dateEvaluationDebut: p.dateEvaluationDebut ? new Date(p.dateEvaluationDebut) : null,
-            dateEvaluationFin: p.dateEvaluationFin ? new Date(p.dateEvaluationFin) : null,
-            poids: p.poids || 1,
-            concerneCycles: p.concerneCycles || null,
-          },
-        });
-      }
+      await bootstrapPeriodesForAnnee(tenantId, nouvelleAnnee, prismaClient);
     }
 
     log.info({ tenantId }, 'Bootstrap tenant referentiel completed successfully');
@@ -190,5 +168,82 @@ export async function bootstrapTenantReferentiel(tenantId, prismaClient) {
   } catch (error) {
     log.error({ err: error, tenantId }, 'Failed to bootstrap tenant referentiel');
     return { ok: false, error: error.message };
+  }
+}
+
+/**
+ * Initialise les périodes scolaires officielles (Congolaises) pour une année donnée
+ * si aucune période n'existe encore. S'adapte aux cycles autorisés de l'établissement
+ * et ajuste les dates au millésime de l'année scolaire.
+ *
+ * @param {string} tenantId
+ * @param {object} annee - Instance AnneeScolaire (avec id, dateDebut, libelle)
+ * @param {import('@prisma/client').PrismaClient} prismaClient
+ */
+export async function bootstrapPeriodesForAnnee(tenantId, annee, prismaClient) {
+  try {
+    if (!tenantId || !annee?.id) return [];
+
+    const existingCount = await prismaClient.periodeScolaire.count({
+      where: { tenantId, anneeScolaireId: annee.id },
+    });
+    if (existingCount > 0) {
+      return prismaClient.periodeScolaire.findMany({
+        where: { tenantId, anneeScolaireId: annee.id },
+        orderBy: { index: 'asc' },
+      });
+    }
+
+    const tenantCycles = await getTenantCyclesConfig(tenantId, prismaClient);
+    const isPrimaire = isCycleAllowed('prescolaire', tenantCycles) || isCycleAllowed('primaire', tenantCycles);
+    const isSecondaire = isCycleAllowed('college', tenantCycles) || isCycleAllowed('lycee', tenantCycles);
+
+    // Année de départ pour le calcul du décalage (base 2025 pour PERIODES_2025_2026)
+    const baseYear = 2025;
+    const anneeYear = annee.dateDebut ? new Date(annee.dateDebut).getFullYear() : baseYear;
+    const yearDiff = anneeYear - baseYear;
+
+    const shiftDate = (dateStr) => {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      d.setFullYear(d.getFullYear() + yearDiff);
+      return d;
+    };
+
+    const periodesToCreate = [];
+    for (const p of PERIODES_2025_2026) {
+      const concernsSec = p.concerneCycles?.some((c) => ['college', 'lycee'].includes(c));
+      const concernsPrim = p.concerneCycles?.some((c) => ['prescolaire', 'primaire'].includes(c));
+
+      // N'inclure que si le cycle est proposé par l'école (si aucun cycle configuré, tout inclure)
+      if (concernsSec && !isSecondaire && isPrimaire) continue;
+      if (concernsPrim && !isPrimaire && isSecondaire && p.index >= 10) continue;
+
+      periodesToCreate.push({
+        tenantId,
+        anneeScolaireId: annee.id,
+        index: p.index,
+        libelle: p.libelle,
+        dateDebut: shiftDate(p.dateDebut),
+        dateFin: shiftDate(p.dateFin),
+        dateEvaluationDebut: shiftDate(p.dateEvaluationDebut),
+        dateEvaluationFin: shiftDate(p.dateEvaluationFin),
+        poids: p.poids || 1,
+        concerneCycles: p.concerneCycles || null,
+      });
+    }
+
+    for (const data of periodesToCreate) {
+      await prismaClient.periodeScolaire.create({ data });
+    }
+
+    log.info({ tenantId, anneeId: annee.id, count: periodesToCreate.length }, 'Périodes scolaires auto-générées pour l\'année');
+    return prismaClient.periodeScolaire.findMany({
+      where: { tenantId, anneeScolaireId: annee.id },
+      orderBy: { index: 'asc' },
+    });
+  } catch (err) {
+    log.error({ err, tenantId, anneeId: annee?.id }, 'Erreur lors du bootstrap des périodes de l\'année');
+    return [];
   }
 }

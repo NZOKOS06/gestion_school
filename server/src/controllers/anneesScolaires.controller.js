@@ -3,6 +3,7 @@ import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { syncEvenementRentree } from './calendrierScolaire.controller.js';
 import { ensureSingleActiveYear, syncActifFromStatut } from '../utils/anneeActive.js';
+import { bootstrapPeriodesForAnnee } from '../utils/tenantBootstrap.js';
 
 const log = createLogger('AnneesScolairesController');
 
@@ -179,6 +180,7 @@ export const create = async (req, res) => {
     });
 
     await syncEvenementRentree(tenantId, annee);
+    await bootstrapPeriodesForAnnee(tenantId, annee, prisma);
     await logAudit(req, 'annee_scolaire_created', 'AnneeScolaire', annee.id, { libelle });
 
     res.status(201).json(annee);

@@ -3,7 +3,7 @@ import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { filterByTenantCycles, getTenantCyclesConfig, isCycleAllowed } from '../utils/tenantCycles.js';
 import { buildCalendrierTemplatesFromPeriodes } from '../data/referentielCongo.js';
-import { bootstrapTenantReferentiel } from '../utils/tenantBootstrap.js';
+import { bootstrapTenantReferentiel, bootstrapPeriodesForAnnee } from '../utils/tenantBootstrap.js';
 
 const log = createLogger('ReferentielController');
 
@@ -134,6 +134,19 @@ export const listPeriodes = async (req, res) => {
     const { anneeScolaireId, cycle } = req.query;
     if (!anneeScolaireId) {
       return res.status(400).json({ error: 'anneeScolaireId requis' });
+    }
+
+    let count = await prisma.periodeScolaire.count({
+      where: { tenantId: req.tenantId, anneeScolaireId },
+    });
+
+    if (count === 0) {
+      const annee = await prisma.anneeScolaire.findFirst({
+        where: { id: anneeScolaireId, tenantId: req.tenantId },
+      });
+      if (annee) {
+        await bootstrapPeriodesForAnnee(req.tenantId, annee, prisma);
+      }
     }
 
     let periodes = await prisma.periodeScolaire.findMany({
