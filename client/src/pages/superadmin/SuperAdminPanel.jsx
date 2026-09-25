@@ -23,6 +23,7 @@ import KpiGrid from '../../components/ui/KpiGrid';
 import Modal from '../../components/ui/Modal';
 import SearchInput from '../../components/ui/SearchInput';
 import Badge from '../../components/ui/Badge';
+import { PwaNavButton } from '../../components/PwaInstallPrompt';
 import {
   PLANS,
   PALETTES,
@@ -939,6 +940,9 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
           <div className="flex items-center gap-2 md:gap-3">
             {/* Sélecteur de langue */}
             <div className="hidden sm:block"><LanguagePicker /></div>
+
+            {/* Bouton installation PWA */}
+            <PwaNavButton />
 
             {/* Toggle thème */}
             <SuperAdminThemeToggle />
