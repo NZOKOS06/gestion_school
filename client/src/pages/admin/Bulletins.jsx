@@ -186,10 +186,13 @@ const Bulletins = () => {
         anneeScolaireId: selectedAnnee,
         classeId: selectedClasse,
         periodeIndex: parseInt(selectedPeriode, 10),
+        sync: true,
+        forceSync: true,
       });
-      toast.success('Bulletins PDF générés');
-      fetchBulletins();
-      fetchStats();
+      toast.success('Bulletins PDF générés avec succès');
+      setResultats([]);
+      await fetchBulletins();
+      await fetchStats();
     } catch { /* toast via useAxios */ }
     setGenerating(false);
   };
@@ -218,11 +221,48 @@ const Bulletins = () => {
     } catch { /* toast via useAxios */ }
   };
 
-  const openPdf = async (bulletinId) => {
+  const openPdf = async (rowOrId) => {
+    let bulletinId = typeof rowOrId === 'string' ? rowOrId : (rowOrId?.id || rowOrId?.bulletinId);
+    const row = typeof rowOrId === 'object' ? rowOrId : null;
+
+    // 1. Chercher si un bulletin existe déjà pour cet élève dans les bulletins chargés
+    if (!bulletinId && row?.eleveId) {
+      const match = (bulletins || []).find((b) => b.eleveId === row.eleveId);
+      if (match?.id) {
+        bulletinId = match.id;
+      }
+    }
+
+    // 2. Si toujours non trouvé mais qu'on a l'élève et la sélection, générer à la volée !
+    if (!bulletinId && row?.eleveId && selectedAnnee && selectedClasse && selectedPeriode !== '') {
+      const toastId = toast.loading('Génération du bulletin PDF...');
+      try {
+        const res = await post('/api/bulletins/generate', {
+          eleveId: row.eleveId,
+          classeId: selectedClasse,
+          anneeScolaireId: selectedAnnee,
+          periodeIndex: parseInt(selectedPeriode, 10),
+        });
+        toast.dismiss(toastId);
+        const newBulletin = res?.data || res;
+        if (newBulletin?.id) {
+          bulletinId = newBulletin.id;
+          toast.success('Bulletin généré avec succès');
+          fetchBulletins();
+          fetchStats();
+        }
+      } catch (err) {
+        toast.dismiss(toastId);
+        toast.error(err?.response?.data?.error || 'Erreur lors de la génération du bulletin');
+        return;
+      }
+    }
+
     if (!bulletinId) {
       toast.error('Générez d’abord le bulletin PDF');
       return;
     }
+
     try {
       const res = await axiosInstance.get(`/api/bulletins/${bulletinId}/pdf`, {
         responseType: 'blob',
@@ -276,7 +316,18 @@ const Bulletins = () => {
   };
 
   const listeAffichee = useMemo(() => {
-    if (resultats.length) return resultats;
+    if (resultats.length) {
+      return resultats.map((r) => {
+        const b = (bulletins || []).find((x) => x.eleveId === r.eleveId);
+        return {
+          ...r,
+          id: b?.id || r.id,
+          bulletinId: b?.id || r.bulletinId,
+          valide: b?.valide !== undefined ? b.valide : r.valide,
+          pdfUrl: b?.pdfUrl || r.pdfUrl,
+        };
+      });
+    }
     return (bulletins || []).map((b) => ({
       ...b,
       eleveId: b.eleveId,
@@ -489,7 +540,7 @@ const Bulletins = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => openPdf(row.id || row.bulletinId)}
+                      onClick={() => openPdf(row)}
                       className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]"
                       title="Impression PDF"
                     >
@@ -513,8 +564,8 @@ const Bulletins = () => {
         footer={
           <>
             <Button variant="secondary" onClick={() => setDetail(null)}>Fermer</Button>
-            {(detail?.id || detail?.bulletinId) && (
-              <Button icon={Printer} onClick={() => openPdf(detail.id || detail.bulletinId)}>Impression</Button>
+            {(detail?.id || detail?.bulletinId || detail?.eleveId) && (
+              <Button icon={Printer} onClick={() => openPdf(detail)}>Impression PDF</Button>
             )}
           </>
         }

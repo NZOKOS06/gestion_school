@@ -291,13 +291,14 @@ export const getJobStatus = async (req, res) => {
 export const genererMasse = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { anneeScolaireId, classeId, periodeIndex, sync: forceSync } = req.body;
+    const { anneeScolaireId, classeId, periodeIndex, sync, forceSync } = req.body;
+    const shouldSync = !!(forceSync || sync || req.query.sync === 'true');
     if (!anneeScolaireId || !classeId || periodeIndex == null) {
       return res.status(400).json({ error: 'anneeScolaireId, classeId et periodeIndex requis' });
     }
 
-    // Mode Asynchrone par défaut pour immuniser le serveur contre les OOM (512 Mo)
-    if (!forceSync) {
+    // Mode Asynchrone par défaut si non forcé en synchrone
+    if (!shouldSync) {
       const { enqueueBulletinMasse } = await import('../services/bulletinQueue.service.js');
       const { jobId } = await enqueueBulletinMasse(tenantId, {
         anneeScolaireId,
@@ -338,8 +339,11 @@ export const genererMasse = async (req, res) => {
       created.push(bulletin);
     }
 
+    const classe = await prisma.classe.findUnique({ where: { id: classeId }, select: { nom: true } });
+
     await logAudit(req, 'bulletins_generated_masse', 'Bulletin', null, {
       classeId,
+      classeNom: classe?.nom,
       periodeIndex,
       count: created.length,
     });

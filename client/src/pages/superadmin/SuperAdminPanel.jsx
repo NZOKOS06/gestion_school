@@ -1601,25 +1601,30 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
             {/* Stats rapides */}
             {auditStats && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
-                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                  <p className="text-xs text-slate-500">Mouvements</p>
-                  <p className="text-xl font-bold text-slate-900">{auditStats.totalMouvements?.toLocaleString('fr-FR') || 0}</p>
+                <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+                  <p className="text-xs text-blue-700 font-medium">Flux total</p>
+                  <p className="text-xl font-bold text-blue-900">{auditStats.totalMouvements?.toLocaleString('fr-FR') || 0}</p>
                 </div>
-                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                  <p className="text-xs text-slate-500">Paiements</p>
-                  <p className="text-xl font-bold text-slate-900">{auditStats.totalPaiements?.toLocaleString('fr-FR') || 0}</p>
+                <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <p className="text-xs text-emerald-700 font-medium">Paiements</p>
+                  <div className="flex items-baseline gap-1.5">
+                    <p className="text-xl font-bold text-emerald-900">{auditStats.totalPaiements?.toLocaleString('fr-FR') || 0}</p>
+                    {auditStats.totalPaiementsMontant > 0 && (
+                      <span className="text-[11px] font-semibold text-emerald-700">({(auditStats.totalPaiementsMontant).toLocaleString('fr-FR')} F)</span>
+                    )}
+                  </div>
                 </div>
-                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                  <p className="text-xs text-slate-500">Inscriptions</p>
-                  <p className="text-xl font-bold text-slate-900">{auditStats.totalInscriptions?.toLocaleString('fr-FR') || 0}</p>
+                <div className="p-4 rounded-lg bg-sky-50 border border-sky-200">
+                  <p className="text-xs text-sky-700 font-medium">Inscriptions</p>
+                  <p className="text-xl font-bold text-sky-900">{auditStats.totalInscriptions?.toLocaleString('fr-FR') || 0}</p>
                 </div>
-                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                  <p className="text-xs text-slate-500">Communications</p>
-                  <p className="text-xl font-bold text-slate-900">{auditStats.totalCommunications?.toLocaleString('fr-FR') || 0}</p>
+                <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
+                  <p className="text-xs text-indigo-700 font-medium">Notes & Bulletins</p>
+                  <p className="text-xl font-bold text-indigo-900">{auditStats.totalBulletins?.toLocaleString('fr-FR') || 0}</p>
                 </div>
-                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                  <p className="text-xs text-slate-500">Inscriptions</p>
-                  <p className="text-xl font-bold text-slate-900">{auditStats.totalInscriptions?.toLocaleString('fr-FR') || 0}</p>
+                <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                  <p className="text-xs text-amber-700 font-medium">Communications</p>
+                  <p className="text-xl font-bold text-amber-900">{auditStats.totalCommunications?.toLocaleString('fr-FR') || 0}</p>
                 </div>
                 <div
                   className="p-4 rounded-lg bg-green-50 border border-green-200 cursor-pointer hover:bg-green-100 transition-colors shadow-sm"
@@ -1714,12 +1719,12 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
                 className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-900"
               >
                 <option value="all">Tous les types d'opération</option>
-                <option value="action_admin">Actions admin</option>
-                <option value="session">Sessions (Connexions)</option>
-                <option value="paiement">Paiements</option>
-                <option value="inscription">Inscriptions</option>
-                <option value="communication">Communications</option>
+                <option value="action_admin">Actions admin & gestion</option>
+                <option value="session">Sessions & Connexions</option>
+                <option value="paiement">Paiements & Encaissements</option>
+                <option value="inscription">Inscriptions & Admissions</option>
                 <option value="note">Notes & Bulletins</option>
+                <option value="communication">Communications & Relances</option>
               </select>
               <input
                 type="date"
@@ -1769,31 +1774,31 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
                     ) : (
                       auditLogs.map((log) => (
                         <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                          <td className="px-4 py-3 whitespace-nowrap text-slate-700">
+                          <td className="px-4 py-3 whitespace-nowrap text-slate-700 text-xs font-mono">
                             {new Date(log.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="font-medium text-slate-900">{log.tenant?.nom || '—'}</span>
+                            <span className="font-semibold text-slate-900">{log.etablissement || log.tenant?.nom || 'GestSchool System'}</span>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <Badge variant={log.color || 'neutral'}>
-                              {log.type === 'action_admin' ? 'Admin' :
-                               log.type === 'paiement' ? 'Paiement' :
-                               log.type === 'inscription' ? 'Inscription' :
-                               log.type === 'communication' ? 'Communication' :
-                               log.type === 'note' ? 'Note' : log.type}
+                              {log.subType || log.type}
                             </Badge>
-                            {log.subType && log.subType !== log.type && (
-                              <span className="ml-1 text-xs text-slate-500">({log.subType})</span>
-                            )}
                           </td>
-                          <td className="px-4 py-3 text-slate-700 max-w-xs truncate" title={log.entity}>{log.entity || '—'}</td>
+                          <td className="px-4 py-3 text-slate-800 font-medium max-w-xs truncate" title={log.entity}>{log.entity || '—'}</td>
                           <td className="px-4 py-3 text-slate-600 font-mono text-xs">{log.reference || '—'}</td>
-                          <td className="px-4 py-3 text-slate-700">{log.quantite ?? '—'}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-slate-600">
-                            {log.actor ? `${log.actor.prenom || ''} ${log.actor.nom || ''}`.trim() : '—'}
+                          <td className="px-4 py-3 text-slate-700 font-medium">{log.quantite ?? '—'}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-slate-700">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-slate-900">
+                                {typeof log.actor === 'object' ? (log.actor.displayName || `${log.actor.prenom || ''} ${log.actor.nom || ''}`.trim() || 'Système') : (log.actor || '—')}
+                              </span>
+                              {log.actor?.role && (
+                                <span className="text-[11px] text-slate-500 capitalize">{log.actor.role}</span>
+                              )}
+                            </div>
                           </td>
-                          <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={log.note}>{log.note || '—'}</td>
+                          <td className="px-4 py-3 text-slate-600 max-w-md" title={log.note}>{log.note || '—'}</td>
                         </tr>
                       ))
                     )}
