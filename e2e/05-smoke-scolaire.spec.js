@@ -12,21 +12,21 @@ test.describe('Smoke scolaire', () => {
     await page.goto('/admin/dashboard')
     await expect(
       page.locator('[data-testid="page-dashboard"]')
-        .or(page.getByRole('heading', { name: /tableau de bord/i }))
+        .or(page.getByRole('heading', { name: /tableau de bord/i })).first()
     ).toBeVisible({ timeout: 20000 })
 
     // ── Inscriptions ─────────────────────────────────────────
     await page.goto('/admin/inscriptions')
     await expect(
       page.locator('[data-testid="page-inscriptions"]')
-        .or(page.getByRole('heading', { name: /inscriptions/i }))
+        .or(page.getByRole('heading', { name: /inscriptions/i })).first()
     ).toBeVisible({ timeout: 20000 })
 
     // ── Paiements (directeur seul) ────────────────────────────
     await page.goto('/admin/paiements')
     await expect(
       page.locator('[data-testid="page-paiements"]')
-        .or(page.getByRole('heading', { name: /paiements|journal/i }))
+        .or(page.getByRole('heading', { name: /paiements|journal/i })).first()
     ).toBeVisible({ timeout: 20000 })
   })
 
@@ -37,13 +37,13 @@ test.describe('Smoke scolaire', () => {
     await page.goto('/caissier')
     await expect(
       page.locator('[data-testid="page-caissier-dashboard"]')
-        .or(page.getByRole('heading', { name: /tableau de bord|gestionnaire/i }))
+        .or(page.getByRole('heading', { name: /tableau de bord|gestionnaire/i })).first()
     ).toBeVisible({ timeout: 20000 })
 
     await page.goto('/caissier/historique')
     await expect(
       page.locator('[data-testid="page-paiements"]')
-        .or(page.getByRole('heading', { name: /journal|paiements/i }))
+        .or(page.getByRole('heading', { name: /journal|paiements/i })).first()
     ).toBeVisible({ timeout: 20000 })
   })
 
@@ -52,7 +52,7 @@ test.describe('Smoke scolaire', () => {
     await page.goto('/admin/inscriptions')
     await expect(
       page.locator('[data-testid="page-inscriptions"]')
-        .or(page.getByRole('heading', { name: /inscriptions/i }))
+        .or(page.getByRole('heading', { name: /inscriptions/i })).first()
     ).toBeVisible({ timeout: 20000 })
   })
 })

@@ -12,7 +12,7 @@ test.describe('Rapports', () => {
 
     await expect(
       page.locator('[data-testid="page-dashboard"]')
-        .or(page.getByText(/Tableau de bord|dashboard/i).first())
+        .or(page.getByText(/Tableau de bord|dashboard/i).first()).first()
     ).toBeVisible({ timeout: 20000 })
 
     await page.goto('/admin/rapports')
