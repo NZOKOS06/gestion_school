@@ -650,28 +650,6 @@ const Configuration = () => {
             <p className="text-xs text-[var(--text-secondary)]">
               En-tête officiel des bulletins (laisser vide pour reprendre celui du pays) et format d'impression des reçus.
             </p>
-            <label className="inline-block text-xs text-[var(--primary)] cursor-pointer underline">
-              Analyser un document existant (photo d'un bulletin ou reçu)
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="hidden"
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = '';
-                  if (!f) return;
-                  const fd = new FormData();
-                  fd.append('document', f);
-                  try {
-                    const res = await post(`/api/config/${slug}/analyser-document`, fd);
-                    if (res?.data) {
-                      updateForm('documentsConfig', { ...(form.documentsConfig || {}), ...res.data });
-                      toast.success('Proposition appliquée : vérifiez, corrigez puis enregistrez');
-                    }
-                  } catch { /* message affiché par useAxios */ }
-                }}
-              />
-            </label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[['etat', "Ligne 1 (ex. RÉPUBLIQUE DU CONGO)"], ['devise', 'Ligne 2 (devise nationale)'], ['ministere', 'Ligne 3 (ministère de tutelle)']].map(([k, label]) => (
                 <input

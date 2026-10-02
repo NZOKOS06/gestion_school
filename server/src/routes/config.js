@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { authenticate, requireRole } from '../middleware/authMiddleware.js';
 import { requireCloudinary } from '../utils/cloudinary.js';
 import * as ctrl from '../controllers/config.controller.js';
-import { uploadMemoire, analyserDocument } from '../controllers/documentAnalyse.controller.js';
 
 const router = Router();
 
@@ -27,12 +26,4 @@ router.post(
 );
 
 
-// POST /api/config/:slug/analyser-document — analyse IA d'un document existant (proposition à valider)
-router.post(
-  '/:slug/analyser-document',
-  authenticate,
-  requireRole('directeur', 'super_admin'),
-  uploadMemoire,
-  analyserDocument
-);
 export default router;
