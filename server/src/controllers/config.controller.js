@@ -15,6 +15,7 @@ const SCHEMA_CONFIG_FIELDS = new Set([
   'anneeScolaireActiveId', 'notationSur', 'seuilReussite', 'nombrePeriodes', 'conventionPeriode',
   'joursEcole', 'heureDebut', 'heureFin',
   'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault',
+  'regimesActifs', 'cantineActive', 'cantinePeriodicite', 'tarifCantine',
   'moduleNotes', 'moduleBulletins', 'modulePresences', 'modulePaiements',
   'moduleEmploiDuTemps', 'moduleParents', 'moduleEleves', 'moduleSanctions',
   'moduleBiblio', 'moduleCantine', 'moduleTransport', 'moduleCertificats',
@@ -61,7 +62,7 @@ const sanitizeConfigBody = (body) => {
       continue;
     }
     if (typeof value === 'boolean' || value === 'true' || value === 'false') {
-      if (key.startsWith('module') || ['darkModeDefault', 'forcer2FA', 'cookieBannerEnabled', 'analyticsEnabled'].includes(key)) {
+      if (key.startsWith('module') || ['darkModeDefault', 'forcer2FA', 'cookieBannerEnabled', 'analyticsEnabled', 'regimesActifs', 'cantineActive'].includes(key)) {
         config[key] = value === true || value === 'true' || value === 1 || value === '1';
         continue;
       }
@@ -72,6 +73,10 @@ const sanitizeConfigBody = (body) => {
       if (config[key] === undefined) delete config[key];
       continue;
     }
+    if (key === 'cantinePeriodicite') {
+      config[key] = value === 'trimestrielle' ? 'trimestrielle' : 'mensuelle';
+      continue;
+    }
     if (key === 'concerneCycles') {
       if (Array.isArray(value)) {
         config[key] = value.length ? value : null;
@@ -80,7 +85,7 @@ const sanitizeConfigBody = (body) => {
       }
       continue;
     }
-    if (['seuilReussite', 'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault'].includes(key)) {
+    if (['seuilReussite', 'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault', 'tarifCantine'].includes(key)) {
       const num = parseFloat(value);
       config[key] = Number.isNaN(num) ? undefined : num;
       if (config[key] === undefined) delete config[key];
@@ -226,6 +231,10 @@ export const getBySlug = async (req, res) => {
       heureFin: cfg?.heureFin || '17:00',
       fraisInscriptionDefault: num(cfg?.fraisInscriptionDefault, 0),
       fraisReinscriptionDefault: num(cfg?.fraisReinscriptionDefault, 0),
+      regimesActifs: cfg?.regimesActifs ?? false,
+      cantineActive: cfg?.cantineActive ?? false,
+      cantinePeriodicite: cfg?.cantinePeriodicite || 'mensuelle',
+      tarifCantine: num(cfg?.tarifCantine, 0),
       fraisScolariteDefault: num(cfg?.fraisScolariteDefault, 0),
       moduleNotes: cfg?.moduleNotes ?? true,
       moduleBulletins: cfg?.moduleBulletins ?? true,

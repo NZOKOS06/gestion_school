@@ -1,5 +1,5 @@
 import { prisma } from '../utils/prisma.js';
-import { syncInscriptionSolde, monthsInRange, libelleMois } from './echeances.service.js';
+import { syncInscriptionSolde, monthsInRange, libelleMois, categorieEcheance, periodesCantine } from './echeances.service.js';
 
 /**
  * Tarification d'une inscription.
@@ -9,6 +9,8 @@ import { syncInscriptionSolde, monthsInRange, libelleMois } from './echeances.se
  *   classe.fraisReinscription → config.fraisReinscriptionDefault → frais d'inscription ci-dessous
  * - inscription : classe.fraisInscription → config.fraisInscriptionDefault
  * Scolarité : classe.fraisScolarite → config.fraisScolariteDefault
+ *   (régime mi-temps, si activé par l'école : classe.fraisScolariteMiTemps)
+ * Cantine (option école) : config.tarifCantine par période (mois ou trimestre)
  *
  * Les montants peuvent être modifiés pour un élève (tarif spécial, cas sociaux) :
  * un motif est alors obligatoire et l'inscription est marquée `tarifSpecial`.
@@ -45,14 +47,29 @@ export async function estReinscription(db, tenantId, eleveId, anneeScolaireId) {
  * Calcule le tarif par défaut (sans dérogation).
  * `typeFrais` peut être forcé ('inscription' | 'reinscription') ; sinon il est détecté.
  */
-export async function resolveFees(tenantId, classeId, { eleveId = null, anneeScolaireId = null, typeFrais = null, db = null } = {}) {
+export async function resolveFees(tenantId, classeId, {
+  eleveId = null, anneeScolaireId = null, typeFrais = null, regime = null, cantine = false, db = null,
+} = {}) {
   const client = db || prisma;
   const [classe, config] = await Promise.all([
     client.classe.findFirst({ where: { id: classeId, tenantId } }),
     client.tenantConfig.findUnique({ where: { tenantId } }),
   ]);
 
-  const fraisScolarite = num(classe?.fraisScolarite ?? config?.fraisScolariteDefault);
+  const regimesActifs = Boolean(config?.regimesActifs);
+  const regimeRetenu = regimesActifs && regime === 'mi_temps' ? 'mi_temps' : 'plein_temps';
+  const scolaritePleinTemps = num(classe?.fraisScolarite ?? config?.fraisScolariteDefault);
+  const scolariteMiTemps = num(classe?.fraisScolariteMiTemps);
+  if (regimeRetenu === 'mi_temps' && scolariteMiTemps <= 0) {
+    throw new FraisError("Le tarif mi-temps de cette classe n'est pas renseigné");
+  }
+  const fraisScolarite = regimeRetenu === 'mi_temps' ? scolariteMiTemps : scolaritePleinTemps;
+
+  const cantineActive = Boolean(config?.cantineActive);
+  const tarifCantine = num(config?.tarifCantine);
+  if (cantine && (!cantineActive || tarifCantine <= 0)) {
+    throw new FraisError("La cantine n'est pas activée ou son tarif n'est pas renseigné");
+  }
 
   const type = typeFrais === 'inscription' || typeFrais === 'reinscription'
     ? typeFrais
@@ -80,6 +97,12 @@ export async function resolveFees(tenantId, classeId, { eleveId = null, anneeSco
     fraisInscription: retenu.montant,
     sourceFraisInscription: retenu.source,
     fraisScolarite,
+    regime: regimeRetenu,
+    regimesActifs,
+    cantine: Boolean(cantine),
+    cantineActive,
+    tarifCantine,
+    cantinePeriodicite: config?.cantinePeriodicite === 'trimestrielle' ? 'trimestrielle' : 'mensuelle',
   };
 }
 
@@ -127,11 +150,20 @@ export function champsTarifInscription(fees) {
     fraisScolariteApplique: fees.fraisScolarite,
     tarifSpecial: Boolean(fees.tarifSpecial),
     motifTarifSpecial: fees.motifTarifSpecial || null,
+    regime: fees.regime || 'plein_temps',
+    cantine: Boolean(fees.cantine),
+    tarifCantineApplique: fees.cantine ? fees.tarifCantine : null,
   };
 }
 
+/** Options cantine à passer à generateForInscription */
+export function optionsCantine(fees) {
+  return fees.cantine
+    ? { montantParPeriode: fees.tarifCantine, periodicite: fees.cantinePeriodicite }
+    : null;
+}
+
 const r2 = (n) => Math.round(n * 100) / 100;
-const isFraisEntree = (libelle) => /inscription/i.test(libelle || '');
 
 /**
  * Modifie le tarif d'une inscription existante sans toucher aux montants déjà payés :
@@ -139,11 +171,11 @@ const isFraisEntree = (libelle) => /inscription/i.test(libelle || '');
  * - échéances de scolarité : le reste dû (nouvelle scolarité − déjà payé) est réparti
  *   sur les échéances non soldées.
  */
-export async function modifierTarifInscription(tx, tenantId, inscription, { fraisInscription, fraisScolarite, motifTarifSpecial, tarifSpecial }) {
-  const echeances = await tx.echeance.findMany({
+export async function modifierTarifInscription(tx, tenantId, inscription, { fraisInscription, fraisScolarite, motifTarifSpecial, tarifSpecial, regime = null }) {
+  const echeances = (await tx.echeance.findMany({
     where: { tenantId, inscriptionId: inscription.id, statut: { not: 'annulee' } },
     orderBy: { dateEcheance: 'asc' },
-  });
+  })).filter((e) => categorieEcheance(e) !== 'cantine');
 
   const now = new Date();
   const statutPour = (attendu, paye, due) => (
@@ -151,7 +183,7 @@ export async function modifierTarifInscription(tx, tenantId, inscription, { frai
   );
 
   // 1. Frais d'entrée
-  const entree = echeances.find((e) => isFraisEntree(e.libelle));
+  const entree = echeances.find((e) => categorieEcheance(e) === 'inscription');
   if (entree) {
     const paye = num(entree.montantPaye);
     if (fraisInscription < paye - 0.01) {
@@ -169,6 +201,7 @@ export async function modifierTarifInscription(tx, tenantId, inscription, { frai
         tenantId,
         inscriptionId: inscription.id,
         libelle: inscription.typeFrais === 'reinscription' ? 'Frais de réinscription' : "Frais d'inscription",
+        categorie: 'inscription',
         montantAttendu: fraisInscription,
         dateEcheance: due,
         montantPaye: 0,
@@ -178,7 +211,7 @@ export async function modifierTarifInscription(tx, tenantId, inscription, { frai
   }
 
   // 2. Scolarité
-  const scolarite = echeances.filter((e) => !isFraisEntree(e.libelle));
+  const scolarite = echeances.filter((e) => categorieEcheance(e) === 'scolarite');
   if (!scolarite.length && fraisScolarite > 0) {
     // Inscription créée sans scolarité : on génère les mensualités de l'année
     const annee = await tx.anneeScolaire.findUnique({ where: { id: inscription.anneeScolaireId } });
@@ -191,6 +224,7 @@ export async function modifierTarifInscription(tx, tenantId, inscription, { frai
         tenantId,
         inscriptionId: inscription.id,
         libelle: libelleMois(d),
+        categorie: 'scolarite',
         montantAttendu: i === months.length - 1 ? r2(fraisScolarite - monthly * (months.length - 1)) : monthly,
         dateEcheance: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 5, 12, 0, 0)),
         montantPaye: 0,
@@ -230,8 +264,84 @@ export async function modifierTarifInscription(tx, tenantId, inscription, { frai
       fraisScolariteApplique: fraisScolarite,
       tarifSpecial: Boolean(tarifSpecial),
       motifTarifSpecial: tarifSpecial ? motifTarifSpecial : null,
+      ...(regime ? { regime } : {}),
     },
   });
+
+  return syncInscriptionSolde(tx, tenantId, inscription.id);
+}
+
+/**
+ * Périodes de cantine encore à facturer à une date donnée : la période en cours
+ * (mois courant, ou trimestre dont le premier mois a commencé) et les suivantes.
+ */
+export function periodesRestantes(periodes, periodicite, maintenant = new Date()) {
+  const debutMoisCourant = Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth(), 1);
+  const dureeMois = periodicite === 'trimestrielle' ? 3 : 1;
+  return periodes.filter((p) => {
+    const d = p.dateEcheance;
+    const finPeriode = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + dureeMois, 1);
+    return finPeriode > debutMoisCourant;
+  });
+}
+
+/**
+ * Souscription / résiliation de la cantine en cours d'année.
+ * - souscription : échéances de cantine à partir de la période en cours ;
+ * - résiliation : les périodes à venir non soldées sont arrêtées (le déjà payé reste acquis),
+ *   les périodes passées restent dues.
+ */
+export async function changerCantine(tx, tenantId, inscription, { active, montantParPeriode, periodicite, maintenant = new Date() }) {
+  const existantes = (await tx.echeance.findMany({
+    where: { tenantId, inscriptionId: inscription.id, statut: { not: 'annulee' } },
+    orderBy: { dateEcheance: 'asc' },
+  })).filter((e) => categorieEcheance(e) === 'cantine');
+
+  if (active) {
+    if (existantes.length) throw new FraisError('Cet élève est déjà inscrit à la cantine');
+    if (!(montantParPeriode > 0)) throw new FraisError('Tarif de cantine invalide');
+
+    const annee = await tx.anneeScolaire.findUnique({ where: { id: inscription.anneeScolaireId } });
+    const debut = annee?.dateDebut ? new Date(annee.dateDebut) : maintenant;
+    const fin = annee?.dateFin ? new Date(annee.dateFin) : new Date(debut.getTime() + 270 * 86400000);
+    const periodes = periodesRestantes(periodesCantine(debut, fin, periodicite), periodicite, maintenant);
+    if (!periodes.length) throw new FraisError('Plus aucune période de cantine pour cette année scolaire');
+
+    await tx.echeance.createMany({
+      data: periodes.map((p) => ({
+        tenantId,
+        inscriptionId: inscription.id,
+        libelle: p.libelle,
+        categorie: 'cantine',
+        montantAttendu: montantParPeriode,
+        dateEcheance: p.dateEcheance,
+        montantPaye: 0,
+        statut: 'en_attente',
+      })),
+    });
+    await tx.inscription.update({
+      where: { id: inscription.id },
+      data: { cantine: true, tarifCantineApplique: montantParPeriode },
+    });
+  } else {
+    // On arrête les périodes qui commencent après le mois en cours
+    const debutMoisSuivant = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth() + 1, 1));
+    for (const e of existantes) {
+      const paye = num(e.montantPaye);
+      if (e.dateEcheance >= debutMoisSuivant && paye < num(e.montantAttendu) - 0.01) {
+        await tx.echeance.update({
+          where: { id: e.id },
+          data: paye > 0
+            ? { montantAttendu: paye, statut: 'payee' }
+            : { montantAttendu: 0, statut: 'annulee' },
+        });
+      }
+    }
+    await tx.inscription.update({
+      where: { id: inscription.id },
+      data: { cantine: false },
+    });
+  }
 
   return syncInscriptionSolde(tx, tenantId, inscription.id);
 }

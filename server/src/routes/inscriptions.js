@@ -49,6 +49,16 @@ router.put('/:id/tarif',
   ctrl.updateTarif
 );
 
+// Cantine : souscription / résiliation en cours d'année
+router.put('/:id/cantine',
+  authenticate,
+  requireRole('directeur', 'secretaire', 'comptable'),
+  requireTenantMatch,
+  requireModule('inscriptions'),
+  idParamValidator,
+  ctrl.updateCantine
+);
+
 router.post('/avec-eleve',
   authenticate,
   requireRole('directeur', 'directeur_etudes', 'secretaire'),

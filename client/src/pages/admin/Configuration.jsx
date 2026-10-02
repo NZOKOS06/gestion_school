@@ -113,6 +113,10 @@ const Configuration = () => {
     fraisInscriptionDefault: 0,
     fraisReinscriptionDefault: 0,
     fraisScolariteDefault: 0,
+    regimesActifs: false,
+    cantineActive: false,
+    cantinePeriodicite: 'mensuelle',
+    tarifCantine: 0,
     moduleRapports: true,
     moduleActualites: false
   });
@@ -203,6 +207,10 @@ const Configuration = () => {
         fraisInscriptionDefault: parseFloat(form.fraisInscriptionDefault) || 0,
         fraisReinscriptionDefault: parseFloat(form.fraisReinscriptionDefault) || 0,
         fraisScolariteDefault: parseFloat(form.fraisScolariteDefault) || 0,
+        regimesActifs: Boolean(form.regimesActifs),
+        cantineActive: Boolean(form.cantineActive),
+        cantinePeriodicite: form.cantinePeriodicite === 'trimestrielle' ? 'trimestrielle' : 'mensuelle',
+        tarifCantine: parseFloat(form.tarifCantine) || 0,
         concerneCycles: form.concerneCycles,
         moduleRapports: form.moduleRapports,
       };
@@ -619,6 +627,70 @@ const Configuration = () => {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Options financières : régimes et cantine (au choix de l'école) */}
+          <div className="border-t border-[var(--border-subtle)] pt-6 space-y-4">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+              <Banknote className="h-4 w-4 text-[var(--color-primary)]" />
+              Options de scolarité
+            </h3>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={Boolean(form.regimesActifs)}
+                onChange={e => updateForm('regimesActifs', e.target.checked)}
+              />
+              <span>
+                <span className="block text-sm font-medium text-[var(--text-primary)]">Régimes plein temps / mi-temps</span>
+                <span className="block text-xs text-[var(--text-secondary)]">
+                  Chaque classe reçoit une mensualité mi-temps ; le régime se choisit à l'inscription et les rapports séparent les recettes des deux régimes.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={Boolean(form.cantineActive)}
+                onChange={e => updateForm('cantineActive', e.target.checked)}
+              />
+              <span>
+                <span className="block text-sm font-medium text-[var(--text-primary)]">Cantine</span>
+                <span className="block text-xs text-[var(--text-secondary)]">
+                  Service optionnel souscrit à l'inscription ou en cours d'année, avec ses propres échéances.
+                </span>
+              </span>
+            </label>
+            {form.cantineActive && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pl-7">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Facturation</label>
+                  <select
+                    value={form.cantinePeriodicite || 'mensuelle'}
+                    onChange={e => updateForm('cantinePeriodicite', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-[var(--surface-raised)]"
+                  >
+                    <option value="mensuelle">Mensuelle</option>
+                    <option value="trimestrielle">Trimestrielle</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                    Tarif par {form.cantinePeriodicite === 'trimestrielle' ? 'trimestre' : 'mois'} ({form.devise || 'FCFA'})
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={form.tarifCantine ?? 0}
+                    onChange={e => updateForm('tarifCantine', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Cycles d'enseignement proposés */}

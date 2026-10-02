@@ -122,7 +122,7 @@ export const create = async (req, res) => {
     const {
       nom, niveau, anneeScolaireId, filiere, capacite, fraisScolarite, cycle,
       niveauOfficielId, filiereOfficielleId,
-      fraisInscription, fraisReinscription, fraisMensuel, nombreMois,
+      fraisInscription, fraisReinscription, fraisMensuel, fraisMensuelMiTemps, nombreMois,
     } = req.body;
 
     let targetAnneeId = anneeScolaireId;
@@ -222,6 +222,9 @@ export const create = async (req, res) => {
           }
           return fraisScolarite != null ? parseFloat(fraisScolarite) : 0;
         })(),
+        // Régime mi-temps (option école) : mensualité × nombre de mois
+        fraisMensuelMiTemps: parseFloat(fraisMensuelMiTemps || 0) || 0,
+        fraisScolariteMiTemps: (parseFloat(fraisMensuelMiTemps || 0) || 0) * (parseInt(nombreMois || 9, 10) || 9),
       },
       include: {
         niveauOfficiel: true,
@@ -242,7 +245,7 @@ export const update = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
-    const { nom, niveau, filiere, capacite, fraisScolarite, actif, fraisInscription, fraisReinscription, fraisMensuel, nombreMois } = req.body;
+    const { nom, niveau, filiere, capacite, fraisScolarite, actif, fraisInscription, fraisReinscription, fraisMensuel, fraisMensuelMiTemps, nombreMois } = req.body;
 
     const existing = await prisma.classe.findFirst({ where: { id, tenantId } });
     if (!existing) {
@@ -257,6 +260,12 @@ export const update = async (req, res) => {
     if (fraisInscription !== undefined) data.fraisInscription = parseFloat(fraisInscription) || 0;
     if (fraisReinscription !== undefined) data.fraisReinscription = parseFloat(fraisReinscription) || 0;
     if (fraisMensuel !== undefined) data.fraisMensuel = parseFloat(fraisMensuel) || 0;
+    if (fraisMensuelMiTemps !== undefined) data.fraisMensuelMiTemps = parseFloat(fraisMensuelMiTemps) || 0;
+    if (fraisMensuelMiTemps !== undefined || nombreMois !== undefined) {
+      const fmt = parseFloat(data.fraisMensuelMiTemps ?? existing.fraisMensuelMiTemps ?? 0);
+      const nmt = parseInt(data.nombreMois ?? existing.nombreMois ?? 9, 10);
+      data.fraisScolariteMiTemps = fmt * nmt;
+    }
     if (nombreMois !== undefined) data.nombreMois = parseInt(nombreMois, 10) || 9;
     // Recalcul de la scolarité annuelle si les champs détaillés sont fournis
     if (fraisMensuel !== undefined || nombreMois !== undefined) {

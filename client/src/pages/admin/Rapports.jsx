@@ -103,8 +103,85 @@ function ProgressBar({ value, max, color = 'var(--color-primary)' }) {
   );
 }
 
+/** Recettes attendues / encaissées / restantes par régime et cantine (année scolaire) */
+function RecettesParRegime({ get, anneeScolaireId, formatPrice, afficherRegimes, afficherCantine }) {
+  const [rows, setRows] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const qs = anneeScolaireId ? `?anneeScolaireId=${anneeScolaireId}` : '';
+    get(`/api/rapports/regimes${qs}`, { silent: true })
+      .then((res) => { if (!cancelled) setRows(res); })
+      .catch(() => { if (!cancelled) setRows(null); });
+    return () => { cancelled = true; };
+  }, [get, anneeScolaireId]);
+
+  if (!rows?.regimes) return null;
+
+  const lignes = [
+    ...(afficherRegimes ? rows.regimes : [{ ...rows.regimes[0], libelle: 'Scolarité', effectif: rows.total.effectif,
+      attendu: rows.regimes[0].attendu + rows.regimes[1].attendu,
+      encaisse: rows.regimes[0].encaisse + rows.regimes[1].encaisse,
+      reste: rows.regimes[0].reste + rows.regimes[1].reste }]),
+    ...(afficherCantine && rows.cantine ? [{ regime: 'cantine', libelle: 'Cantine', ...rows.cantine }] : []),
+  ];
+  const taux = (l) => (l.attendu > 0 ? Math.round((l.encaisse / l.attendu) * 100) : 0);
+
+  return (
+    <Card>
+      <div className="p-5 space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Recettes de l'année par régime</h3>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Montants attendus (inscription + scolarité), encaissés et restant dus — hors inscriptions annulées.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" style={{ minWidth: 560 }}>
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                <th className="py-2 pr-3">Régime</th>
+                <th className="py-2 pr-3 text-right">Élèves</th>
+                <th className="py-2 pr-3 text-right">Attendu</th>
+                <th className="py-2 pr-3 text-right">Encaissé</th>
+                <th className="py-2 pr-3 text-right">Reste dû</th>
+                <th className="py-2 text-right">Taux</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lignes.map((l) => (
+                <tr key={l.regime} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                  <td className="py-2 pr-3 font-medium" style={{ color: 'var(--text-primary)' }}>
+                    {l.libelle}
+                    {l.tarifsSpeciaux > 0 && (
+                      <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>({l.tarifsSpeciaux} tarif{l.tarifsSpeciaux > 1 ? 's' : ''} spécia{l.tarifsSpeciaux > 1 ? 'ux' : 'l'})</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3 text-right">{l.effectif}</td>
+                  <td className="py-2 pr-3 text-right">{formatPrice(l.attendu)}</td>
+                  <td className="py-2 pr-3 text-right" style={{ color: 'var(--color-success)' }}>{formatPrice(l.encaisse)}</td>
+                  <td className="py-2 pr-3 text-right" style={{ color: l.reste > 0 ? 'var(--color-danger)' : 'var(--text-secondary)' }}>{formatPrice(l.reste)}</td>
+                  <td className="py-2 text-right">{taux(l)} %</td>
+                </tr>
+              ))}
+              <tr className="font-semibold" style={{ borderTop: '2px solid var(--border-subtle)' }}>
+                <td className="py-2 pr-3">Total</td>
+                <td className="py-2 pr-3 text-right">{rows.total.effectif}</td>
+                <td className="py-2 pr-3 text-right">{formatPrice(rows.total.attendu)}</td>
+                <td className="py-2 pr-3 text-right">{formatPrice(rows.total.encaisse)}</td>
+                <td className="py-2 pr-3 text-right">{formatPrice(rows.total.reste)}</td>
+                <td className="py-2 text-right">{taux(rows.total)} %</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 const Rapports = () => {
-  const { formatPrice } = useTenant();
+  const { formatPrice, config: tenantConfig } = useTenant();
   const { get, loading } = useAxios();
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -576,6 +653,16 @@ const Rapports = () => {
           })}
         </KpiGrid>
       </div>
+
+      {(tenantConfig?.regimesActifs || tenantConfig?.cantineActive) && (
+        <RecettesParRegime
+          get={get}
+          anneeScolaireId={resolvedAnneeId}
+          formatPrice={formatPrice}
+          afficherRegimes={Boolean(tenantConfig?.regimesActifs)}
+          afficherCantine={Boolean(tenantConfig?.cantineActive)}
+        />
+      )}
     </div>
   );
 };

@@ -186,7 +186,8 @@ export async function genererFacturation({
     const updatesSolde = [];
 
     for (const insc of inscriptions) {
-      const fraisBase = Number(insc.classe?.fraisScolarite || 0);
+      // Tarif figé sur l'inscription (régime, tarif spécial) sinon tarif de la classe
+      const fraisBase = Number(insc.fraisScolariteApplique ?? insc.classe?.fraisScolarite ?? 0);
       const fraisIndexe = Math.round(fraisBase * (1 + indexRate));
 
       const tranches = calculerEcheancesTranches(
@@ -201,6 +202,7 @@ export async function genererFacturation({
           tenantId,
           inscriptionId: insc.id,
           libelle: t.libelle,
+          categorie: 'scolarite',
           montantAttendu: t.montantAttendu,
           dateEcheance: t.dateEcheance,
           montantPaye: 0,

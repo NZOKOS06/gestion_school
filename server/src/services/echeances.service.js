@@ -30,6 +30,34 @@ export function monthsInRange(dateDebut, dateFin) {
   return months;
 }
 
+/**
+ * Catégorie d'une échéance : champ `categorie`, avec repli sur le libellé
+ * pour les lignes antérieures à la migration.
+ */
+export function categorieEcheance(e) {
+  if (e?.categorie && e.categorie !== 'scolarite') return e.categorie;
+  if (/^cantine/i.test(e?.libelle || '')) return 'cantine';
+  if (/inscription/i.test(e?.libelle || '')) return 'inscription';
+  return 'scolarite';
+}
+
+/**
+ * Périodes de cantine sur [debut, fin] : un mois ou un trimestre (blocs de 3 mois).
+ * Retourne [{ libelle, dateEcheance }].
+ */
+export function periodesCantine(debut, fin, periodicite = 'mensuelle') {
+  const months = monthsInRange(debut, fin);
+  const due = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 5, 12, 0, 0));
+  if (periodicite === 'trimestrielle') {
+    const out = [];
+    for (let i = 0; i < months.length; i += 3) {
+      out.push({ libelle: `Cantine — Trimestre ${out.length + 1}`, dateEcheance: due(months[i]) });
+    }
+    return out;
+  }
+  return months.map((d) => ({ libelle: `Cantine — ${libelleMois(d)}`, dateEcheance: due(d) }));
+}
+
 function isTrancheLibelle(libelle) {
   return /^tranche\s*\d+/i.test(String(libelle || '').trim());
 }
@@ -44,6 +72,7 @@ export async function generateForInscription(txOrPrisma, inscription, opts = {})
     fraisInscription = 0,
     fraisScolarite = 0,
     libelleFraisEntree = inscription.typeFrais === 'reinscription' ? 'Frais de réinscription' : "Frais d'inscription",
+    cantine = null, // { montantParPeriode, periodicite }
     dateInscription = new Date(),
     dateDebut,
     dateFin,
@@ -80,6 +109,7 @@ export async function generateForInscription(txOrPrisma, inscription, opts = {})
       tenantId: inscription.tenantId,
       inscriptionId: inscription.id,
       libelle: libelleFraisEntree,
+      categorie: 'inscription',
       montantAttendu: fraisInscription,
       dateEcheance: d,
       montantPaye: 0,
@@ -98,12 +128,29 @@ export async function generateForInscription(txOrPrisma, inscription, opts = {})
         tenantId: inscription.tenantId,
         inscriptionId: inscription.id,
         libelle: libelleMois(d),
+        categorie: 'scolarite',
         montantAttendu: attendu,
         dateEcheance: due,
         montantPaye: 0,
         statut: 'en_attente',
       });
     });
+  }
+
+  const montantCantine = Number(cantine?.montantParPeriode || 0);
+  if (montantCantine > 0) {
+    for (const p of periodesCantine(debut, fin, cantine.periodicite)) {
+      rows.push({
+        tenantId: inscription.tenantId,
+        inscriptionId: inscription.id,
+        libelle: p.libelle,
+        categorie: 'cantine',
+        montantAttendu: montantCantine,
+        dateEcheance: p.dateEcheance,
+        montantPaye: 0,
+        statut: 'en_attente',
+      });
+    }
   }
 
   if (rows.length) {
@@ -143,7 +190,7 @@ async function convertTranchesToMonthsIfNeeded(db, tenantId, inscriptionId) {
     return;
   }
 
-  const scolarite = rows.filter((r) => !/inscription/i.test(r.libelle || ''));
+  const scolarite = rows.filter((r) => categorieEcheance(r) === 'scolarite');
   const totalAttendu = scolarite.reduce((s, r) => s + Number(r.montantAttendu), 0);
   const totalPaye = scolarite.reduce((s, r) => s + Number(r.montantPaye), 0);
   if (totalAttendu <= 0 || !scolarite.length) return;
@@ -167,6 +214,7 @@ async function convertTranchesToMonthsIfNeeded(db, tenantId, inscriptionId) {
       tenantId,
       inscriptionId,
       libelle: libelleMois(d),
+      categorie: 'scolarite',
       montantAttendu: attendu,
       dateEcheance: due,
       montantPaye: paye,
@@ -222,7 +270,7 @@ export async function applyPaymentToEcheance(tx, echeanceId, montant) {
  */
 export async function applyPaymentCascade(tx, tenantId, inscriptionId, montant) {
   const echeances = await tx.echeance.findMany({
-    where: { tenantId, inscriptionId },
+    where: { tenantId, inscriptionId, statut: { not: 'annulee' } },
     orderBy: { dateEcheance: 'asc' },
   });
 

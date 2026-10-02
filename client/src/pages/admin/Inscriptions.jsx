@@ -48,13 +48,16 @@ const suggestMatricule = () => {
 
 const Inscriptions = () => {
   const { get, post, put } = useAxios();
-  const { formatPrice } = useTenant();
+  const { formatPrice, config: tenantConfig } = useTenant();
+  const regimesActifs = Boolean(tenantConfig?.regimesActifs);
+  const cantineActive = Boolean(tenantConfig?.cantineActive);
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const canDecideFinAnnee = ['directeur', 'directeur_etudes'].includes(user?.role);
   const canEditTarif = ['directeur', 'secretaire', 'comptable'].includes(user?.role);
   const [tarifOpen, setTarifOpen] = useState(null);
-  const [tarifForm, setTarifForm] = useState({ fraisInscription: '', fraisScolarite: '', motif: '' });
+  const [tarifForm, setTarifForm] = useState({ fraisInscription: '', fraisScolarite: '', motif: '', regime: 'plein_temps' });
+  const [cantineSaving, setCantineSaving] = useState(false);
   const [tarifSaving, setTarifSaving] = useState(false);
   const [inscriptions, setInscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -317,6 +320,7 @@ const Inscriptions = () => {
       fraisInscription: insc.fraisInscriptionApplique != null ? String(Number(insc.fraisInscriptionApplique)) : '',
       fraisScolarite: insc.fraisScolariteApplique != null ? String(Number(insc.fraisScolariteApplique)) : '',
       motif: insc.motifTarifSpecial || '',
+      regime: insc.regime || 'plein_temps',
     });
   };
 
@@ -328,12 +332,30 @@ const Inscriptions = () => {
         fraisInscription: tarifForm.fraisInscription === '' ? undefined : Number(tarifForm.fraisInscription),
         fraisScolarite: tarifForm.fraisScolarite === '' ? undefined : Number(tarifForm.fraisScolarite),
         motifTarifSpecial: tarifForm.motif.trim(),
+        regime: tarifForm.regime,
       });
       toast.success('Tarif mis à jour, échéancier recalculé');
       setTarifOpen(null);
       fetchInscriptions();
     } catch { /* toast via useAxios */ }
     setTarifSaving(false);
+  };
+
+  const toggleCantine = async () => {
+    if (!tarifOpen) return;
+    const activer = !tarifOpen.cantine;
+    const msg = activer
+      ? 'Inscrire cet élève à la cantine à partir de la période en cours ?'
+      : 'Arrêter la cantine ? Les périodes à venir non payées seront annulées, le passé reste dû.';
+    if (!window.confirm(msg)) return;
+    setCantineSaving(true);
+    try {
+      const res = await put(`/api/inscriptions/${tarifOpen.id}/cantine`, { active: activer });
+      toast.success(activer ? 'Cantine souscrite' : 'Cantine arrêtée');
+      setTarifOpen((prev) => (prev ? { ...prev, cantine: activer, ...(res?.inscription ? { cantine: res.inscription.cantine } : {}) } : prev));
+      fetchInscriptions();
+    } catch { /* toast via useAxios */ }
+    setCantineSaving(false);
   };
 
   const changeStatut = async (insc, statut) => {
@@ -554,6 +576,8 @@ const Inscriptions = () => {
                     <Badge variant="warning">Tarif spécial</Badge>
                   </span>
                 )}
+                {row.regime === 'mi_temps' && <Badge variant="info">Mi-temps</Badge>}
+                {row.cantine && <Badge variant="neutral">Cantine</Badge>}
               </span>
             ),
           },
@@ -600,7 +624,7 @@ const Inscriptions = () => {
                   </button>
                 )}
                 {canEditTarif && row.statut !== 'annulee' && (
-                  <button onClick={() => openTarif(row)} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Modifier le tarif (tarif spécial)">
+                  <button onClick={() => openTarif(row)} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Tarif, régime et cantine">
                     <Tag className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
                   </button>
                 )}
@@ -694,7 +718,7 @@ const Inscriptions = () => {
       <Modal
         open={!!tarifOpen}
         onClose={() => setTarifOpen(null)}
-        title="Modifier le tarif"
+        title="Tarif, régime et cantine"
         subtitle={tarifOpen ? `${tarifOpen.eleve?.prenom || ''} ${tarifOpen.eleve?.nom || ''} — ${tarifOpen.classe?.nom || ''}` : ''}
         size="md"
         footer={
@@ -709,6 +733,24 @@ const Inscriptions = () => {
             Les montants déjà payés sont conservés ; le reste dû est réparti sur les échéances non soldées.
             Laissez un champ vide pour garder le tarif normal. Tout écart avec le tarif normal exige un motif.
           </p>
+          {regimesActifs && (
+            <label className="block text-sm">
+              <span className="block mb-1" style={{ color: 'var(--text-secondary)' }}>Régime</span>
+              <select
+                className="w-full px-3 py-2 border rounded-lg bg-[var(--surface-overlay)]"
+                value={tarifForm.regime}
+                onChange={(e) => setTarifForm({ ...tarifForm, regime: e.target.value, fraisScolarite: '' })}
+              >
+                <option value="plein_temps">Plein temps</option>
+                <option value="mi_temps">Mi-temps</option>
+              </select>
+              {tarifForm.regime !== (tarifOpen?.regime || 'plein_temps') && (
+                <span className="block text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                  La scolarité du nouveau régime s'applique ; le déjà payé est conservé.
+                </span>
+              )}
+            </label>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block text-sm">
               <span className="block mb-1" style={{ color: 'var(--text-secondary)' }}>
@@ -743,6 +785,16 @@ const Inscriptions = () => {
               onChange={(e) => setTarifForm({ ...tarifForm, motif: e.target.value })}
             />
           </label>
+          {(cantineActive || tarifOpen?.cantine) && (
+            <div className="flex items-center justify-between gap-3 pt-3 border-t border-[var(--border-subtle)]">
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                Cantine : <strong style={{ color: 'var(--text-primary)' }}>{tarifOpen?.cantine ? 'inscrit' : 'non inscrit'}</strong>
+              </span>
+              <Button size="sm" variant="secondary" onClick={toggleCantine} loading={cantineSaving}>
+                {tarifOpen?.cantine ? 'Arrêter la cantine' : 'Inscrire à la cantine'}
+              </Button>
+            </div>
+          )}
         </div>
       </Modal>
 

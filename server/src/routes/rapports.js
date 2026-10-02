@@ -20,6 +20,15 @@ router.get('/',
   ctrl.getRapports
 );
 
+// Recettes par régime (plein temps / mi-temps) + cantine
+router.get('/regimes',
+  authenticate,
+  requireRole('directeur', 'comptable', 'secretaire'),
+  requireTenantMatch,
+  requireModule('rapports'),
+  ctrl.getRecettesParRegime
+);
+
 router.get('/export',
   authenticate,
   requireRole('directeur', 'comptable', 'secretaire'),

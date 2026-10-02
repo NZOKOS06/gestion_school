@@ -246,6 +246,8 @@ export const tenantConfigValidator = [
   body('nombrePeriodes').optional().isInt({ min: 1, max: 4 }),
   body('fraisInscriptionDefault').optional().isDecimal({ min: 0 }),
   body('fraisReinscriptionDefault').optional().isDecimal({ min: 0 }),
+  body('tarifCantine').optional().isDecimal({ min: 0 }),
+  body('cantinePeriodicite').optional().isIn(['mensuelle', 'trimestrielle']),
   body('fraisScolariteDefault').optional().isDecimal({ min: 0 }),
   handleValidationErrors
 ];

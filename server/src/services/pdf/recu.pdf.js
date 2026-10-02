@@ -10,6 +10,7 @@ const MUTED = '#4a5568';
 
 function designationFromPayment({ motif, typePaiement, libelle }) {
   if (motif && String(motif).trim()) return String(motif).trim();
+  if (libelle && /^cantine/i.test(libelle)) return libelle;
   if (libelle && /r[ée]inscription/i.test(libelle)) return 'Frais de réinscription';
   if (libelle && /inscription/i.test(libelle)) return "Frais d'inscription";
   if (libelle && /^avance/i.test(libelle)) return 'Avance sur scolarité';

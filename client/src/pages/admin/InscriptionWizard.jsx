@@ -81,6 +81,9 @@ export default function InscriptionWizard({
 
   // Tarif par défaut calculé par le serveur (inscription vs réinscription, classe vs défaut école)
   const [tarifServeur, setTarifServeur] = useState(null);
+  const [tarifErreur, setTarifErreur] = useState('');
+  const [regime, setRegime] = useState('plein_temps');
+  const [cantine, setCantine] = useState(false);
   const eleveIdPourTarif = mode === 'existant' ? existingEleveId : '';
   useEffect(() => {
     if (!get || !classeId) {
@@ -88,13 +91,21 @@ export default function InscriptionWizard({
       return undefined;
     }
     let cancelled = false;
-    const params = new URLSearchParams({ classeId, anneeScolaireId: effectiveAnneeId || '' });
+    const params = new URLSearchParams({ classeId, anneeScolaireId: effectiveAnneeId || '', regime });
+    if (cantine) params.set('cantine', '1');
     if (eleveIdPourTarif) params.set('eleveId', eleveIdPourTarif);
     get(`/api/inscriptions/frais-preview?${params.toString()}`, { silent: true })
-      .then((res) => { if (!cancelled) setTarifServeur(res || null); })
-      .catch(() => { if (!cancelled) setTarifServeur(null); });
+      .then((res) => { if (!cancelled) { setTarifServeur(res || null); setTarifErreur(''); } })
+      .catch((err) => {
+        if (cancelled) return;
+        setTarifServeur(null);
+        setTarifErreur(err?.response?.data?.error || '');
+      });
     return () => { cancelled = true; };
-  }, [get, classeId, effectiveAnneeId, eleveIdPourTarif]);
+  }, [get, classeId, effectiveAnneeId, eleveIdPourTarif, regime, cantine]);
+  const regimesActifs = Boolean(tarifServeur?.regimesActifs);
+  const cantineDisponible = Boolean(tarifServeur?.cantineActive) && Number(tarifServeur?.tarifCantine || 0) > 0;
+  const totalCantine = cantine ? Number(tarifServeur?.totalCantine || 0) : 0;
 
   const fraisInscriptionBase = tarifServeur
     ? Number(tarifServeur.fraisInscription || 0)
@@ -124,7 +135,7 @@ export default function InscriptionWizard({
 
   const fraisInscription = tarifSpecial ? Math.max(0, Number(tarifCustom.fraisInscription) || 0) : fraisInscriptionBase;
   const fraisScolarite = tarifSpecial ? Math.max(0, Number(tarifCustom.fraisScolarite) || 0) : fraisScolariteBase;
-  const totalFrais = fraisInscription + fraisScolarite;
+  const totalFrais = fraisInscription + fraisScolarite + totalCantine;
 
   const inputStyle = {
     width: '100%',
@@ -192,6 +203,10 @@ export default function InscriptionWizard({
 
   const handleSubmit = async () => {
     if (!validateStep1() || !validateStep2()) return;
+    if (tarifErreur) {
+      toast.error(tarifErreur);
+      return;
+    }
     if (tarifSpecial && !tarifCustom.motif.trim()) {
       toast.error('Indiquez le motif du tarif spécial');
       return;
@@ -205,6 +220,8 @@ export default function InscriptionWizard({
         eleve: mode === 'nouveau' ? eleve : undefined,
         parentId: parentMode === 'existant' ? existingParentId : undefined,
         tuteur: parentMode === 'nouveau' ? tuteur : undefined,
+        regime,
+        cantine,
         ...(tarifSpecial ? {
           fraisInscription,
           fraisScolarite,
@@ -615,6 +632,30 @@ export default function InscriptionWizard({
               <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
                 <CreditCard className="h-3.5 w-3.5" /> Frais scolaires associés
               </h4>
+              {(regimesActifs || cantineDisponible) && (
+                <div className="flex flex-wrap items-center gap-4 pb-2 border-b border-[var(--border-subtle)] text-sm">
+                  {regimesActifs && (
+                    <div className="flex items-center gap-3">
+                      <span style={{ color: 'var(--text-secondary)' }}>Régime :</span>
+                      {[['plein_temps', 'Plein temps'], ['mi_temps', 'Mi-temps']].map(([val, label]) => (
+                        <label key={val} className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="radio" name="regime" checked={regime === val} onChange={() => setRegime(val)} />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {cantineDisponible && (
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={cantine} onChange={(e) => setCantine(e.target.checked)} />
+                      Cantine ({formatPrice(tarifServeur.tarifCantine)}/{tarifServeur.cantinePeriodicite === 'trimestrielle' ? 'trimestre' : 'mois'})
+                    </label>
+                  )}
+                </div>
+              )}
+              {tarifErreur && (
+                <p className="text-sm" style={{ color: 'var(--color-danger)' }}>{tarifErreur}</p>
+              )}
               <div className="flex justify-between text-sm py-1 border-b border-[var(--border-subtle)]">
                 <span style={{ color: 'var(--text-secondary)' }}>
                   {estReinscription ? 'Frais de réinscription' : "Frais d'inscription"}
@@ -624,10 +665,21 @@ export default function InscriptionWizard({
               </div>
               <div className="flex justify-between text-sm py-1 border-b border-[var(--border-subtle)]">
                 <span style={{ color: 'var(--text-secondary)' }}>
-                  Frais de scolarité ({selectedClasse?.nom || ''}{Number(selectedClasse?.fraisMensuel || 0) > 0 ? ` · ${formatPrice(selectedClasse.fraisMensuel)}/m` : ''})
+                  Frais de scolarité{regime === 'mi_temps' ? ' — mi-temps' : ''} ({selectedClasse?.nom || ''}{(() => {
+                    const m = Number(regime === 'mi_temps' ? selectedClasse?.fraisMensuelMiTemps : selectedClasse?.fraisMensuel) || 0;
+                    return m > 0 ? ` · ${formatPrice(m)}/m` : '';
+                  })()})
                 </span>
                 <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatPrice(fraisScolarite)}</span>
               </div>
+              {cantine && (
+                <div className="flex justify-between text-sm py-1 border-b border-[var(--border-subtle)]">
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    Cantine ({tarifServeur?.nbPeriodesCantine || 0} × {formatPrice(tarifServeur?.tarifCantine || 0)})
+                  </span>
+                  <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatPrice(totalCantine)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-base font-bold pt-1">
                 <span style={{ color: 'var(--text-primary)' }}>Total à ouvrir au dossier</span>
                 <span style={{ color: 'var(--color-primary)' }}>{formatPrice(totalFrais)}</span>

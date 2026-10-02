@@ -7,8 +7,12 @@ import {
   appliquerTarifSpecial,
   champsTarifInscription,
   modifierTarifInscription,
+  optionsCantine,
+  changerCantine,
   FraisError,
 } from '../services/fraisInscription.service.js';
+
+const estVrai = (v) => v === true || v === 'true' || v === '1' || v === 1;
 import { messageErreurDateNaissance, safeOrderBy } from '../utils/formatters.js';
 import { resolveAnneeScolaireId, getAnneeOperationnelle } from '../utils/anneeScolaire.js';
 import { hashPassword } from '../utils/password.js';
@@ -116,7 +120,13 @@ export const create = async (req, res) => {
     }
 
     const fees = appliquerTarifSpecial(
-      await resolveFees(tenantId, classeId, { eleveId, anneeScolaireId, typeFrais: req.body.typeFrais }),
+      await resolveFees(tenantId, classeId, {
+        eleveId,
+        anneeScolaireId,
+        typeFrais: req.body.typeFrais,
+        regime: req.body.regime,
+        cantine: estVrai(req.body.cantine),
+      }),
       req.body
     );
     const { fraisScolarite, fraisInscription } = fees;
@@ -136,6 +146,7 @@ export const create = async (req, res) => {
       await generateForInscription(tx, insc, {
         fraisInscription,
         fraisScolarite,
+        cantine: optionsCantine(fees),
       });
       return tx.inscription.findUnique({
         where: { id: insc.id },
@@ -190,6 +201,8 @@ export const createAvecEleve = async (req, res) => {
         eleveId: existingEleveId || null,
         anneeScolaireId,
         typeFrais: req.body.typeFrais,
+        regime: req.body.regime,
+        cantine: estVrai(req.body.cantine),
       }),
       req.body
     );
@@ -299,6 +312,7 @@ export const createAvecEleve = async (req, res) => {
       await generateForInscription(tx, insc, {
         fraisInscription,
         fraisScolarite,
+        cantine: optionsCantine(fees),
       });
 
       return tx.inscription.findUnique({
@@ -468,7 +482,8 @@ export const decideFinAnnee = async (req, res) => {
           },
         });
         if (!already) {
-          const fees = await resolveFees(tenantId, classeCible.id, { typeFrais: 'reinscription' });
+          // Régime reconduit ; la cantine se re-souscrit explicitement chaque année
+          const fees = await resolveFees(tenantId, classeCible.id, { typeFrais: 'reinscription', regime: existing.regime });
           const { fraisScolarite, fraisInscription } = fees;
           nouvelleInscription = await prisma.$transaction(async (tx) => {
             const insc = await tx.inscription.create({
@@ -506,6 +521,9 @@ export const decideFinAnnee = async (req, res) => {
 
     res.json({ inscription: updated, nouvelleInscription });
   } catch (error) {
+    if (error instanceof FraisError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     log.error({ err: error, tenantId: req.tenantId }, 'decideFinAnnee error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -542,9 +560,15 @@ export const validate = async (req, res) => {
         data: { statut: 'validee' },
       });
       if (!existing.echeances?.length) {
+        const cfg = existing.cantine
+          ? await tx.tenantConfig.findUnique({ where: { tenantId }, select: { cantinePeriodicite: true } })
+          : null;
         await generateForInscription(tx, insc, {
           fraisInscription: fees.fraisInscription,
           fraisScolarite: fees.fraisScolarite,
+          cantine: existing.cantine && Number(existing.tarifCantineApplique) > 0
+            ? { montantParPeriode: Number(existing.tarifCantineApplique), periodicite: cfg?.cantinePeriodicite }
+            : null,
         });
       }
       return tx.inscription.findUnique({
@@ -808,7 +832,7 @@ export const reinscriptionLot = async (req, res) => {
 
         // Tarif spécial possible par élève : item.fraisInscription / fraisScolarite / motifTarifSpecial
         const fees = appliquerTarifSpecial(
-          await resolveFees(tenantId, classeCible.id, { typeFrais: 'reinscription' }),
+          await resolveFees(tenantId, classeCible.id, { typeFrais: 'reinscription', regime: item.regime || existing.regime }),
           item
         );
         const { fraisScolarite, fraisInscription } = fees;
@@ -850,24 +874,51 @@ export const reinscriptionLot = async (req, res) => {
 export const fraisPreview = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { classeId, eleveId, anneeScolaireId, typeFrais } = req.query;
+    const { classeId, eleveId, anneeScolaireId, typeFrais, regime, cantine } = req.query;
     if (!classeId) return res.status(400).json({ error: 'classeId requis' });
 
     const fees = await resolveFees(tenantId, classeId, {
       eleveId: eleveId || null,
       anneeScolaireId: anneeScolaireId || null,
       typeFrais: typeFrais || null,
+      regime: regime || null,
+      cantine: estVrai(cantine),
     });
     if (!fees.classe) return res.status(404).json({ error: 'Classe introuvable' });
+
+    // Total cantine sur l'année (nombre de périodes × tarif)
+    let totalCantine = 0;
+    let nbPeriodesCantine = 0;
+    if (fees.cantine) {
+      const annee = await prisma.anneeScolaire.findFirst({
+        where: { id: anneeScolaireId || fees.classe.anneeScolaireId, tenantId },
+      });
+      if (annee?.dateDebut && annee?.dateFin) {
+        const { periodesCantine } = await import('../services/echeances.service.js');
+        nbPeriodesCantine = periodesCantine(annee.dateDebut, annee.dateFin, fees.cantinePeriodicite).length;
+        totalCantine = nbPeriodesCantine * fees.tarifCantine;
+      }
+    }
 
     res.json({
       typeFrais: fees.typeFrais,
       fraisInscription: fees.fraisInscription,
       sourceFraisInscription: fees.sourceFraisInscription,
       fraisScolarite: fees.fraisScolarite,
-      total: fees.fraisInscription + fees.fraisScolarite,
+      regime: fees.regime,
+      regimesActifs: fees.regimesActifs,
+      scolariteMiTemps: Number(fees.classe.fraisScolariteMiTemps || 0),
+      cantineActive: fees.cantineActive,
+      tarifCantine: fees.tarifCantine,
+      cantinePeriodicite: fees.cantinePeriodicite,
+      nbPeriodesCantine,
+      totalCantine,
+      total: fees.fraisInscription + fees.fraisScolarite + totalCantine,
     });
   } catch (error) {
+    if (error instanceof FraisError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     log.error({ err: error, tenantId: req.tenantId }, 'fraisPreview error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -889,10 +940,14 @@ export const updateTarif = async (req, res) => {
       return res.status(400).json({ error: "Impossible de modifier le tarif d'une inscription annulée" });
     }
 
+    const regime = req.body.regime === 'mi_temps' || req.body.regime === 'plein_temps'
+      ? req.body.regime
+      : existing.regime;
     const base = await resolveFees(tenantId, existing.classeId, {
       eleveId: existing.eleveId,
       anneeScolaireId: existing.anneeScolaireId,
       typeFrais: existing.typeFrais,
+      regime,
     });
     const fees = appliquerTarifSpecial(base, req.body);
 
@@ -901,12 +956,13 @@ export const updateTarif = async (req, res) => {
       fraisScolarite: Number(existing.fraisScolariteApplique ?? base.fraisScolarite),
     };
 
-    const solde = await prisma.$transaction((tx) => modifierTarifInscription(tx, tenantId, existing, fees));
+    const solde = await prisma.$transaction((tx) => modifierTarifInscription(tx, tenantId, existing, { ...fees, regime: base.regime }));
 
     await logAudit(req, 'inscription_tarif_modifie', 'Inscription', id, {
       eleveId: existing.eleveId,
       avant,
       apres: { fraisInscription: fees.fraisInscription, fraisScolarite: fees.fraisScolarite },
+      regime: { avant: existing.regime, apres: base.regime },
       tarifSpecial: fees.tarifSpecial,
       motif: fees.motifTarifSpecial,
     });
@@ -921,6 +977,53 @@ export const updateTarif = async (req, res) => {
       return res.status(error.status).json({ error: error.message });
     }
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'updateTarif error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * PUT /api/inscriptions/:id/cantine
+ * Body: { active: boolean }
+ * Souscription (à partir de la période en cours) ou résiliation (périodes à venir arrêtées).
+ */
+export const updateCantine = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+    const active = estVrai(req.body.active);
+
+    const existing = await prisma.inscription.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Inscription non trouvée' });
+    if (existing.statut === 'annulee') {
+      return res.status(400).json({ error: 'Inscription annulée' });
+    }
+
+    const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
+    if (active && (!config?.cantineActive || Number(config?.tarifCantine || 0) <= 0)) {
+      return res.status(400).json({ error: "La cantine n'est pas activée ou son tarif n'est pas renseigné" });
+    }
+
+    const solde = await prisma.$transaction((tx) => changerCantine(tx, tenantId, existing, {
+      active,
+      montantParPeriode: Number(config?.tarifCantine || 0),
+      periodicite: config?.cantinePeriodicite === 'trimestrielle' ? 'trimestrielle' : 'mensuelle',
+    }));
+
+    await logAudit(req, active ? 'cantine_souscrite' : 'cantine_resiliee', 'Inscription', id, {
+      eleveId: existing.eleveId,
+      tarif: active ? Number(config?.tarifCantine || 0) : undefined,
+    });
+
+    const inscription = await prisma.inscription.findFirst({
+      where: { id, tenantId },
+      include: { echeances: { orderBy: { dateEcheance: 'asc' } } },
+    });
+    res.json({ inscription, soldeScolarite: solde });
+  } catch (error) {
+    if (error instanceof FraisError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'updateCantine error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
