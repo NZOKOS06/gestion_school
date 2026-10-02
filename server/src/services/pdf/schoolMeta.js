@@ -16,6 +16,8 @@ export async function loadSchoolPdfMeta(tenantId, req) {
     pays: tenant?.pays || req?.tenant?.pays || 'CG',
     notationSur: config?.notationSur || 20,
     conventionPeriode: config?.conventionPeriode || 'trimestre',
+    enteteOfficiel: { etat: config?.documentsConfig?.etat, devise: config?.documentsConfig?.devise, ministere: config?.documentsConfig?.ministere },
+    formatRecu: config?.documentsConfig?.formatRecu || 'a4',
     ville: adresse ? String(adresse).split(',')[0].trim() : null,
   };
 }

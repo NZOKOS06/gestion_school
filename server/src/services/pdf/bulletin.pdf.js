@@ -56,6 +56,7 @@ export function buildBulletinPdf(data) {
     qrCodeHash,
     decisionConseil,
     notationSur = 20,
+    enteteOfficiel,
     moyenneClasse = null,
     moyenneForte = null,
     moyenneFaible = null,
@@ -70,6 +71,7 @@ export function buildBulletinPdf(data) {
     telephone,
     email,
     titre: 'BULLETIN DE NOTES',
+    entete: enteteOfficiel,
   });
 
   y += 4;

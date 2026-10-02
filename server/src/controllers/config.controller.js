@@ -15,7 +15,7 @@ const SCHEMA_CONFIG_FIELDS = new Set([
   'anneeScolaireActiveId', 'notationSur', 'seuilReussite', 'nombrePeriodes', 'conventionPeriode',
   'joursEcole', 'heureDebut', 'heureFin',
   'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault',
-  'regimesActifs', 'bulletinPonderation', 'bulletinPoidsDevoirs',
+  'regimesActifs', 'documentsConfig', 'bulletinPonderation', 'bulletinPoidsDevoirs',
   'paieJour', 'paieRappelJours', 'retenuesActives', 'retenueMode',
   'retenueForfaitRetard', 'retenueForfaitAbsence', 'retenueAbsencesJustifiees',
   'moduleNotes', 'moduleBulletins', 'modulePresences', 'modulePaiements',
@@ -73,6 +73,15 @@ const sanitizeConfigBody = (body) => {
       const num = parseInt(value, 10);
       config[key] = Number.isNaN(num) ? undefined : num;
       if (config[key] === undefined) delete config[key];
+      continue;
+    }
+    if (key === 'documentsConfig') {
+      const v = value && typeof value === 'object' ? value : {};
+      const txt = (x) => String(x || '').trim().slice(0, 120);
+      config[key] = {
+        etat: txt(v.etat), devise: txt(v.devise), ministere: txt(v.ministere),
+        formatRecu: v.formatRecu === 'thermique' ? 'thermique' : 'a4',
+      };
       continue;
     }
     if (key === 'bulletinPonderation') {
@@ -261,6 +270,7 @@ export const getBySlug = async (req, res) => {
       pointageToleranceMinutes: cfg?.pointageToleranceMinutes ?? 15,
       paieJourCloture: cfg?.paieJourCloture ?? 25,
       paieJour: cfg?.paieJour ?? 10,
+      documentsConfig: cfg?.documentsConfig || {},
       bulletinPonderation: cfg?.bulletinPonderation || 'coefficients',
       bulletinPoidsDevoirs: cfg?.bulletinPoidsDevoirs ?? 50,
       paieRappelJours: cfg?.paieRappelJours ?? 5,

@@ -115,6 +115,7 @@ const Configuration = () => {
     paieRappelJours: 5,
     bulletinPonderation: 'coefficients',
     bulletinPoidsDevoirs: 50,
+    documentsConfig: {},
     retenuesActives: false,
     retenueMode: 'proportionnel',
     retenueForfaitRetard: 0,
@@ -211,6 +212,7 @@ const Configuration = () => {
         methodePaie: form.methodePaie,
         pointageToleranceMinutes: parseInt(form.pointageToleranceMinutes, 10) || 15,
         paieJourCloture: parseInt(form.paieJourCloture, 10) || 25,
+        documentsConfig: form.documentsConfig || {},
         bulletinPonderation: form.bulletinPonderation === 'devoirs_composition' ? 'devoirs_composition' : 'coefficients',
         bulletinPoidsDevoirs: Math.min(100, Math.max(0, parseInt(form.bulletinPoidsDevoirs, 10) || 0)),
         paieJour: Math.min(28, Math.max(1, parseInt(form.paieJour, 10) || 10)),
@@ -639,6 +641,33 @@ const Configuration = () => {
                   />
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Modèle des documents (reçus, bulletins) */}
+          <div className="border-t border-[var(--border-subtle)] pt-6 space-y-3">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Modèle des documents</h3>
+            <p className="text-xs text-[var(--text-secondary)]">
+              En-tête officiel des bulletins (laisser vide pour reprendre celui du pays) et format d'impression des reçus.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[['etat', "Ligne 1 (ex. RÉPUBLIQUE DU CONGO)"], ['devise', 'Ligne 2 (devise nationale)'], ['ministere', 'Ligne 3 (ministère de tutelle)']].map(([k, label]) => (
+                <input
+                  key={k}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  placeholder={label}
+                  value={form.documentsConfig?.[k] || ''}
+                  onChange={e => updateForm('documentsConfig', { ...(form.documentsConfig || {}), [k]: e.target.value })}
+                />
+              ))}
+              <select
+                className="w-full px-3 py-2 border rounded-lg text-sm bg-[var(--surface-raised)]"
+                value={form.documentsConfig?.formatRecu || 'a4'}
+                onChange={e => updateForm('documentsConfig', { ...(form.documentsConfig || {}), formatRecu: e.target.value })}
+              >
+                <option value="a4">Reçus au format A4</option>
+                <option value="thermique">Reçus format ticket 80 mm (imprimante de caisse)</option>
+              </select>
             </div>
           </div>
 

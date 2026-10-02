@@ -697,7 +697,7 @@ export const getRecuPdf = async (req, res) => {
       }
     }
 
-    const format = (req.query.format || 'a4').toLowerCase();
+    const format = (req.query.format || payload.formatRecu || 'a4').toLowerCase();
     const payload = await recuPdfPayload(paiement, req.tenantId, req);
     payload.format = format;
     const buffer = await buildRecuPdf(payload, format);

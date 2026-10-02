@@ -9,3 +9,5 @@ ALTER TABLE "BulletinDetail" ADD COLUMN "moyenneClasse" DECIMAL(5,2);
 ALTER TABLE "BulletinDetail" ADD COLUMN "moyenneMin" DECIMAL(5,2);
 ALTER TABLE "BulletinDetail" ADD COLUMN "moyenneMax" DECIMAL(5,2);
 ALTER TABLE "BulletinDetail" ADD COLUMN "appreciation" TEXT;
+
+ALTER TABLE "TenantConfig" ADD COLUMN "documentsConfig" JSONB;

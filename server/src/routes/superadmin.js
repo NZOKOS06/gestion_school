@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireRole } from '../middleware/authMiddleware.js';
 import { paginationValidator, idParamValidator } from '../utils/validators.js';
+import * as groupes from '../controllers/groupes.controller.js';
 import * as ctrl from '../controllers/superadmin.controller.js';
 import * as auditCtrl from '../controllers/audit.controller.js';
 import { requireCloudinary } from '../utils/cloudinary.js';
@@ -27,6 +28,12 @@ router.get('/tenants/:id/staff', idParamValidator, ctrl.getTenantStaff);
 router.post('/tenants/:id/staff', idParamValidator, ctrl.createTenantStaff);
 router.put('/tenants/:id/staff/:staffId/password', idParamValidator, ctrl.updateTenantStaffPassword);
 router.get('/stats', ctrl.getStats);
+
+// Groupes scolaires (multi-sites) : consolidation des écoles d'un même groupe
+router.get('/groupes', groupes.list);
+router.post('/groupes', groupes.create);
+router.put('/groupes/:id/sites', idParamValidator, groupes.setSites);
+router.get('/groupes/:id/stats', idParamValidator, groupes.stats);
 
 // Audit & traçabilité
 router.get('/audit', paginationValidator, auditCtrl.getAuditLogs);

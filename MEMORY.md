@@ -187,7 +187,7 @@ Décisions du porteur de projet :
 
 - **Portail parent** : module activable par le super-admin ; absences/sanctions/messages/annonces toujours transmis ; notes/bulletins seulement si scolarité du mois écoulé réglée (services exclus), dérogation possible par le directeur avec motif ; case « espace parent » décochée par défaut à l'inscription. ✅ fait
 
-Lots : 1 session + bugs EDT ✅ · 2 grille horaire (créneaux, pauses/récréations) ✅ · 3 régimes & cantine ✅ · 4 paie programmée + retenues ✅ · 5 recettes/dépenses & catalogue ✅ · 6 bulletins ✅ · 7 modèles de documents · 8 multi-sites + offline.
+Lots : 1 session + bugs EDT ✅ · 2 grille horaire (créneaux, pauses/récréations) ✅ · 3 régimes & cantine ✅ · 4 paie programmée + retenues ✅ · 5 recettes/dépenses & catalogue ✅ · 6 bulletins ✅ · 7 modèles de documents (étape 1 ✅ : en-tête officiel + format reçu ; analyse IA ⏳) · 8 multi-sites (✅ groupes + stats consolidées super-admin ; directeur de groupe, partage tarifs, transfert élève, offline ⏳).
 
 ---
 

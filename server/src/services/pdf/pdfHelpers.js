@@ -54,10 +54,12 @@ export function drawOfficialHeader(doc, {
   telephone,
   email,
   titre,
+  entete = {},
 }) {
   const left = doc.page.margins.left;
   const usable = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const h = paysHeader(pays);
+  // Libellés officiels personnalisables par école (sinon ceux du pays)
+  const h = { ...paysHeader(pays), ...Object.fromEntries(Object.entries(entete || {}).filter(([, v]) => v)) };
 
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#1a365d')
     .text(h.etat, left, 28, { width: usable, align: 'center' });
