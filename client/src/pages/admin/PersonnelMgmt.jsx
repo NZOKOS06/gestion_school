@@ -76,6 +76,8 @@ const PersonnelMgmt = () => {
     tauxHoraire: '',
     salaireMensuel: '',
     deviceBiometricId: '',
+    heureArriveePrevue: '',
+    heureDepartPrevue: '',
   });
 
   const [resultModal, setResultModal] = useState({
@@ -126,7 +128,7 @@ const PersonnelMgmt = () => {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ nom: '', prenom: '', email: '', role: '', telephone: '', typeContrat: 'titulaire', heuresHebdo: '', tauxHoraire: '', salaireMensuel: '', deviceBiometricId: '' });
+    setForm({ nom: '', prenom: '', email: '', role: '', telephone: '', typeContrat: 'titulaire', heuresHebdo: '', tauxHoraire: '', salaireMensuel: '', deviceBiometricId: '', heureArriveePrevue: '', heureDepartPrevue: '' });
     setModalOpen(true);
   };
 
@@ -142,6 +144,8 @@ const PersonnelMgmt = () => {
       heuresHebdo: member.heuresHebdo || '',
       tauxHoraire: member.tauxHoraire || '',
       salaireMensuel: member.salaireMensuel || '',
+      heureArriveePrevue: member.heureArriveePrevue || '',
+      heureDepartPrevue: member.heureDepartPrevue || '',
       deviceBiometricId: member.deviceBiometricId || '',
     });
     setModalOpen(true);
@@ -531,6 +535,31 @@ const PersonnelMgmt = () => {
                 className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                 placeholder="Montant brut mensuel"
               />
+            </div>
+          )}
+          {form.role !== 'enseignant' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Arrivée prévue</label>
+                <input
+                  type="time"
+                  value={form.heureArriveePrevue}
+                  onChange={(e) => setForm({ ...form, heureArriveePrevue: e.target.value })}
+                  className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Départ prévu</label>
+                <input
+                  type="time"
+                  value={form.heureDepartPrevue}
+                  onChange={(e) => setForm({ ...form, heureDepartPrevue: e.target.value })}
+                  className="w-full px-3 py-2 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                />
+              </div>
+              <p className="col-span-2 text-xs text-[var(--text-muted)] -mt-2">
+                Horaires de présence pour le pointage et les retenues (vide = horaires de l'école).
+              </p>
             </div>
           )}
           <div>

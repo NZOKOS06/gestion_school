@@ -48,6 +48,8 @@ export const getAll = async (req, res) => {
           heuresHebdo: true,
           tauxHoraire: true,
           salaireMensuel: true,
+          heureArriveePrevue: true,
+          heureDepartPrevue: true,
           deviceBiometricId: true,
           createdAt: true
         },
@@ -88,6 +90,8 @@ export const getEnseignants = async (req, res) => {
         actif: true,
         typeContrat: true,
         salaireMensuel: true,
+        heureArriveePrevue: true,
+        heureDepartPrevue: true,
         tauxHoraire: true,
         heuresHebdo: true,
         enseignantClasses: {
@@ -128,6 +132,8 @@ export const getById = async (req, res) => {
         heuresHebdo: true,
         tauxHoraire: true,
         salaireMensuel: true,
+        heureArriveePrevue: true,
+        heureDepartPrevue: true,
         deviceBiometricId: true,
         createdAt: true
       }
@@ -173,6 +179,8 @@ export const create = async (req, res) => {
         heuresHebdo: heuresHebdo ? parseInt(heuresHebdo) : null,
         tauxHoraire: tauxHoraire ? parseFloat(tauxHoraire) : null,
         salaireMensuel: salaireMensuel ? parseFloat(salaireMensuel) : null,
+        heureArriveePrevue: /^\d{1,2}:\d{2}$/.test(String(req.body.heureArriveePrevue || '')) ? req.body.heureArriveePrevue : null,
+        heureDepartPrevue: /^\d{1,2}:\d{2}$/.test(String(req.body.heureDepartPrevue || '')) ? req.body.heureDepartPrevue : null,
         deviceBiometricId: deviceBiometricId || null,
         mustChangePassword: true
       },
@@ -189,6 +197,8 @@ export const create = async (req, res) => {
         heuresHebdo: true,
         tauxHoraire: true,
         salaireMensuel: true,
+        heureArriveePrevue: true,
+        heureDepartPrevue: true,
         deviceBiometricId: true,
         createdAt: true
       }
@@ -238,6 +248,8 @@ export const update = async (req, res) => {
 
     // Whitelist des champs modifiables — protège contre le mass assignment
     const { nom, prenom, email, telephone, role, actif, typeContrat, heuresHebdo, tauxHoraire, salaireMensuel, deviceBiometricId } = req.body;
+    // Horaires de présence attendus (pointage / retenues) — vide = horaires de l'école
+    const horaire = (v) => (v === undefined ? undefined : (/^\d{1,2}:\d{2}$/.test(String(v || '')) ? String(v) : null));
     let data;
     if (isSelf && !isAdmin) {
       // Self-profile: identity fields only
@@ -252,6 +264,8 @@ export const update = async (req, res) => {
           heuresHebdo: heuresHebdo !== undefined ? (heuresHebdo ? parseInt(heuresHebdo) : null) : undefined,
           tauxHoraire: tauxHoraire !== undefined ? (tauxHoraire ? parseFloat(tauxHoraire) : null) : undefined,
           salaireMensuel: salaireMensuel !== undefined ? (salaireMensuel ? parseFloat(salaireMensuel) : null) : undefined,
+          heureArriveePrevue: horaire(req.body.heureArriveePrevue),
+          heureDepartPrevue: horaire(req.body.heureDepartPrevue),
           deviceBiometricId: deviceBiometricId !== undefined ? (deviceBiometricId || null) : undefined,
         }).filter(([, v]) => v !== undefined)
       );
@@ -291,6 +305,8 @@ export const update = async (req, res) => {
         heuresHebdo: true,
         tauxHoraire: true,
         salaireMensuel: true,
+        heureArriveePrevue: true,
+        heureDepartPrevue: true,
         deviceBiometricId: true,
         updatedAt: true
       }

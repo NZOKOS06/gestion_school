@@ -16,6 +16,8 @@ const SCHEMA_CONFIG_FIELDS = new Set([
   'joursEcole', 'heureDebut', 'heureFin',
   'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault',
   'regimesActifs',
+  'paieJour', 'paieRappelJours', 'retenuesActives', 'retenueMode',
+  'retenueForfaitRetard', 'retenueForfaitAbsence', 'retenueAbsencesJustifiees',
   'moduleNotes', 'moduleBulletins', 'modulePresences', 'modulePaiements',
   'moduleEmploiDuTemps', 'moduleParents', 'moduleEleves', 'moduleSanctions',
   'moduleBiblio', 'moduleCantine', 'moduleTransport', 'moduleCertificats',
@@ -62,15 +64,19 @@ const sanitizeConfigBody = (body) => {
       continue;
     }
     if (typeof value === 'boolean' || value === 'true' || value === 'false') {
-      if (key.startsWith('module') || ['darkModeDefault', 'forcer2FA', 'cookieBannerEnabled', 'analyticsEnabled', 'regimesActifs'].includes(key)) {
+      if (key.startsWith('module') || ['darkModeDefault', 'forcer2FA', 'cookieBannerEnabled', 'analyticsEnabled', 'regimesActifs', 'retenuesActives', 'retenueAbsencesJustifiees'].includes(key)) {
         config[key] = value === true || value === 'true' || value === 1 || value === '1';
         continue;
       }
     }
-    if (['notationSur', 'nombrePeriodes', 'dureeSessionMinutes', 'pointageToleranceMinutes', 'paieJourCloture'].includes(key)) {
+    if (['notationSur', 'nombrePeriodes', 'dureeSessionMinutes', 'pointageToleranceMinutes', 'paieJourCloture', 'paieJour', 'paieRappelJours'].includes(key)) {
       const num = parseInt(value, 10);
       config[key] = Number.isNaN(num) ? undefined : num;
       if (config[key] === undefined) delete config[key];
+      continue;
+    }
+    if (key === 'retenueMode') {
+      config[key] = value === 'forfaitaire' ? 'forfaitaire' : 'proportionnel';
       continue;
     }
     if (key === 'concerneCycles') {
@@ -81,7 +87,7 @@ const sanitizeConfigBody = (body) => {
       }
       continue;
     }
-    if (['seuilReussite', 'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault'].includes(key)) {
+    if (['seuilReussite', 'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault', 'retenueForfaitRetard', 'retenueForfaitAbsence'].includes(key)) {
       const num = parseFloat(value);
       config[key] = Number.isNaN(num) ? undefined : num;
       if (config[key] === undefined) delete config[key];
@@ -250,6 +256,13 @@ export const getBySlug = async (req, res) => {
       methodePaie: cfg?.methodePaie || 'mensuel',
       pointageToleranceMinutes: cfg?.pointageToleranceMinutes ?? 15,
       paieJourCloture: cfg?.paieJourCloture ?? 25,
+      paieJour: cfg?.paieJour ?? 10,
+      paieRappelJours: cfg?.paieRappelJours ?? 5,
+      retenuesActives: cfg?.retenuesActives ?? false,
+      retenueMode: cfg?.retenueMode || 'proportionnel',
+      retenueForfaitRetard: num(cfg?.retenueForfaitRetard, 0),
+      retenueForfaitAbsence: num(cfg?.retenueForfaitAbsence, 0),
+      retenueAbsencesJustifiees: cfg?.retenueAbsencesJustifiees ?? false,
       concerneCycles: cfg?.concerneCycles ?? null,
       dureeSessionMinutes: cfg?.dureeSessionMinutes ?? 900,
       forcer2FA: cfg?.forcer2FA ?? false,

@@ -64,6 +64,7 @@ const TENANT_MODELS = new Set([
   'ConseilDeClasse',
   'HeureEnseignee',
   'PointageSession',
+  'PointageJournalier',
   'PeriodePaie',
   'BulletinPaie',
   'Message',

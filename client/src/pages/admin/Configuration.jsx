@@ -111,6 +111,13 @@ const Configuration = () => {
     methodePaie: 'mensuel',
     pointageToleranceMinutes: 15,
     paieJourCloture: 25,
+    paieJour: 10,
+    paieRappelJours: 5,
+    retenuesActives: false,
+    retenueMode: 'proportionnel',
+    retenueForfaitRetard: 0,
+    retenueForfaitAbsence: 0,
+    retenueAbsencesJustifiees: false,
     fraisInscriptionDefault: 0,
     fraisReinscriptionDefault: 0,
     fraisScolariteDefault: 0,
@@ -202,6 +209,13 @@ const Configuration = () => {
         methodePaie: form.methodePaie,
         pointageToleranceMinutes: parseInt(form.pointageToleranceMinutes, 10) || 15,
         paieJourCloture: parseInt(form.paieJourCloture, 10) || 25,
+        paieJour: Math.min(28, Math.max(1, parseInt(form.paieJour, 10) || 10)),
+        paieRappelJours: Math.max(0, parseInt(form.paieRappelJours, 10) || 0),
+        retenuesActives: Boolean(form.retenuesActives),
+        retenueMode: form.retenueMode === 'forfaitaire' ? 'forfaitaire' : 'proportionnel',
+        retenueForfaitRetard: parseFloat(form.retenueForfaitRetard) || 0,
+        retenueForfaitAbsence: parseFloat(form.retenueForfaitAbsence) || 0,
+        retenueAbsencesJustifiees: Boolean(form.retenueAbsencesJustifiees),
         fraisInscriptionDefault: parseFloat(form.fraisInscriptionDefault) || 0,
         fraisReinscriptionDefault: parseFloat(form.fraisReinscriptionDefault) || 0,
         fraisScolariteDefault: parseFloat(form.fraisScolariteDefault) || 0,
@@ -702,18 +716,91 @@ const Configuration = () => {
                 )}
                 {form.modulePaie && (
                   <div>
-                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Jour de clôture paie</label>
+                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Jour de paie (1-28)</label>
                     <input
                       type="number"
                       min="1"
                       max="28"
-                      value={form.paieJourCloture ?? 25}
-                      onChange={e => updateForm('paieJourCloture', e.target.value)}
+                      value={form.paieJour ?? 10}
+                      onChange={e => updateForm('paieJour', e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                    <p className="text-xs text-[var(--text-muted)] mt-1">
+                      La paie d'un mois s'ouvre à partir de ce jour du mois suivant (ex. le {form.paieJour || 10} novembre pour octobre).
+                    </p>
+                  </div>
+                )}
+                {form.modulePaie && (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Rappel au directeur (jours avant)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="28"
+                      value={form.paieRappelJours ?? 5}
+                      onChange={e => updateForm('paieRappelJours', e.target.value)}
                       className="w-full px-3 py-2 border rounded-lg"
                     />
                   </div>
                 )}
               </div>
+              {form.modulePaie && form.modulePointagePersonnel && (
+                <div className="space-y-3 pt-2">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={Boolean(form.retenuesActives)}
+                      onChange={e => updateForm('retenuesActives', e.target.checked)}
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-[var(--text-primary)]">Retenues sur salaire (retards et absences pointés)</span>
+                      <span className="block text-xs text-[var(--text-secondary)]">
+                        Déduites automatiquement lors du calcul de la paie, avec un récapitulatif du mois sur chaque fiche.
+                      </span>
+                    </span>
+                  </label>
+                  {form.retenuesActives && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pl-7">
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Mode de calcul</label>
+                        <select
+                          value={form.retenueMode || 'proportionnel'}
+                          onChange={e => updateForm('retenueMode', e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg bg-[var(--surface-raised)]"
+                        >
+                          <option value="proportionnel">Proportionnel au temps perdu</option>
+                          <option value="forfaitaire">Montant fixe par retard / absence</option>
+                        </select>
+                      </div>
+                      {form.retenueMode === 'forfaitaire' && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Par retard ({form.devise || 'FCFA'})</label>
+                            <input type="number" min="0" step="100" value={form.retenueForfaitRetard ?? 0} onChange={e => updateForm('retenueForfaitRetard', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Par absence ({form.devise || 'FCFA'})</label>
+                            <input type="number" min="0" step="500" value={form.retenueForfaitAbsence ?? 0} onChange={e => updateForm('retenueForfaitAbsence', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                          </div>
+                        </>
+                      )}
+                      <label className="flex items-center gap-2 text-sm md:col-span-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(form.retenueAbsencesJustifiees)}
+                          onChange={e => updateForm('retenueAbsencesJustifiees', e.target.checked)}
+                        />
+                        Retenir aussi les absences justifiées
+                      </label>
+                      <p className="text-xs text-[var(--text-muted)] md:col-span-3">
+                        Proportionnel : salaire fixe ÷ temps de travail prévu du mois × temps perdu (retard au-delà de la tolérance, absence).
+                        Avant d'utiliser le mode « montant fixe », vérifiez qu'il est conforme au code du travail applicable.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

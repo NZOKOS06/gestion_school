@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAxios } from '../../hooks/useAxios';
-import { PageHeader, DataTable, Badge, Button } from '../../components/ui';
-import { Clock, LogIn, LogOut, UserX, RefreshCw } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { PageHeader, DataTable, Badge, Button, SegmentedControl } from '../../components/ui';
+import { Clock, LogIn, LogOut, UserX, RefreshCw, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
+import PointageJournalier from './PointageJournalier.jsx';
 
 const STATUT_CONFIG = {
   prevue: { label: 'Prévue', variant: 'neutral' },
@@ -23,7 +25,12 @@ const selectStyle = {
 };
 
 const Pointage = () => {
-  const { get, post } = useAxios();
+  const { get, post, put } = useAxios();
+  const { user } = useAuth();
+  // Cours (enseignants) : direction et surveillance ; personnel administratif : + secrétariat
+  const voitCours = ['directeur', 'directeur_etudes', 'surveillant'].includes(user?.role);
+  const peutJustifier = ['directeur', 'directeur_etudes'].includes(user?.role);
+  const [onglet, setOnglet] = useState(voitCours ? 'enseignants' : 'personnel');
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -31,6 +38,10 @@ const Pointage = () => {
   const [acting, setActing] = useState(null);
 
   const fetchSessions = useCallback(async () => {
+    if (!voitCours) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams({ date });
@@ -43,7 +54,17 @@ const Pointage = () => {
       toast.error('Impossible de charger les sessions');
     }
     setLoading(false);
-  }, [date, filters, get]);
+  }, [date, filters, get, voitCours]);
+
+  const justifier = async (row) => {
+    setActing(row.id);
+    try {
+      await put(`/api/pointage/sessions/${row.id}/justifier`, { justifiee: !row.justifiee });
+      toast.success(row.justifiee ? 'Justification retirée' : 'Absence / retard justifié');
+      fetchSessions();
+    } catch { /* toast via useAxios */ }
+    setActing(null);
+  };
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
@@ -65,7 +86,7 @@ const Pointage = () => {
     <div className="space-y-6">
       <PageHeader
         title="Pointage du jour"
-        subtitle="Sessions de cours liées à l'emploi du temps : arrivée, départ, absence"
+        subtitle="Cours des enseignants (emploi du temps) et présence du personnel administratif"
         icon={Clock}
         actions={
           <Button variant="secondary" icon={RefreshCw} onClick={fetchSessions} loading={loading}>
@@ -75,12 +96,23 @@ const Pointage = () => {
       />
 
       <div className="flex gap-3 flex-wrap items-center">
+        {voitCours && (
+          <SegmentedControl
+            value={onglet}
+            onChange={setOnglet}
+            options={[
+              { value: 'enseignants', label: 'Enseignants (cours)' },
+              { value: 'personnel', label: 'Personnel administratif' },
+            ]}
+          />
+        )}
         <input
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
           style={selectStyle}
         />
+        {onglet === 'enseignants' && (
         <select
           style={selectStyle}
           value={filters.statut}
@@ -91,8 +123,12 @@ const Pointage = () => {
             <option key={k} value={k}>{v.label}</option>
           ))}
         </select>
+        )}
       </div>
 
+      {onglet === 'personnel' ? (
+        <PointageJournalier date={date} inputStyle={selectStyle} />
+      ) : (
       <DataTable
         loading={loading}
         data={sessions}
@@ -145,9 +181,14 @@ const Pointage = () => {
           {
             key: 'statut',
             label: 'Statut',
-            render: (val) => {
+            render: (val, row) => {
               const c = STATUT_CONFIG[val] || STATUT_CONFIG.prevue;
-              return <Badge variant={c.variant} dot>{c.label}</Badge>;
+              return (
+                <span className="inline-flex items-center gap-1">
+                  <Badge variant={c.variant} dot>{c.label}</Badge>
+                  {row.justifiee && <Badge variant="info">Justifié</Badge>}
+                </span>
+              );
             },
           },
           {
@@ -187,11 +228,23 @@ const Pointage = () => {
                     <UserX className="h-4 w-4" style={{ color: 'var(--color-error)' }} />
                   </button>
                 )}
+                {peutJustifier && (row.statut === 'absente' || row.heureArrivee) && (
+                  <button
+                    type="button"
+                    onClick={() => justifier(row)}
+                    disabled={acting === row.id}
+                    className="p-1.5 rounded-md hover:bg-[var(--surface-hover)]"
+                    title={row.justifiee ? 'Retirer la justification' : 'Justifier l\'absence / le retard (non retenu sur la paie)'}
+                  >
+                    <ShieldCheck className="h-4 w-4" style={{ color: row.justifiee ? 'var(--color-success)' : 'var(--text-muted)' }} />
+                  </button>
+                )}
               </div>
             ),
           },
         ]}
       />
+      )}
     </div>
   );
 };

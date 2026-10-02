@@ -37,6 +37,7 @@ export default defineConfig({
       'src/services/fraisInscription.service.test.js',
       'src/services/servicesOptionnels.service.test.js',
       'src/services/portailParent.service.test.js',
+      'src/services/paie.service.test.js',
       'src/config/v1Modules.test.js',
       'src/services/echeances.service.test.js',
       'src/services/finance.smoke.test.js',

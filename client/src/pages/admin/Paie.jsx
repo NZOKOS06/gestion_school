@@ -4,6 +4,8 @@ import { useTenant } from '../../contexts/TenantContext';
 import { PageHeader, DataTable, Badge, Button, Modal, Input, KpiCard, KpiGrid } from '../../components/ui';
 import { Banknote, Calculator, CheckCircle, Wallet, Users, TrendingUp, Clock, Printer, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
+import PaieRappel from '../../components/PaieRappel.jsx';
+import { useAuth } from '../../contexts/AuthContext';
 
 const MOIS = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -23,7 +25,9 @@ const Paie = () => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [editBulletin, setEditBulletin] = useState(null);
-  const [formMois, setFormMois] = useState({ mois: String(new Date().getMonth() + 1), anneeCivile: String(new Date().getFullYear()) });
+  const { user } = useAuth();
+  const canGerer = ['directeur', 'comptable'].includes(user?.role);
+  const periodeVerrouillee = periodeActive && ['validee', 'payee'].includes(periodeActive.statut);
 
   const methode = config?.methodePaie || 'mensuel';
 
@@ -54,20 +58,9 @@ const Paie = () => {
     if (periodeActive) fetchBulletins(periodeActive.id);
   }, [periodeActive, fetchBulletins]);
 
-  const ouvrirPeriode = async () => {
-    setBusy(true);
-    try {
-      const p = await post('/api/paie/periodes', {
-        mois: parseInt(formMois.mois, 10),
-        anneeCivile: parseInt(formMois.anneeCivile, 10),
-      });
-      setPeriodeActive(p);
-      await fetchPeriodes();
-      toast.success('Période ouverte');
-    } catch {
-      toast.error('Impossible d\'ouvrir la période');
-    }
-    setBusy(false);
+  const apresOuverture = async (periode) => {
+    await fetchPeriodes();
+    if (periode?.id) setPeriodeActive(periode);
   };
 
   const calculer = async () => {
@@ -77,10 +70,9 @@ const Paie = () => {
       await post(`/api/paie/periodes/${periodeActive.id}/calculer`);
       await fetchPeriodes();
       await fetchBulletins(periodeActive.id);
-      toast.success('Bulletins calculés');
-    } catch {
-      toast.error('Calcul impossible');
-    }
+      setPeriodeActive((p) => (p ? { ...p, statut: 'calculee' } : p));
+      toast.success('Fiches de paie générées');
+    } catch { /* toast via useAxios */ }
     setBusy(false);
   };
 
@@ -91,10 +83,9 @@ const Paie = () => {
       await post(`/api/paie/periodes/${periodeActive.id}/valider`);
       await fetchPeriodes();
       await fetchBulletins(periodeActive.id);
+      setPeriodeActive((p) => (p ? { ...p, statut: 'validee' } : p));
       toast.success('Période approuvée & validée');
-    } catch {
-      toast.error('Validation impossible');
-    }
+    } catch { /* toast via useAxios */ }
     setBusy(false);
   };
 
@@ -104,6 +95,7 @@ const Paie = () => {
     try {
       await post(`/api/paie/periodes/${periodeActive.id}/payer`);
       await fetchPeriodes();
+      setPeriodeActive((p) => (p ? { ...p, statut: 'payee' } : p));
       toast.success('Décaissement global clôturé (Payée)');
     } catch {
       toast.error('Action impossible');
@@ -197,6 +189,11 @@ const Paie = () => {
               <td>Heures de cours validées (${Number(b.heuresValidees || 0).toFixed(1)} h)</td>
               <td style="text-align: right;">${formatPrice(b.montantHoraire || 0)}</td>
             </tr>
+            ${Number(b.montantRetenues || 0) > 0 ? `
+            <tr>
+              <td>Retenues — ${recapTexte(b)}</td>
+              <td style="text-align: right; color: #b91c1c;">− ${formatPrice(b.montantRetenues)}</td>
+            </tr>` : ''}
             <tr class="total-row">
               <td>NET À PAYER / DÉCAISSÉ</td>
               <td style="text-align: right; color: #16a34a;">${formatPrice(b.montantTotal || 0)}</td>
@@ -224,6 +221,17 @@ const Paie = () => {
     }
   };
 
+  // Récapitulatif retards / absences pour la fiche et le tableau
+  const recapTexte = (b) => {
+    const r = b.detailJson?.recapPointage;
+    if (!r) return 'ajustement';
+    const parts = [];
+    if (r.nbRetards) parts.push(`${r.nbRetards} retard${r.nbRetards > 1 ? 's' : ''} (${r.minutesRetard} min)`);
+    const abs = b.detailJson?.retenue?.nbAbsencesRetenues ?? r.nbAbsences ?? 0;
+    if (abs) parts.push(`${abs} absence${abs > 1 ? 's' : ''}`);
+    return parts.join(', ') || 'pointage';
+  };
+
   const saveBulletin = async () => {
     if (!editBulletin) return;
     setBusy(true);
@@ -231,6 +239,7 @@ const Paie = () => {
       await put(`/api/paie/bulletins/${editBulletin.id}`, {
         montantFixe: parseFloat(editBulletin.montantFixe) || 0,
         montantHoraire: parseFloat(editBulletin.montantHoraire) || 0,
+        montantRetenues: parseFloat(editBulletin.montantRetenues) || 0,
         montantTotal: parseFloat(editBulletin.montantTotal) || 0,
       });
       setEditBulletin(null);
@@ -251,16 +260,6 @@ const Paie = () => {
     const resteAPayer = masseTotale - totalVerse;
     return { total, masseTotale, totalVerse, resteAPayer };
   }, [bulletins]);
-
-  const selectStyle = {
-    height: 36,
-    background: 'var(--surface-overlay)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--text-primary)',
-    fontSize: 13,
-    padding: '0 8px',
-  };
 
   return (
     <div className="space-y-6">
@@ -303,26 +302,14 @@ const Paie = () => {
       </KpiGrid>
 
 
-      <div className="flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="text-xs text-[var(--text-muted)] block mb-1">Mois</label>
-          <select style={selectStyle} value={formMois.mois} onChange={(e) => setFormMois({ ...formMois, mois: e.target.value })}>
-            {MOIS.slice(1).map((m, i) => (
-              <option key={m} value={String(i + 1)}>{m}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs text-[var(--text-muted)] block mb-1">Année</label>
-          <input
-            type="number"
-            style={{ ...selectStyle, width: 100 }}
-            value={formMois.anneeCivile}
-            onChange={(e) => setFormMois({ ...formMois, anneeCivile: e.target.value })}
-          />
-        </div>
-        <Button onClick={ouvrirPeriode} loading={busy}>Ouvrir période</Button>
-      </div>
+      {/* Paie programmée : seul le mois écoulé s'ouvre, à partir du jour de paie */}
+      <PaieRappel toujours onOuverte={apresOuverture} />
+
+      {!loading && periodes.length === 0 && (
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Aucune période de paie : elle s'ouvre par le directeur ou le secrétaire à partir du jour de paie du mois suivant.
+        </p>
+      )}
 
       <DataTable
         loading={loading}
@@ -361,15 +348,19 @@ const Paie = () => {
               {STATUT_PERIODE[periodeActive.statut]?.label || periodeActive.statut}
             </Badge>
             <div className="flex gap-2 ml-auto flex-wrap">
-              <Button variant="secondary" icon={Calculator} onClick={calculer} loading={busy}>
-                Calculer
-              </Button>
-              <Button icon={CheckCircle} onClick={validerPeriode} loading={busy} disabled={periodeActive.statut === 'validee' || periodeActive.statut === 'payee'}>
-                Valider & créer dépenses
-              </Button>
-              <Button variant="secondary" icon={Wallet} onClick={marquerPayee} loading={busy} disabled={periodeActive.statut !== 'validee'}>
-                Marquer payée
-              </Button>
+              {canGerer && (
+                <>
+                  <Button variant="secondary" icon={Calculator} onClick={calculer} loading={busy} disabled={periodeVerrouillee}>
+                    {periodeActive.statut === 'ouverte' ? 'Générer les fiches de paie' : 'Recalculer'}
+                  </Button>
+                  <Button icon={CheckCircle} onClick={validerPeriode} loading={busy} disabled={periodeActive.statut !== 'calculee'}>
+                    Valider & créer dépenses
+                  </Button>
+                  <Button variant="secondary" icon={Wallet} onClick={marquerPayee} loading={busy} disabled={periodeActive.statut !== 'validee'}>
+                    Marquer payée
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -398,8 +389,15 @@ const Paie = () => {
                 render: (val) => formatPrice(val),
               },
               {
+                key: 'montantRetenues',
+                label: 'Retenues',
+                render: (val, row) => (Number(val) > 0
+                  ? <span style={{ color: 'var(--color-danger)' }} title={recapTexte(row)}>− {formatPrice(val)}</span>
+                  : <span style={{ color: 'var(--text-muted)' }}>—</span>),
+              },
+              {
                 key: 'montantTotal',
-                label: 'Total',
+                label: 'Net à payer',
                 render: (val) => <span className="font-semibold">{formatPrice(val)}</span>,
               },
               {
@@ -421,12 +419,12 @@ const Paie = () => {
                     >
                       Fiche
                     </Button>
-                    {row.statut === 'brouillon' && (
+                    {canGerer && row.statut === 'brouillon' && (
                       <Button size="sm" variant="secondary" onClick={() => setEditBulletin({ ...row })}>
                         Ajuster
                       </Button>
                     )}
-                    {row.statut !== 'valide' && row.statut !== 'paye' && (
+                    {canGerer && row.statut !== 'valide' && row.statut !== 'paye' && (
                       <Button size="sm" icon={CheckCircle} onClick={() => decaisserBulletin(row)} loading={busy}>
                         Décaisser
                       </Button>
@@ -472,7 +470,21 @@ const Paie = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Total</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Retenues {editBulletin.detailJson?.recapPointage ? `(${recapTexte(editBulletin)})` : ''}
+              </label>
+              <Input
+                type="number"
+                value={editBulletin.montantRetenues ?? 0}
+                onChange={(e) => {
+                  const ret = e.target.value;
+                  const net = (parseFloat(editBulletin.montantFixe) || 0) + (parseFloat(editBulletin.montantHoraire) || 0) - (parseFloat(ret) || 0);
+                  setEditBulletin({ ...editBulletin, montantRetenues: ret, montantTotal: String(Math.max(0, net)) });
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Net à payer</label>
               <Input
                 type="number"
                 value={editBulletin.montantTotal}

@@ -6,75 +6,22 @@ import * as ctrl from '../controllers/paie.controller.js';
 
 const router = Router();
 
-const roles = ['directeur', 'comptable'];
+// Calcul, ajustement, validation et décaissement : direction et gestionnaire
+const gestion = ['directeur', 'comptable'];
+// Ouverture de la période (mois écoulé, à partir du jour de paie) : directeur ou secrétaire
+const ouverture = ['directeur', 'secretaire'];
+const lecture = ['directeur', 'comptable', 'secretaire'];
 
-router.get('/periodes',
-  authenticate,
-  requireRole(...roles),
-  requireTenantMatch,
-  requireModule('paie'),
-  ctrl.listPeriodes
-);
+router.use(authenticate, requireTenantMatch, requireModule('paie'));
 
-router.post('/periodes',
-  authenticate,
-  requireRole(...roles),
-  requireTenantMatch,
-  requireModule('paie'),
-  ctrl.getOrCreatePeriode
-);
-
-router.post('/periodes/:id/calculer',
-  authenticate,
-  requireRole(...roles),
-  requireTenantMatch,
-  requireModule('paie'),
-  idParamValidator,
-  ctrl.calculerPeriode
-);
-
-router.get('/periodes/:periodePaieId/bulletins',
-  authenticate,
-  requireRole(...roles),
-  requireTenantMatch,
-  requireModule('paie'),
-  ctrl.listBulletins
-);
-
-router.put('/bulletins/:id',
-  authenticate,
-  requireRole(...roles),
-  requireTenantMatch,
-  requireModule('paie'),
-  idParamValidator,
-  ctrl.updateBulletin
-);
-
-router.post('/bulletins/:id/valider',
-  authenticate,
-  requireRole(...roles),
-  requireTenantMatch,
-  requireModule('paie'),
-  idParamValidator,
-  ctrl.validerBulletin
-);
-
-router.post('/periodes/:id/valider',
-  authenticate,
-  requireRole(...roles),
-  requireTenantMatch,
-  requireModule('paie'),
-  idParamValidator,
-  ctrl.validerPeriode
-);
-
-router.post('/periodes/:id/payer',
-  authenticate,
-  requireRole(...roles),
-  requireTenantMatch,
-  requireModule('paie'),
-  idParamValidator,
-  ctrl.marquerPayee
-);
+router.get('/prochaine', requireRole(...lecture), ctrl.getProchaine);
+router.get('/periodes', requireRole(...lecture), ctrl.listPeriodes);
+router.post('/periodes/ouvrir', requireRole(...ouverture), ctrl.ouvrirPeriode);
+router.post('/periodes/:id/calculer', requireRole(...gestion), idParamValidator, ctrl.calculerPeriode);
+router.get('/periodes/:periodePaieId/bulletins', requireRole(...lecture), ctrl.listBulletins);
+router.put('/bulletins/:id', requireRole(...gestion), idParamValidator, ctrl.updateBulletin);
+router.post('/bulletins/:id/valider', requireRole(...gestion), idParamValidator, ctrl.validerBulletin);
+router.post('/periodes/:id/valider', requireRole(...gestion), idParamValidator, ctrl.validerPeriode);
+router.post('/periodes/:id/payer', requireRole(...gestion), idParamValidator, ctrl.marquerPayee);
 
 export default router;

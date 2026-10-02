@@ -61,6 +61,7 @@ model Tenant {
   messages        Message[]
   heuresEnseignees HeureEnseignee[]
   pointageSessions PointageSession[]
+  pointagesJournaliers PointageJournalier[]
   periodesPaie PeriodePaie[]
   bulletinsPaie BulletinPaie[]
   referentielVersions ReferentielVersion[]
@@ -150,6 +151,15 @@ model TenantConfig {
   methodePaie             MethodePaie @default(mensuel)
   pointageToleranceMinutes Int        @default(15)
   paieJourCloture         Int        @default(25)
+  // Paie programmée : la paie du mois écoulé s'ouvre à partir de ce jour du mois suivant
+  paieJour                Int        @default(10)
+  paieRappelJours         Int        @default(5) // compte à rebours affiché N jours avant
+  // Retenues sur salaire (retards / absences du pointage) — au choix de l'école
+  retenuesActives         Boolean    @default(false)
+  retenueMode             String     @default("proportionnel") // proportionnel | forfaitaire
+  retenueForfaitRetard    Decimal    @default(0) @db.Decimal(12, 2)
+  retenueForfaitAbsence   Decimal    @default(0) @db.Decimal(12, 2)
+  retenueAbsencesJustifiees Boolean  @default(false) // déduire aussi les absences justifiées
 
   /// null = tous les cycles ; ex. ["prescolaire","primaire"] pour école maternelle+primaire
   concerneCycles          Json?
@@ -206,6 +216,9 @@ model Staff {
   heuresHebdo        Int?      // Cahier de charge — heures par semaine (pour vacataires)
   tauxHoraire        Decimal?  @db.Decimal(10, 2) // Taux horaire pour vacataires
   salaireMensuel     Decimal?  @db.Decimal(12, 2)
+  // Horaires de présence attendus (personnel hors enseignement) ; null = horaires de l'école
+  heureArriveePrevue String?
+  heureDepartPrevue  String?
   deviceBiometricId  String?
   mustChangePassword Boolean   @default(true)
   actif              Boolean   @default(true)
@@ -237,6 +250,9 @@ model Staff {
   conseilParticipants ConseilParticipant[]
   conseilsPresides  ConseilDeClasse[]  @relation("ConseilPresident")
   caisseSessions    CaisseSession[]    @relation("CaissierSession")
+  pointagesJournaliers PointageJournalier[] @relation("PointageJournalierStaff")
+  pointagesJournaliersSaisis PointageJournalier[] @relation("PointageJournalierSaisiPar")
+  periodesPaieOuvertes PeriodePaie[]   @relation("PeriodePaieOuvertePar")
   annoncesPubliees  Annonce[]          @relation("AnnonceAuteur")
 
   @@unique([tenantId, email])
@@ -1477,6 +1493,7 @@ model PointageSession {
   sourceDepart      SourcePointage?
   saisiParId        String?
   commentaire       String?
+  justifiee         Boolean             @default(false) // absence / retard justifié
   dureeHeures       Decimal?            @db.Decimal(5, 2)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
@@ -1497,6 +1514,29 @@ model PointageSession {
   @@index([statut])
 }
 
+// --- Pointage journalier du personnel hors enseignement (secrétariat, caisse, surveillance…) ---
+model PointageJournalier {
+  id           String    @id @default(uuid())
+  tenantId     String
+  staffId      String
+  date         DateTime  @db.Date
+  statut       String    @default("present") // present | absent | conge
+  heureArrivee DateTime?
+  heureDepart  DateTime?
+  justifie     Boolean   @default(false)
+  motif        String?
+  saisiParId   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff    Staff  @relation("PointageJournalierStaff", fields: [staffId], references: [id], onDelete: Cascade)
+  saisiPar Staff? @relation("PointageJournalierSaisiPar", fields: [saisiParId], references: [id], onDelete: SetNull)
+
+  @@unique([staffId, date])
+  @@index([tenantId, date])
+}
+
 // --- Paie personnel ---
 model PeriodePaie {
   id              String           @id @default(uuid())
@@ -1505,11 +1545,14 @@ model PeriodePaie {
   mois            Int
   anneeCivile     Int
   statut          StatutPeriodePaie @default(ouverte)
+  ouverteParId    String?
+  ouverteLe       DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   anneeScolaire AnneeScolaire  @relation(fields: [anneeScolaireId], references: [id], onDelete: Cascade)
+  ouvertePar    Staff?         @relation("PeriodePaieOuvertePar", fields: [ouverteParId], references: [id], onDelete: SetNull)
   bulletins     BulletinPaie[]
 
   @@unique([tenantId, anneeScolaireId, mois, anneeCivile])
@@ -1525,7 +1568,8 @@ model BulletinPaie {
   montantFixe     Decimal           @default(0) @db.Decimal(12, 2)
   heuresValidees  Decimal           @default(0) @db.Decimal(8, 2)
   montantHoraire  Decimal           @default(0) @db.Decimal(12, 2)
-  montantTotal    Decimal           @default(0) @db.Decimal(12, 2)
+  montantRetenues Decimal           @default(0) @db.Decimal(12, 2) // retards / absences
+  montantTotal    Decimal           @default(0) @db.Decimal(12, 2) // net à payer
   detailJson      Json?
   statut          StatutBulletinPaie @default(brouillon)
   depenseId       String?

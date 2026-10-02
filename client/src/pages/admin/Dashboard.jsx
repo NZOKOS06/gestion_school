@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
+import PaieRappel from '../../components/PaieRappel.jsx';
 import { Users, TrendingUp, Wallet, AlertTriangle } from 'lucide-react';
 import { KpiCard, KpiGrid, Card, DataTable, PageHeader, Badge, Skeleton, EmptyState, Button } from '../../components/ui';
 import {
@@ -141,6 +142,9 @@ const Dashboard = () => {
         subtitle="Vue d'ensemble de votre établissement"
         data-testid="page-dashboard"
       />
+
+      {/* Paie du mois écoulé : compte à rebours puis ouverture (directeur / secrétaire) */}
+      <PaieRappel />
 
       {alertes.length > 0 && (
         <div

@@ -56,4 +56,30 @@ router.post('/device/scan',
   ctrl.deviceScan
 );
 
+router.put('/sessions/:id/justifier',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes'),
+  requireTenantMatch,
+  requireModule('pointagePersonnel'),
+  idParamValidator,
+  ctrl.justifierSession
+);
+
+// Pointage journalier du personnel hors enseignement (saisie direction / secrétariat / surveillance)
+router.get('/journalier',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes', 'secretaire', 'surveillant'),
+  requireTenantMatch,
+  requireModule('pointagePersonnel'),
+  ctrl.getJournalier
+);
+
+router.put('/journalier',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes', 'secretaire', 'surveillant'),
+  requireTenantMatch,
+  requireModule('pointagePersonnel'),
+  ctrl.saveJournalier
+);
+
 export default router;

@@ -1,13 +1,17 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
+import { logAudit } from '../utils/auditLogger.js';
 import { getAnneeOperationnelle } from '../utils/anneeScolaire.js';
+import {
+  MOIS_LABELS,
+  prochainePeriode,
+  recapPointageStaff,
+  calculerRetenue,
+} from '../services/paie.service.js';
 
 const log = createLogger('PaieController');
 
-const MOIS_LABELS = [
-  '', 'Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre',
-];
+const STATUTS_MODIFIABLES = ['ouverte', 'calculee'];
 
 function serializeBulletin(b) {
   return {
@@ -15,6 +19,7 @@ function serializeBulletin(b) {
     montantFixe: Number(b.montantFixe),
     heuresValidees: Number(b.heuresValidees),
     montantHoraire: Number(b.montantHoraire),
+    montantRetenues: Number(b.montantRetenues || 0),
     montantTotal: Number(b.montantTotal),
     staff: b.staff ? {
       id: b.staff.id,
@@ -26,14 +31,6 @@ function serializeBulletin(b) {
   };
 }
 
-async function getMethodePaie(tenantId) {
-  const cfg = await prisma.tenantConfig.findUnique({
-    where: { tenantId },
-    select: { methodePaie: true },
-  });
-  return cfg?.methodePaie || 'mensuel';
-}
-
 export const listPeriodes = async (req, res) => {
   try {
     const tenantId = req.tenantId;
@@ -43,7 +40,10 @@ export const listPeriodes = async (req, res) => {
 
     const periodes = await prisma.periodePaie.findMany({
       where: { tenantId, anneeScolaireId: anneeId },
-      include: { _count: { select: { bulletins: true } } },
+      include: {
+        _count: { select: { bulletins: true } },
+        ouvertePar: { select: { nom: true, prenom: true } },
+      },
       orderBy: [{ anneeCivile: 'desc' }, { mois: 'desc' }],
     });
 
@@ -54,42 +54,103 @@ export const listPeriodes = async (req, res) => {
   }
 };
 
-export const getOrCreatePeriode = async (req, res) => {
+async function chargerConfigPaie(tenantId) {
+  return prisma.tenantConfig.findUnique({
+    where: { tenantId },
+    select: {
+      paieJour: true,
+      paieRappelJours: true,
+      methodePaie: true,
+      pointageToleranceMinutes: true,
+      heureDebut: true,
+      heureFin: true,
+      retenuesActives: true,
+      retenueMode: true,
+      retenueForfaitRetard: true,
+      retenueForfaitAbsence: true,
+      retenueAbsencesJustifiees: true,
+      joursEcole: { select: { jour: true } },
+    },
+  });
+}
+
+/**
+ * GET /api/paie/prochaine
+ * Mois à ouvrir (le mois écoulé), date d'ouverture, compte à rebours, et périodes en cours.
+ */
+export const getProchaine = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { mois, anneeCivile, anneeScolaireId } = req.body;
+    const config = await chargerConfigPaie(tenantId);
+    const prochaine = prochainePeriode(config || {});
+    const [existante, enCours] = await Promise.all([
+      prisma.periodePaie.findFirst({
+        where: { tenantId, mois: prochaine.mois, anneeCivile: prochaine.anneeCivile },
+        select: { id: true, statut: true, ouverteLe: true },
+      }),
+      // Périodes encore à traiter par la gestionnaire (jusqu'au décaissement)
+      prisma.periodePaie.findMany({
+        where: { tenantId, statut: { in: [...STATUTS_MODIFIABLES, 'validee'] } },
+        select: { id: true, mois: true, anneeCivile: true, statut: true },
+        orderBy: [{ anneeCivile: 'desc' }, { mois: 'desc' }],
+      }),
+    ]);
+    res.json({
+      ...prochaine,
+      paieJour: config?.paieJour ?? 10,
+      dejaOuverte: Boolean(existante),
+      periodeExistante: existante,
+      periodesEnCours: enCours.map((p) => ({ ...p, libelle: `${MOIS_LABELS[p.mois]} ${p.anneeCivile}` })),
+    });
+  } catch (error) {
+    log.error({ err: error }, 'getProchaine');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
 
-    const m = parseInt(mois, 10);
-    const y = parseInt(anneeCivile, 10);
-    if (!m || m < 1 || m > 12 || !y) {
-      return res.status(400).json({ error: 'mois (1-12) et anneeCivile requis' });
+/**
+ * POST /api/paie/periodes/ouvrir (directeur, secrétaire)
+ * Ouvre la paie du mois écoulé, uniquement à partir du jour de paie.
+ */
+export const ouvrirPeriode = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const config = await chargerConfigPaie(tenantId);
+    const prochaine = prochainePeriode(config || {});
+
+    if (!prochaine.ouvrable) {
+      const date = prochaine.dateOuverture.toLocaleDateString('fr-FR');
+      return res.status(400).json({
+        error: `La paie de ${prochaine.libelle} pourra être ouverte à partir du ${date} (dans ${prochaine.joursRestants} jour${prochaine.joursRestants > 1 ? 's' : ''}).`,
+      });
     }
 
-    const anneeId = anneeScolaireId || (await getAnneeOperationnelle(tenantId))?.id;
-    if (!anneeId) return res.status(400).json({ error: 'Aucune annee scolaire active' });
+    const annee = await getAnneeOperationnelle(tenantId);
+    if (!annee) return res.status(400).json({ error: 'Aucune année scolaire active' });
 
-    const periode = await prisma.periodePaie.upsert({
-      where: {
-        tenantId_anneeScolaireId_mois_anneeCivile: {
-          tenantId,
-          anneeScolaireId: anneeId,
-          mois: m,
-          anneeCivile: y,
-        },
-      },
-      create: {
+    const existante = await prisma.periodePaie.findFirst({
+      where: { tenantId, mois: prochaine.mois, anneeCivile: prochaine.anneeCivile },
+    });
+    if (existante) {
+      return res.status(409).json({ error: `La paie de ${prochaine.libelle} est déjà ouverte`, periode: existante });
+    }
+
+    const periode = await prisma.periodePaie.create({
+      data: {
         tenantId,
-        anneeScolaireId: anneeId,
-        mois: m,
-        anneeCivile: y,
+        anneeScolaireId: annee.id,
+        mois: prochaine.mois,
+        anneeCivile: prochaine.anneeCivile,
         statut: 'ouverte',
+        ouverteParId: req.user.id,
+        ouverteLe: new Date(),
       },
-      update: {},
     });
 
-    res.json(periode);
+    await logAudit(req, 'paie_periode_ouverte', 'PeriodePaie', periode.id, { periode: prochaine.libelle });
+    res.status(201).json(periode);
   } catch (error) {
-    log.error({ err: error }, 'getOrCreatePeriode');
+    log.error({ err: error }, 'ouvrirPeriode');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -103,16 +164,22 @@ export const calculerPeriode = async (req, res) => {
       where: { id, tenantId },
     });
     if (!periode) return res.status(404).json({ error: 'Periode non trouvee' });
+    if (!STATUTS_MODIFIABLES.includes(periode.statut)) {
+      return res.status(400).json({ error: 'Période validée : le calcul ne peut plus être modifié' });
+    }
 
-    const methode = await getMethodePaie(tenantId);
+    const config = await chargerConfigPaie(tenantId);
+    const methode = config?.methodePaie || 'mensuel';
+    const joursEcole = (config?.joursEcole || []).map((j) => j.jour);
     const start = new Date(periode.anneeCivile, periode.mois - 1, 1);
     const end = new Date(periode.anneeCivile, periode.mois, 0, 23, 59, 59);
 
+    // Tout le personnel actif de l'école (secrétariat et caisse compris)
     const staffList = await prisma.staff.findMany({
       where: {
         tenantId,
         actif: true,
-        role: { in: ['enseignant', 'directeur', 'directeur_etudes', 'surveillant'] },
+        role: { not: 'super_admin' },
       },
       select: {
         id: true,
@@ -122,12 +189,21 @@ export const calculerPeriode = async (req, res) => {
         role: true,
         salaireMensuel: true,
         tauxHoraire: true,
+        heureArriveePrevue: true,
+        heureDepartPrevue: true,
       },
     });
+    const dejaValides = new Set((await prisma.bulletinPaie.findMany({
+      where: { tenantId, periodePaieId: periode.id, statut: { not: 'brouillon' } },
+      select: { staffId: true },
+    })).map((b) => b.staffId));
 
     const bulletins = [];
 
     for (const s of staffList) {
+      // Bulletin déjà validé / décaissé : on n'y touche plus
+      if (dejaValides.has(s.id)) continue;
+
       const heures = await prisma.heureEnseignee.findMany({
         where: {
           tenantId,
@@ -153,7 +229,42 @@ export const calculerPeriode = async (req, res) => {
         montantHoraire = Math.round(heuresValidees * taux);
       }
 
-      const montantTotal = montantFixe + montantHoraire;
+      const brut = montantFixe + montantHoraire;
+
+      // Retenues retards / absences (option école)
+      let recapPointage = null;
+      let retenue = null;
+      if (config?.retenuesActives) {
+        recapPointage = await recapPointageStaff(tenantId, s, {
+          mois: periode.mois,
+          anneeCivile: periode.anneeCivile,
+          config,
+          joursEcole,
+        });
+        retenue = calculerRetenue(recapPointage, {
+          mode: config.retenueMode,
+          montantFixe,
+          brut,
+          forfaitRetard: config.retenueForfaitRetard,
+          forfaitAbsence: config.retenueForfaitAbsence,
+          absencesJustifieesRetenues: config.retenueAbsencesJustifiees,
+        });
+      }
+      const montantRetenues = retenue?.total || 0;
+      const montantTotal = Math.max(0, brut - montantRetenues);
+      const detailJson = {
+        methode,
+        tauxHoraire: taux,
+        brut,
+        recapPointage,
+        retenue,
+        lignes: heures.map((h) => ({
+          date: h.date,
+          heureDebut: h.heureDebut,
+          heureFin: h.heureFin,
+          dureeHeures: Number(h.dureeHeures),
+        })),
+      };
 
       const bulletin = await prisma.bulletinPaie.upsert({
         where: {
@@ -169,34 +280,18 @@ export const calculerPeriode = async (req, res) => {
           montantFixe,
           heuresValidees,
           montantHoraire,
+          montantRetenues,
           montantTotal,
           statut: 'brouillon',
-          detailJson: {
-            methode,
-            tauxHoraire: taux,
-            lignes: heures.map((h) => ({
-              date: h.date,
-              heureDebut: h.heureDebut,
-              heureFin: h.heureFin,
-              dureeHeures: Number(h.dureeHeures),
-            })),
-          },
+          detailJson,
         },
         update: {
           montantFixe,
           heuresValidees,
           montantHoraire,
+          montantRetenues,
           montantTotal,
-          detailJson: {
-            methode,
-            tauxHoraire: taux,
-            lignes: heures.map((h) => ({
-              date: h.date,
-              heureDebut: h.heureDebut,
-              heureFin: h.heureFin,
-              dureeHeures: Number(h.dureeHeures),
-            })),
-          },
+          detailJson,
         },
         include: {
           staff: { select: { id: true, nom: true, prenom: true, email: true, role: true } },
@@ -211,10 +306,17 @@ export const calculerPeriode = async (req, res) => {
       data: { statut: 'calculee' },
     });
 
+    await logAudit(req, 'paie_periode_calculee', 'PeriodePaie', periode.id, {
+      periode: `${MOIS_LABELS[periode.mois]} ${periode.anneeCivile}`,
+      nbBulletins: bulletins.length,
+      retenues: Boolean(config?.retenuesActives),
+    });
+
     res.json({
       periodeId: periode.id,
       methode,
       moisLabel: MOIS_LABELS[periode.mois],
+      retenuesActives: Boolean(config?.retenuesActives),
       data: bulletins,
     });
   } catch (error) {
@@ -252,10 +354,14 @@ export const updateBulletin = async (req, res) => {
 
     const existing = await prisma.bulletinPaie.findFirst({ where: { id, tenantId } });
     if (!existing) return res.status(404).json({ error: 'Bulletin non trouve' });
+    if (existing.statut !== 'brouillon') {
+      return res.status(400).json({ error: 'Bulletin déjà validé : ajustement impossible' });
+    }
 
     const data = {};
     if (montantFixe != null) data.montantFixe = parseFloat(montantFixe);
     if (montantHoraire != null) data.montantHoraire = parseFloat(montantHoraire);
+    if (req.body.montantRetenues != null) data.montantRetenues = Math.max(0, parseFloat(req.body.montantRetenues) || 0);
     if (montantTotal != null) data.montantTotal = parseFloat(montantTotal);
     if (commentaire != null) {
       data.detailJson = { ...(existing.detailJson || {}), commentaire };
@@ -335,6 +441,9 @@ export const validerPeriode = async (req, res) => {
 
     const periode = await prisma.periodePaie.findFirst({ where: { id, tenantId } });
     if (!periode) return res.status(404).json({ error: 'Periode non trouvee' });
+    if (periode.statut !== 'calculee') {
+      return res.status(400).json({ error: 'Calculez la période avant de la valider' });
+    }
 
     const bulletins = await prisma.bulletinPaie.findMany({
       where: { periodePaieId: id, tenantId, statut: 'brouillon' },
