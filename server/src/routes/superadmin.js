@@ -34,6 +34,7 @@ router.get('/groupes', groupes.list);
 router.post('/groupes', groupes.create);
 router.put('/groupes/:id/sites', idParamValidator, groupes.setSites);
 router.get('/groupes/:id/stats', idParamValidator, groupes.stats);
+router.put('/groupes/:id/directeur', idParamValidator, groupes.setDirecteur);
 
 // Audit & traçabilité
 router.get('/audit', paginationValidator, auditCtrl.getAuditLogs);

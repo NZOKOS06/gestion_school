@@ -76,6 +76,7 @@ const TRANSLATIONS = {
     examens: 'Examens nationaux',
     messagerie: 'Messagerie',
     annonces: 'Annonces',
+    groupe: 'Groupe scolaire',
     ventes: 'Ventes & recettes',
     directeur_etudes: 'Directeur des études',
     gestionnaire: 'Gestionnaire',

@@ -6,6 +6,7 @@
  * toutes les opérations de caisse, appels et notes enregistrées hors-ligne.
  */
 
+import toast from 'react-hot-toast';
 import axiosInstance from '../utils/axios.js';
 import { getAllItems, deleteItem, putItem, getPendingSyncCount } from './offlineDb.js';
 
@@ -71,6 +72,11 @@ export async function syncPendingActions() {
       // Si c'est une erreur réseau (re-déconnexion), on interrompt le cycle
       if (!err.response) {
         break;
+      }
+      // Rejet métier (doublon, donnée invalide, droit retiré) : rejouer ne servirait à rien, on écarte et on signale
+      if (err.response.status >= 400 && err.response.status < 500 && ![401, 408, 429].includes(err.response.status)) {
+        await deleteItem('syncQueue', item.id);
+        toast.error(`Action hors-ligne refusée par le serveur : ${err.response.data?.error || err.response.data?.message || err.response.status}`);
       }
     }
   }

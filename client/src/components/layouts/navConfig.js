@@ -26,6 +26,7 @@ import {
   Timer,
   Banknote,
   Megaphone,
+  Building2,
   ShoppingBag,
 } from 'lucide-react';
 
@@ -50,6 +51,7 @@ export const ADMIN_ROUTE_LABELS = {
   '/admin/examens': 'Examens nationaux',
   '/admin/messagerie': 'Messagerie',
   '/admin/annonces': 'Annonces aux parents',
+  '/admin/groupe': 'Groupe scolaire',
   '/admin/rapports': 'Rapports',
   '/admin/personnel': 'Personnel',
   '/admin/pointage': 'Pointage personnel',
@@ -117,6 +119,7 @@ export const ADMIN_NAV = [
     items: [
       { path: '/admin/messagerie', icon: Mail, labelKey: 'messagerie', primary: true, roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
       { path: '/admin/annonces', icon: Megaphone, labelKey: 'annonces', module: 'parents', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
+      { path: '/admin/groupe', icon: Building2, labelKey: 'groupe', roles: ['directeur'] },
     ],
   },
 ];

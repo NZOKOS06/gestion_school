@@ -1,6 +1,18 @@
 import { useState, useCallback } from 'react';
 import axiosInstance from '../utils/axios';
 import toast from 'react-hot-toast';
+import { savePaiementOffline, saveAbsenceOffline, saveNotesOffline } from '../services/offlineDb';
+
+/** Écritures rejouables plus tard : mises en file IndexedDB si le réseau est coupé (synchro dans offlineSync.js). */
+async function mettreEnFile(method, url, data) {
+  if (method !== 'post' || !data || typeof data !== 'object' || data instanceof FormData) return null;
+  const chemin = String(url).split('?')[0];
+  if (chemin === '/api/paiements') return savePaiementOffline(data);
+  if (chemin === '/api/absences') return saveAbsenceOffline(data);
+  const m = chemin.match(/^\/api\/evaluations\/([^/]+)\/notes$/);
+  if (m) return saveNotesOffline({ evaluationId: m[1], notes: data.notes });
+  return null;
+}
 
 export const useAxios = () => {
   const [loading, setLoading] = useState(false);

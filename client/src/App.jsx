@@ -76,6 +76,7 @@ const Salles = lazyWithRetry(() => import('./pages/admin/Salles'));
 const CalendrierScolaire = lazyWithRetry(() => import('./pages/admin/CalendrierScolaire'));
 const Messagerie = lazyWithRetry(() => import('./pages/admin/Messagerie'));
 const Annonces = lazyWithRetry(() => import('./pages/admin/Annonces'));
+const GroupeScolaire = lazyWithRetry(() => import('./pages/admin/GroupeScolaire'));
 const Ventes = lazyWithRetry(() => import('./pages/admin/Ventes'));
 const AnneesScolaires = lazyWithRetry(() => import('./pages/admin/AnneesScolaires'));
 const Examens = lazyWithRetry(() => import('./pages/admin/Examens'));
@@ -220,6 +221,7 @@ const AppRoutes = () => {
             <Route path="/admin/certificats" element={<Certificats />} />
             <Route path="/admin/messagerie" element={<Messagerie />} />
             <Route path="/admin/annonces" element={<Annonces />} />
+            <Route path="/admin/groupe" element={<GroupeScolaire />} />
           </Route>
         </Route>
 

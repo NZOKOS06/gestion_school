@@ -77,3 +77,19 @@ export const stats = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+/** PUT /api/superadmin/groupes/:id/directeur { staffId } — directeur de groupe (un directeur d'un site du groupe) */
+export const setDirecteur = async (req, res) => {
+  try {
+    const staffId = req.body.staffId || null;
+    if (staffId) {
+      const staff = await rawPrisma.staff.findFirst({ where: { id: staffId, role: 'directeur', tenant: { groupeId: req.params.id } }, select: { id: true } });
+      if (!staff) return res.status(400).json({ error: "Le directeur de groupe doit être un directeur d'un site du groupe" });
+    }
+    await rawPrisma.groupeScolaire.update({ where: { id: req.params.id }, data: { directeurStaffId: staffId } });
+    res.json({ message: 'Directeur de groupe mis à jour' });
+  } catch (error) {
+    log.error({ err: error }, 'setDirecteur');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
