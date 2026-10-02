@@ -3,7 +3,6 @@ import {
   resolveFees,
   appliquerTarifSpecial,
   modifierTarifInscription,
-  changerCantine,
   FraisError,
 } from './fraisInscription.service.js';
 
@@ -143,17 +142,12 @@ describe('régimes et cantine', () => {
     await expect(resolveFees('t1', 'c1', { regime: 'mi_temps', db })).rejects.toThrow(FraisError);
   });
 
-  it('cantine demandée alors qu\'elle est désactivée → refus', async () => {
-    const db = fakeDb({ classe: { fraisScolarite: 1 }, config: { cantineActive: false, tarifCantine: 10000 } });
-    await expect(resolveFees('t1', 'c1', { cantine: true, db })).rejects.toThrow(FraisError);
-  });
-
-  it('modifier le tarif ne touche pas aux échéances de cantine', async () => {
+  it('modifier le tarif ne touche pas aux échéances des services optionnels', async () => {
     const futur = new Date(Date.now() + 30 * 86400000);
     const db = fakeDb({
       echeances: [
         { libelle: 'Octobre 2026', categorie: 'scolarite', montantAttendu: 30000, montantPaye: 0, dateEcheance: futur },
-        { libelle: 'Cantine — Octobre 2026', categorie: 'cantine', montantAttendu: 10000, montantPaye: 0, dateEcheance: futur },
+        { libelle: 'Cantine — Octobre 2026', categorie: 'service', souscriptionServiceId: 's1', montantAttendu: 10000, montantPaye: 0, dateEcheance: futur },
       ],
     });
     await modifierTarifInscription(db, 't1', { id: 'i1' }, { fraisInscription: 0, fraisScolarite: 15000, tarifSpecial: true, motifTarifSpecial: 'x' });
@@ -162,48 +156,3 @@ describe('régimes et cantine', () => {
   });
 });
 
-describe('changerCantine', () => {
-  const annee = { dateDebut: new Date(Date.UTC(2026, 8, 1)), dateFin: new Date(Date.UTC(2027, 5, 30)) };
-
-  it('souscription en cours d\'année : périodes à partir du mois courant', async () => {
-    const db = fakeDb();
-    db.anneeScolaire.findUnique = async () => annee;
-    await changerCantine(db, 't1', { id: 'i1', anneeScolaireId: 'a1' }, {
-      active: true, montantParPeriode: 10000, periodicite: 'mensuelle', maintenant: new Date(Date.UTC(2026, 10, 20)),
-    });
-    const libelles = db.state.echeances.map((e) => e.libelle);
-    expect(libelles[0]).toBe('Cantine — Novembre 2026');
-    expect(libelles).toHaveLength(8); // novembre → juin
-    expect(db.state.inscription).toMatchObject({ cantine: true, tarifCantineApplique: 10000 });
-  });
-
-  it('trimestrielle : le trimestre commencé reste facturé', async () => {
-    const db = fakeDb();
-    db.anneeScolaire.findUnique = async () => annee;
-    await changerCantine(db, 't1', { id: 'i1', anneeScolaireId: 'a1' }, {
-      active: true, montantParPeriode: 30000, periodicite: 'trimestrielle', maintenant: new Date(Date.UTC(2026, 9, 15)),
-    });
-    expect(db.state.echeances.map((e) => e.libelle)).toEqual([
-      'Cantine — Trimestre 1', 'Cantine — Trimestre 2', 'Cantine — Trimestre 3', 'Cantine — Trimestre 4',
-    ]);
-  });
-
-  it('résiliation : arrête les mois à venir non payés, garde le passé et le déjà payé', async () => {
-    const d = (m) => new Date(Date.UTC(2026, m, 5, 12));
-    const db = fakeDb({
-      echeances: [
-        { libelle: 'Cantine — Octobre 2026', categorie: 'cantine', montantAttendu: 10000, montantPaye: 0, dateEcheance: d(9), statut: 'en_retard' },
-        { libelle: 'Cantine — Novembre 2026', categorie: 'cantine', montantAttendu: 10000, montantPaye: 0, dateEcheance: d(10), statut: 'en_attente' },
-        { libelle: 'Cantine — Décembre 2026', categorie: 'cantine', montantAttendu: 10000, montantPaye: 4000, dateEcheance: d(11), statut: 'en_attente' },
-        { libelle: 'Cantine — Janvier 2027', categorie: 'cantine', montantAttendu: 10000, montantPaye: 0, dateEcheance: new Date(Date.UTC(2027, 0, 5, 12)), statut: 'en_attente' },
-      ],
-    });
-    await changerCantine(db, 't1', { id: 'i1' }, { active: false, maintenant: new Date(Date.UTC(2026, 10, 20)) });
-    const [oct, nov, dec, jan] = db.state.echeances;
-    expect(Number(oct.montantAttendu)).toBe(10000); // passé : reste dû
-    expect(Number(nov.montantAttendu)).toBe(10000); // mois en cours : reste dû
-    expect(dec).toMatchObject({ montantAttendu: 4000, statut: 'payee' });
-    expect(jan).toMatchObject({ montantAttendu: 0, statut: 'annulee' });
-    expect(db.state.inscription).toMatchObject({ cantine: false });
-  });
-});

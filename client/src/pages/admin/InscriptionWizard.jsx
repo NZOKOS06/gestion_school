@@ -83,7 +83,8 @@ export default function InscriptionWizard({
   const [tarifServeur, setTarifServeur] = useState(null);
   const [tarifErreur, setTarifErreur] = useState('');
   const [regime, setRegime] = useState('plein_temps');
-  const [cantine, setCantine] = useState(false);
+  const [servicesChoisis, setServicesChoisis] = useState([]);
+  const servicesKey = servicesChoisis.slice().sort().join(',');
   const eleveIdPourTarif = mode === 'existant' ? existingEleveId : '';
   useEffect(() => {
     if (!get || !classeId) {
@@ -92,7 +93,7 @@ export default function InscriptionWizard({
     }
     let cancelled = false;
     const params = new URLSearchParams({ classeId, anneeScolaireId: effectiveAnneeId || '', regime });
-    if (cantine) params.set('cantine', '1');
+    if (servicesKey) params.set('services', servicesKey);
     if (eleveIdPourTarif) params.set('eleveId', eleveIdPourTarif);
     get(`/api/inscriptions/frais-preview?${params.toString()}`, { silent: true })
       .then((res) => { if (!cancelled) { setTarifServeur(res || null); setTarifErreur(''); } })
@@ -102,10 +103,19 @@ export default function InscriptionWizard({
         setTarifErreur(err?.response?.data?.error || '');
       });
     return () => { cancelled = true; };
-  }, [get, classeId, effectiveAnneeId, eleveIdPourTarif, regime, cantine]);
+  }, [get, classeId, effectiveAnneeId, eleveIdPourTarif, regime, servicesKey]);
   const regimesActifs = Boolean(tarifServeur?.regimesActifs);
-  const cantineDisponible = Boolean(tarifServeur?.cantineActive) && Number(tarifServeur?.tarifCantine || 0) > 0;
-  const totalCantine = cantine ? Number(tarifServeur?.totalCantine || 0) : 0;
+  const servicesDisponibles = tarifServeur?.servicesDisponibles || [];
+  const servicesRetenus = servicesDisponibles.filter((s) => servicesChoisis.includes(s.id));
+  const totalServices = servicesRetenus.reduce((acc, s) => acc + Number(s.total || 0), 0);
+  const toggleService = (id) => setServicesChoisis((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const UNITE = { mensuelle: 'mois', trimestrielle: 'trimestre', annuelle: 'an', unique: 'paiement' };
+  // Changement de classe : on ne garde que les services encore proposés
+  useEffect(() => {
+    if (!tarifServeur?.servicesDisponibles) return;
+    const ok = new Set(tarifServeur.servicesDisponibles.map((s) => s.id));
+    setServicesChoisis((prev) => (prev.every((id) => ok.has(id)) ? prev : prev.filter((id) => ok.has(id))));
+  }, [tarifServeur]);
 
   const fraisInscriptionBase = tarifServeur
     ? Number(tarifServeur.fraisInscription || 0)
@@ -135,7 +145,7 @@ export default function InscriptionWizard({
 
   const fraisInscription = tarifSpecial ? Math.max(0, Number(tarifCustom.fraisInscription) || 0) : fraisInscriptionBase;
   const fraisScolarite = tarifSpecial ? Math.max(0, Number(tarifCustom.fraisScolarite) || 0) : fraisScolariteBase;
-  const totalFrais = fraisInscription + fraisScolarite + totalCantine;
+  const totalFrais = fraisInscription + fraisScolarite + totalServices;
 
   const inputStyle = {
     width: '100%',
@@ -221,7 +231,7 @@ export default function InscriptionWizard({
         parentId: parentMode === 'existant' ? existingParentId : undefined,
         tuteur: parentMode === 'nouveau' ? tuteur : undefined,
         regime,
-        cantine,
+        services: servicesChoisis,
         ...(tarifSpecial ? {
           fraisInscription,
           fraisScolarite,
@@ -632,7 +642,7 @@ export default function InscriptionWizard({
               <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
                 <CreditCard className="h-3.5 w-3.5" /> Frais scolaires associés
               </h4>
-              {(regimesActifs || cantineDisponible) && (
+              {(regimesActifs || servicesDisponibles.length > 0) && (
                 <div className="flex flex-wrap items-center gap-4 pb-2 border-b border-[var(--border-subtle)] text-sm">
                   {regimesActifs && (
                     <div className="flex items-center gap-3">
@@ -645,11 +655,16 @@ export default function InscriptionWizard({
                       ))}
                     </div>
                   )}
-                  {cantineDisponible && (
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" checked={cantine} onChange={(e) => setCantine(e.target.checked)} />
-                      Cantine ({formatPrice(tarifServeur.tarifCantine)}/{tarifServeur.cantinePeriodicite === 'trimestrielle' ? 'trimestre' : 'mois'})
-                    </label>
+                  {servicesDisponibles.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 w-full">
+                      <span style={{ color: 'var(--text-secondary)' }}>Services optionnels :</span>
+                      {servicesDisponibles.map((s) => (
+                        <label key={s.id} className="flex items-center gap-1.5 cursor-pointer" title={s.description || ''}>
+                          <input type="checkbox" checked={servicesChoisis.includes(s.id)} onChange={() => toggleService(s.id)} />
+                          {s.nom} ({formatPrice(s.tarif)}/{UNITE[s.periodicite] || 'mois'})
+                        </label>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
@@ -672,14 +687,14 @@ export default function InscriptionWizard({
                 </span>
                 <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatPrice(fraisScolarite)}</span>
               </div>
-              {cantine && (
-                <div className="flex justify-between text-sm py-1 border-b border-[var(--border-subtle)]">
+              {servicesRetenus.map((s) => (
+                <div key={s.id} className="flex justify-between text-sm py-1 border-b border-[var(--border-subtle)]">
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    Cantine ({tarifServeur?.nbPeriodesCantine || 0} × {formatPrice(tarifServeur?.tarifCantine || 0)})
+                    {s.nom} ({s.nbPeriodes} × {formatPrice(s.tarif)})
                   </span>
-                  <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatPrice(totalCantine)}</span>
+                  <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatPrice(s.total)}</span>
                 </div>
-              )}
+              ))}
               <div className="flex justify-between text-base font-bold pt-1">
                 <span style={{ color: 'var(--text-primary)' }}>Total à ouvrir au dossier</span>
                 <span style={{ color: 'var(--color-primary)' }}>{formatPrice(totalFrais)}</span>

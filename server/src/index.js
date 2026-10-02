@@ -66,6 +66,7 @@ import heuresEnseigneesRoutes from './routes/heuresEnseignees.js';
 import paieRoutes from './routes/paie.js';
 import relancesRoutes from './routes/relances.js';
 import facturationRoutes from './routes/facturation.js';
+import servicesOptionnelsRoutes from './routes/servicesOptionnels.js';
 
 const app = express();
 if (process.env.NODE_ENV === 'production') {
@@ -324,6 +325,7 @@ app.use('/api/heures-enseignees', tenantMiddleware, heuresEnseigneesRoutes);
 app.use('/api/paie', tenantMiddleware, paieRoutes);
 app.use('/api/relances', tenantMiddleware, relancesRoutes);
 app.use('/api/facturation', tenantMiddleware, facturationRoutes);
+app.use('/api/services-optionnels', tenantMiddleware, servicesOptionnelsRoutes);
 
 // Super admin routes
 app.use('/api/superadmin', superadminRoutes);

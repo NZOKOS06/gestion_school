@@ -7,12 +7,39 @@ import {
   appliquerTarifSpecial,
   champsTarifInscription,
   modifierTarifInscription,
-  optionsCantine,
-  changerCantine,
   FraisError,
 } from '../services/fraisInscription.service.js';
+import {
+  resolveServices,
+  servicesPourClasse,
+  souscrireService,
+  arreterService,
+  modifierTarifService,
+  totalAnnuelService,
+} from '../services/servicesOptionnels.service.js';
+import { syncInscriptionSolde } from '../services/echeances.service.js';
 
 const estVrai = (v) => v === true || v === 'true' || v === '1' || v === 1;
+
+/**
+ * body.services : [serviceId] ou [{ id, tarif?, motifTarifSpecial? }]
+ * Retourne [{ id, tarif, motifTarifSpecial }]
+ */
+const parseServicesDemandes = (raw) => (Array.isArray(raw) ? raw : [])
+  .map((x) => (typeof x === 'string' ? { id: x } : { id: x?.id || x?.serviceId, tarif: x?.tarif, motifTarifSpecial: x?.motifTarifSpecial }))
+  .filter((x) => x.id);
+
+/** Souscrit les services demandés pour une nouvelle inscription (dans la transaction). */
+async function souscrireServicesInscription(tx, tenantId, inscription, classe, demandes) {
+  if (!demandes.length) return;
+  const services = await resolveServices(tenantId, classe, demandes.map((d) => d.id), tx);
+  for (const service of services) {
+    const d = demandes.find((x) => x.id === service.id) || {};
+    const tarif = d.tarif === undefined || d.tarif === null || d.tarif === '' ? null : Number(d.tarif);
+    await souscrireService(tx, tenantId, inscription, service, { tarif, motifTarifSpecial: d.motifTarifSpecial });
+  }
+  await syncInscriptionSolde(tx, tenantId, inscription.id);
+}
 import { messageErreurDateNaissance, safeOrderBy } from '../utils/formatters.js';
 import { resolveAnneeScolaireId, getAnneeOperationnelle } from '../utils/anneeScolaire.js';
 import { hashPassword } from '../utils/password.js';
@@ -57,6 +84,7 @@ export const getAll = async (req, res) => {
           eleve: { select: { id: true, matricule: true, nom: true, prenom: true, sexe: true, photoUrl: true, dateNaissance: true } },
           classe: { select: { id: true, nom: true, niveau: true } },
           anneeScolaire: { select: { id: true, libelle: true, statut: true } },
+          souscriptionsServices: { where: { actif: true }, select: { id: true, service: { select: { nom: true } } } },
         },
         skip,
         take,
@@ -125,11 +153,12 @@ export const create = async (req, res) => {
         anneeScolaireId,
         typeFrais: req.body.typeFrais,
         regime: req.body.regime,
-        cantine: estVrai(req.body.cantine),
       }),
       req.body
     );
     const { fraisScolarite, fraisInscription } = fees;
+    const servicesDemandes = parseServicesDemandes(req.body.services);
+    await resolveServices(tenantId, fees.classe, servicesDemandes.map((d) => d.id));
 
     const inscription = await prisma.$transaction(async (tx) => {
       const insc = await tx.inscription.create({
@@ -146,8 +175,8 @@ export const create = async (req, res) => {
       await generateForInscription(tx, insc, {
         fraisInscription,
         fraisScolarite,
-        cantine: optionsCantine(fees),
       });
+      await souscrireServicesInscription(tx, tenantId, insc, fees.classe, servicesDemandes);
       return tx.inscription.findUnique({
         where: { id: insc.id },
         include: {
@@ -202,11 +231,12 @@ export const createAvecEleve = async (req, res) => {
         anneeScolaireId,
         typeFrais: req.body.typeFrais,
         regime: req.body.regime,
-        cantine: estVrai(req.body.cantine),
       }),
       req.body
     );
     const { fraisScolarite, fraisInscription } = fees;
+    const servicesDemandes = parseServicesDemandes(req.body.services);
+    await resolveServices(tenantId, classe, servicesDemandes.map((d) => d.id));
 
     const result = await prisma.$transaction(async (tx) => {
       let finalParentId = explicitParentId || eleveData?.parentId || null;
@@ -312,8 +342,8 @@ export const createAvecEleve = async (req, res) => {
       await generateForInscription(tx, insc, {
         fraisInscription,
         fraisScolarite,
-        cantine: optionsCantine(fees),
       });
+      await souscrireServicesInscription(tx, tenantId, insc, classe, servicesDemandes);
 
       return tx.inscription.findUnique({
         where: { id: insc.id },
@@ -482,7 +512,7 @@ export const decideFinAnnee = async (req, res) => {
           },
         });
         if (!already) {
-          // Régime reconduit ; la cantine se re-souscrit explicitement chaque année
+          // Régime reconduit ; les services optionnels se re-souscrivent explicitement chaque année
           const fees = await resolveFees(tenantId, classeCible.id, { typeFrais: 'reinscription', regime: existing.regime });
           const { fraisScolarite, fraisInscription } = fees;
           nouvelleInscription = await prisma.$transaction(async (tx) => {
@@ -559,18 +589,11 @@ export const validate = async (req, res) => {
         where: { id },
         data: { statut: 'validee' },
       });
-      if (!existing.echeances?.length) {
-        const cfg = existing.cantine
-          ? await tx.tenantConfig.findUnique({ where: { tenantId }, select: { cantinePeriodicite: true } })
-          : null;
-        await generateForInscription(tx, insc, {
-          fraisInscription: fees.fraisInscription,
-          fraisScolarite: fees.fraisScolarite,
-          cantine: existing.cantine && Number(existing.tarifCantineApplique) > 0
-            ? { montantParPeriode: Number(existing.tarifCantineApplique), periodicite: cfg?.cantinePeriodicite }
-            : null,
-        });
-      }
+      // generateForInscription ne fait rien si la scolarité est déjà échéancée
+      await generateForInscription(tx, insc, {
+        fraisInscription: fees.fraisInscription,
+        fraisScolarite: fees.fraisScolarite,
+      });
       return tx.inscription.findUnique({
         where: { id },
         include: { echeances: true },
@@ -874,7 +897,8 @@ export const reinscriptionLot = async (req, res) => {
 export const fraisPreview = async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const { classeId, eleveId, anneeScolaireId, typeFrais, regime, cantine } = req.query;
+    const { classeId, eleveId, anneeScolaireId, typeFrais, regime } = req.query;
+    const servicesDemandes = String(req.query.services || '').split(',').filter(Boolean);
     if (!classeId) return res.status(400).json({ error: 'classeId requis' });
 
     const fees = await resolveFees(tenantId, classeId, {
@@ -882,23 +906,25 @@ export const fraisPreview = async (req, res) => {
       anneeScolaireId: anneeScolaireId || null,
       typeFrais: typeFrais || null,
       regime: regime || null,
-      cantine: estVrai(cantine),
     });
     if (!fees.classe) return res.status(404).json({ error: 'Classe introuvable' });
 
-    // Total cantine sur l'année (nombre de périodes × tarif)
-    let totalCantine = 0;
-    let nbPeriodesCantine = 0;
-    if (fees.cantine) {
-      const annee = await prisma.anneeScolaire.findFirst({
-        where: { id: anneeScolaireId || fees.classe.anneeScolaireId, tenantId },
-      });
-      if (annee?.dateDebut && annee?.dateFin) {
-        const { periodesCantine } = await import('../services/echeances.service.js');
-        nbPeriodesCantine = periodesCantine(annee.dateDebut, annee.dateFin, fees.cantinePeriodicite).length;
-        totalCantine = nbPeriodesCantine * fees.tarifCantine;
-      }
-    }
+    // Services proposés à la classe, avec leur coût sur l'année (à partir de la période en cours)
+    const annee = await prisma.anneeScolaire.findFirst({
+      where: { id: anneeScolaireId || fees.classe.anneeScolaireId, tenantId },
+    });
+    const debut = annee?.dateDebut ? new Date(annee.dateDebut) : new Date();
+    const fin = annee?.dateFin ? new Date(annee.dateFin) : new Date(debut.getTime() + 270 * 86400000);
+    const disponibles = (await servicesPourClasse(tenantId, fees.classe)).map((s) => ({
+      id: s.id,
+      nom: s.nom,
+      description: s.description,
+      tarif: Number(s.tarif),
+      periodicite: s.periodicite,
+      ...totalAnnuelService(s, debut, fin, new Date()),
+    }));
+    const choisis = disponibles.filter((s) => servicesDemandes.includes(s.id));
+    const totalServices = choisis.reduce((acc, s) => acc + s.total, 0);
 
     res.json({
       typeFrais: fees.typeFrais,
@@ -908,12 +934,10 @@ export const fraisPreview = async (req, res) => {
       regime: fees.regime,
       regimesActifs: fees.regimesActifs,
       scolariteMiTemps: Number(fees.classe.fraisScolariteMiTemps || 0),
-      cantineActive: fees.cantineActive,
-      tarifCantine: fees.tarifCantine,
-      cantinePeriodicite: fees.cantinePeriodicite,
-      nbPeriodesCantine,
-      totalCantine,
-      total: fees.fraisInscription + fees.fraisScolarite + totalCantine,
+      servicesDisponibles: disponibles,
+      services: choisis,
+      totalServices,
+      total: fees.fraisInscription + fees.fraisScolarite + totalServices,
     });
   } catch (error) {
     if (error instanceof FraisError) {
@@ -982,48 +1006,120 @@ export const updateTarif = async (req, res) => {
 };
 
 /**
- * PUT /api/inscriptions/:id/cantine
- * Body: { active: boolean }
- * Souscription (à partir de la période en cours) ou résiliation (périodes à venir arrêtées).
+ * GET /api/inscriptions/:id/services
+ * Services proposés à la classe de l'élève + souscriptions (actives ou arrêtées).
  */
-export const updateCantine = async (req, res) => {
+export const getServicesInscription = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
-    const active = estVrai(req.body.active);
-
-    const existing = await prisma.inscription.findFirst({ where: { id, tenantId } });
-    if (!existing) return res.status(404).json({ error: 'Inscription non trouvée' });
-    if (existing.statut === 'annulee') {
-      return res.status(400).json({ error: 'Inscription annulée' });
-    }
-
-    const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
-    if (active && (!config?.cantineActive || Number(config?.tarifCantine || 0) <= 0)) {
-      return res.status(400).json({ error: "La cantine n'est pas activée ou son tarif n'est pas renseigné" });
-    }
-
-    const solde = await prisma.$transaction((tx) => changerCantine(tx, tenantId, existing, {
-      active,
-      montantParPeriode: Number(config?.tarifCantine || 0),
-      periodicite: config?.cantinePeriodicite === 'trimestrielle' ? 'trimestrielle' : 'mensuelle',
-    }));
-
-    await logAudit(req, active ? 'cantine_souscrite' : 'cantine_resiliee', 'Inscription', id, {
-      eleveId: existing.eleveId,
-      tarif: active ? Number(config?.tarifCantine || 0) : undefined,
-    });
-
     const inscription = await prisma.inscription.findFirst({
       where: { id, tenantId },
-      include: { echeances: { orderBy: { dateEcheance: 'asc' } } },
+      include: { classe: true },
     });
-    res.json({ inscription, soldeScolarite: solde });
+    if (!inscription) return res.status(404).json({ error: 'Inscription non trouvée' });
+
+    const [disponibles, souscriptions] = await Promise.all([
+      servicesPourClasse(tenantId, inscription.classe),
+      prisma.souscriptionService.findMany({
+        where: { tenantId, inscriptionId: id },
+        include: {
+          service: true,
+          echeances: { where: { statut: { not: 'annulee' } }, select: { montantAttendu: true, montantPaye: true } },
+        },
+      }),
+    ]);
+
+    const parService = new Map(souscriptions.map((s) => [s.serviceId, s]));
+    const ids = new Set([...disponibles.map((s) => s.id), ...souscriptions.map((s) => s.serviceId)]);
+    const data = [...ids].map((serviceId) => {
+      const sous = parService.get(serviceId);
+      const service = sous?.service || disponibles.find((s) => s.id === serviceId);
+      const attendu = (sous?.echeances || []).reduce((acc, e) => acc + Number(e.montantAttendu), 0);
+      const paye = (sous?.echeances || []).reduce((acc, e) => acc + Math.min(Number(e.montantPaye), Number(e.montantAttendu)), 0);
+      return {
+        serviceId,
+        nom: service.nom,
+        periodicite: service.periodicite,
+        tarifCatalogue: Number(service.tarif),
+        proposeAClasse: disponibles.some((s) => s.id === serviceId),
+        souscrit: Boolean(sous?.actif),
+        souscriptionId: sous?.id || null,
+        tarifApplique: sous ? Number(sous.tarifApplique) : null,
+        tarifSpecial: Boolean(sous?.tarifSpecial),
+        motifTarifSpecial: sous?.motifTarifSpecial || null,
+        dateFin: sous?.dateFin || null,
+        attendu,
+        paye,
+        reste: Math.max(0, attendu - paye),
+      };
+    });
+
+    res.json({ data });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'getServicesInscription error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * PUT /api/inscriptions/:id/services/:serviceId
+ * Body: { active: boolean, tarif?, motifTarifSpecial? }
+ * - active et non souscrit : souscription à partir de la période en cours ;
+ * - active et déjà souscrit + tarif : tarif spécial sur les périodes non soldées ;
+ * - inactive : arrêt des périodes à venir (passé dû, déjà payé acquis).
+ */
+export const updateServiceInscription = async (req, res) => {
+  try {
+    const { id, serviceId } = req.params;
+    const tenantId = req.tenantId;
+    const active = estVrai(req.body.active);
+    const tarif = req.body.tarif === undefined || req.body.tarif === null || req.body.tarif === ''
+      ? null
+      : Number(req.body.tarif);
+
+    const inscription = await prisma.inscription.findFirst({ where: { id, tenantId }, include: { classe: true } });
+    if (!inscription) return res.status(404).json({ error: 'Inscription non trouvée' });
+    if (inscription.statut === 'annulee') return res.status(400).json({ error: 'Inscription annulée' });
+
+    const service = await prisma.serviceOptionnel.findFirst({ where: { id: serviceId, tenantId } });
+    if (!service) return res.status(404).json({ error: 'Service introuvable' });
+
+    const souscription = await prisma.souscriptionService.findFirst({
+      where: { tenantId, inscriptionId: id, serviceId },
+    });
+
+    let action;
+    const solde = await prisma.$transaction(async (tx) => {
+      if (active && !souscription?.actif) {
+        await resolveServices(tenantId, inscription.classe, [serviceId], tx);
+        await souscrireService(tx, tenantId, inscription, service, { tarif, motifTarifSpecial: req.body.motifTarifSpecial });
+        action = 'service_souscrit';
+      } else if (active && souscription?.actif) {
+        if (tarif === null) throw new FraisError('Indiquez le nouveau tarif');
+        await modifierTarifService(tx, tenantId, souscription, service, { tarif, motifTarifSpecial: req.body.motifTarifSpecial });
+        action = 'service_tarif_modifie';
+      } else if (!active && souscription?.actif) {
+        await arreterService(tx, tenantId, souscription);
+        action = 'service_arrete';
+      } else {
+        throw new FraisError("L'élève n'est pas inscrit à ce service");
+      }
+      return syncInscriptionSolde(tx, tenantId, id);
+    });
+
+    await logAudit(req, action, 'Inscription', id, {
+      eleveId: inscription.eleveId,
+      service: service.nom,
+      ...(tarif !== null ? { tarif, motif: req.body.motifTarifSpecial || null } : {}),
+    });
+
+    res.json({ soldeScolarite: solde, action });
   } catch (error) {
     if (error instanceof FraisError) {
       return res.status(error.status).json({ error: error.message });
     }
-    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'updateCantine error');
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'updateServiceInscription error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

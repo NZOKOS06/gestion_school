@@ -50,14 +50,15 @@ const Inscriptions = () => {
   const { get, post, put } = useAxios();
   const { formatPrice, config: tenantConfig } = useTenant();
   const regimesActifs = Boolean(tenantConfig?.regimesActifs);
-  const cantineActive = Boolean(tenantConfig?.cantineActive);
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const canDecideFinAnnee = ['directeur', 'directeur_etudes'].includes(user?.role);
   const canEditTarif = ['directeur', 'secretaire', 'comptable'].includes(user?.role);
   const [tarifOpen, setTarifOpen] = useState(null);
   const [tarifForm, setTarifForm] = useState({ fraisInscription: '', fraisScolarite: '', motif: '', regime: 'plein_temps' });
-  const [cantineSaving, setCantineSaving] = useState(false);
+  const [servicesInsc, setServicesInsc] = useState([]);
+  const [serviceBusy, setServiceBusy] = useState(null);
+  const [serviceTarif, setServiceTarif] = useState(null); // { serviceId, tarif, motif }
   const [tarifSaving, setTarifSaving] = useState(false);
   const [inscriptions, setInscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -314,8 +315,20 @@ const Inscriptions = () => {
     } catch { /* silent */ }
   };
 
+  const loadServicesInsc = async (inscId) => {
+    try {
+      const res = await get(`/api/inscriptions/${inscId}/services`, { silent: true });
+      setServicesInsc(res?.data || []);
+    } catch {
+      setServicesInsc([]);
+    }
+  };
+
   const openTarif = (insc) => {
     setTarifOpen(insc);
+    setServiceTarif(null);
+    setServicesInsc([]);
+    loadServicesInsc(insc.id);
     setTarifForm({
       fraisInscription: insc.fraisInscriptionApplique != null ? String(Number(insc.fraisInscriptionApplique)) : '',
       fraisScolarite: insc.fraisScolariteApplique != null ? String(Number(insc.fraisScolariteApplique)) : '',
@@ -341,21 +354,18 @@ const Inscriptions = () => {
     setTarifSaving(false);
   };
 
-  const toggleCantine = async () => {
+  const changerService = async (svc, body, confirmation) => {
     if (!tarifOpen) return;
-    const activer = !tarifOpen.cantine;
-    const msg = activer
-      ? 'Inscrire cet élève à la cantine à partir de la période en cours ?'
-      : 'Arrêter la cantine ? Les périodes à venir non payées seront annulées, le passé reste dû.';
-    if (!window.confirm(msg)) return;
-    setCantineSaving(true);
+    if (confirmation && !window.confirm(confirmation)) return;
+    setServiceBusy(svc.serviceId);
     try {
-      const res = await put(`/api/inscriptions/${tarifOpen.id}/cantine`, { active: activer });
-      toast.success(activer ? 'Cantine souscrite' : 'Cantine arrêtée');
-      setTarifOpen((prev) => (prev ? { ...prev, cantine: activer, ...(res?.inscription ? { cantine: res.inscription.cantine } : {}) } : prev));
+      await put(`/api/inscriptions/${tarifOpen.id}/services/${svc.serviceId}`, body);
+      toast.success(body.active === false ? `${svc.nom} arrêté` : (svc.souscrit ? 'Tarif du service mis à jour' : `${svc.nom} souscrit`));
+      setServiceTarif(null);
+      await loadServicesInsc(tarifOpen.id);
       fetchInscriptions();
     } catch { /* toast via useAxios */ }
-    setCantineSaving(false);
+    setServiceBusy(null);
   };
 
   const changeStatut = async (insc, statut) => {
@@ -577,7 +587,9 @@ const Inscriptions = () => {
                   </span>
                 )}
                 {row.regime === 'mi_temps' && <Badge variant="info">Mi-temps</Badge>}
-                {row.cantine && <Badge variant="neutral">Cantine</Badge>}
+                {(row.souscriptionsServices || []).map((ss) => (
+                  <Badge key={ss.id} variant="neutral">{ss.service?.nom}</Badge>
+                ))}
               </span>
             ),
           },
@@ -624,7 +636,7 @@ const Inscriptions = () => {
                   </button>
                 )}
                 {canEditTarif && row.statut !== 'annulee' && (
-                  <button onClick={() => openTarif(row)} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Tarif, régime et cantine">
+                  <button onClick={() => openTarif(row)} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Tarif, régime et services">
                     <Tag className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
                   </button>
                 )}
@@ -718,7 +730,7 @@ const Inscriptions = () => {
       <Modal
         open={!!tarifOpen}
         onClose={() => setTarifOpen(null)}
-        title="Tarif, régime et cantine"
+        title="Tarif, régime et services"
         subtitle={tarifOpen ? `${tarifOpen.eleve?.prenom || ''} ${tarifOpen.eleve?.nom || ''} — ${tarifOpen.classe?.nom || ''}` : ''}
         size="md"
         footer={
@@ -785,14 +797,77 @@ const Inscriptions = () => {
               onChange={(e) => setTarifForm({ ...tarifForm, motif: e.target.value })}
             />
           </label>
-          {(cantineActive || tarifOpen?.cantine) && (
-            <div className="flex items-center justify-between gap-3 pt-3 border-t border-[var(--border-subtle)]">
-              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Cantine : <strong style={{ color: 'var(--text-primary)' }}>{tarifOpen?.cantine ? 'inscrit' : 'non inscrit'}</strong>
-              </span>
-              <Button size="sm" variant="secondary" onClick={toggleCantine} loading={cantineSaving}>
-                {tarifOpen?.cantine ? 'Arrêter la cantine' : 'Inscrire à la cantine'}
-              </Button>
+          {servicesInsc.length > 0 && (
+            <div className="pt-3 border-t border-[var(--border-subtle)] space-y-2">
+              <span className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Services optionnels</span>
+              {servicesInsc.map((svc) => (
+                <div key={svc.serviceId} className="rounded-lg p-2" style={{ background: 'var(--surface-overlay)' }}>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="text-sm">
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{svc.nom}</span>
+                      {svc.souscrit ? (
+                        <span className="text-xs ml-2" style={{ color: 'var(--text-secondary)' }}>
+                          {formatPrice(svc.tarifApplique)}{svc.tarifSpecial ? ' (tarif spécial)' : ''} · reste dû {formatPrice(svc.reste)}
+                        </span>
+                      ) : (
+                        <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
+                          {svc.dateFin ? 'arrêté' : 'non souscrit'} · {formatPrice(svc.tarifCatalogue)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      {svc.souscrit ? (
+                        <>
+                          <Button size="sm" variant="secondary" onClick={() => setServiceTarif({ serviceId: svc.serviceId, tarif: String(svc.tarifApplique ?? ''), motif: svc.motifTarifSpecial || '' })}>
+                            Tarif spécial
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            loading={serviceBusy === svc.serviceId}
+                            onClick={() => changerService(svc, { active: false }, `Arrêter « ${svc.nom} » ? Les périodes à venir non payées seront annulées, le passé reste dû.`)}
+                          >
+                            Arrêter
+                          </Button>
+                        </>
+                      ) : svc.proposeAClasse && (
+                        <Button
+                          size="sm"
+                          loading={serviceBusy === svc.serviceId}
+                          onClick={() => changerService(svc, { active: true }, `Inscrire l'élève à « ${svc.nom} » à partir de la période en cours ?`)}
+                        >
+                          Souscrire
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {serviceTarif?.serviceId === svc.serviceId && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                      <input
+                        type="number"
+                        min="0"
+                        className="px-3 py-1.5 border rounded-lg text-sm"
+                        value={serviceTarif.tarif}
+                        onChange={(e) => setServiceTarif({ ...serviceTarif, tarif: e.target.value })}
+                        placeholder="Nouveau tarif"
+                      />
+                      <input
+                        className="px-3 py-1.5 border rounded-lg text-sm"
+                        value={serviceTarif.motif}
+                        onChange={(e) => setServiceTarif({ ...serviceTarif, motif: e.target.value })}
+                        placeholder="Motif"
+                      />
+                      <Button
+                        size="sm"
+                        loading={serviceBusy === svc.serviceId}
+                        onClick={() => changerService(svc, { active: true, tarif: Number(serviceTarif.tarif), motifTarifSpecial: serviceTarif.motif.trim() })}
+                      >
+                        Appliquer
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>

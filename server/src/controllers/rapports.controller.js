@@ -281,7 +281,7 @@ export const exportRapports = async (req, res) => {
 /**
  * GET /api/rapports/regimes?anneeScolaireId=
  * Recettes attendues / encaissées / restant dues par régime (plein temps, mi-temps)
- * et pour la cantine, sur l'année scolaire.
+ * et par service optionnel (cantine, garderie, TD…), sur l'année scolaire.
  */
 export const getRecettesParRegime = async (req, res) => {
   const tenantId = req.tenantId;
@@ -290,7 +290,7 @@ export const getRecettesParRegime = async (req, res) => {
     const { categorieEcheance } = await import('../services/echeances.service.js');
     const anneeScolaireId = await resolveAnneeScolaireId(tenantId, req.query.anneeScolaireId || null);
     if (!anneeScolaireId) {
-      return res.json({ anneeScolaireId: null, regimes: [], cantine: null, total: null });
+      return res.json({ anneeScolaireId: null, regimes: [], services: [], total: null });
     }
 
     const inscriptions = await prisma.inscription.findMany({
@@ -298,49 +298,64 @@ export const getRecettesParRegime = async (req, res) => {
       select: {
         id: true,
         regime: true,
-        cantine: true,
         tarifSpecial: true,
         echeances: {
           where: { statut: { not: 'annulee' } },
-          select: { libelle: true, categorie: true, montantAttendu: true, montantPaye: true },
+          select: {
+            libelle: true,
+            categorie: true,
+            souscriptionServiceId: true,
+            montantAttendu: true,
+            montantPaye: true,
+            souscriptionService: { select: { serviceId: true, service: { select: { nom: true } } } },
+          },
         },
       },
     });
 
     const vide = () => ({ effectif: 0, tarifsSpeciaux: 0, inscription: 0, scolarite: 0, attendu: 0, encaisse: 0, reste: 0 });
     const regimes = { plein_temps: vide(), mi_temps: vide() };
-    const cantine = { effectif: 0, attendu: 0, encaisse: 0, reste: 0 };
+    const services = new Map(); // serviceId → { nom, eleves:Set, attendu, encaisse, reste }
 
     for (const insc of inscriptions) {
       const r = regimes[insc.regime === 'mi_temps' ? 'mi_temps' : 'plein_temps'];
       r.effectif += 1;
       if (insc.tarifSpecial) r.tarifsSpeciaux += 1;
-      let aCantine = false;
       for (const e of insc.echeances) {
         const attendu = Number(e.montantAttendu) || 0;
         const paye = Math.min(Number(e.montantPaye) || 0, attendu);
-        const cat = categorieEcheance(e);
-        const cible = cat === 'cantine' ? cantine : r;
-        if (cat === 'cantine') aCantine = true;
-        else r[cat === 'inscription' ? 'inscription' : 'scolarite'] += attendu;
+        let cible = r;
+        if (categorieEcheance(e) === 'service') {
+          const key = e.souscriptionService?.serviceId || 'autre';
+          if (!services.has(key)) {
+            services.set(key, { serviceId: key, libelle: e.souscriptionService?.service?.nom || 'Service', eleves: new Set(), attendu: 0, encaisse: 0, reste: 0 });
+          }
+          cible = services.get(key);
+          cible.eleves.add(insc.id);
+        } else {
+          r[categorieEcheance(e) === 'inscription' ? 'inscription' : 'scolarite'] += attendu;
+        }
         cible.attendu += attendu;
         cible.encaisse += paye;
         cible.reste += Math.max(0, attendu - paye);
       }
-      if (aCantine) cantine.effectif += 1;
     }
 
-    const arrondi = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v * 100) / 100]));
+    const arrondi = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'number' ? Math.round(v * 100) / 100 : v]));
     const lignes = [
       { regime: 'plein_temps', libelle: 'Plein temps', ...arrondi(regimes.plein_temps) },
       { regime: 'mi_temps', libelle: 'Mi-temps', ...arrondi(regimes.mi_temps) },
     ];
+    const lignesServices = [...services.values()]
+      .map(({ eleves, ...s }) => arrondi({ ...s, effectif: eleves.size }))
+      .sort((a, b) => a.libelle.localeCompare(b.libelle, 'fr'));
+    const toutes = [...lignes, ...lignesServices];
     const total = ['attendu', 'encaisse', 'reste'].reduce((acc, k) => {
-      acc[k] = Math.round((lignes[0][k] + lignes[1][k] + cantine[k]) * 100) / 100;
+      acc[k] = Math.round(toutes.reduce((sum, l) => sum + l[k], 0) * 100) / 100;
       return acc;
     }, { effectif: lignes[0].effectif + lignes[1].effectif });
 
-    res.json({ anneeScolaireId, regimes: lignes, cantine: arrondi(cantine), total });
+    res.json({ anneeScolaireId, regimes: lignes, services: lignesServices, total });
   } catch (error) {
     log.error({ err: error, tenantId }, 'Recettes par régime error');
     res.status(500).json({ error: 'Internal server error' });

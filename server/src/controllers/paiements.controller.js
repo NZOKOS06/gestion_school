@@ -4,6 +4,7 @@ import { logAudit } from '../utils/auditLogger.js';
 import {
   applyPaymentToEcheance,
   applyPaymentCascade,
+  categorieEcheance,
   listByInscription,
   listRetards,
   normalizeModePaiement,
@@ -11,6 +12,17 @@ import {
   syncInscriptionSolde,
 } from '../services/echeances.service.js';
 import { formatMontant, safeOrderBy } from '../utils/formatters.js';
+
+/** Type de paiement déduit de l'échéance réellement payée (service, inscription, scolarité). */
+function typePourAllocation(alloc, typeDemande) {
+  if (alloc?.categorie === 'inscription') return 'inscription';
+  if (alloc?.categorie === 'service') {
+    if (/cantine/i.test(alloc.libelle || '')) return 'cantine';
+    if (/transport/i.test(alloc.libelle || '')) return 'transport';
+    return 'autre';
+  }
+  return typeDemande || 'scolarite';
+}
 import { loadSchoolPdfMeta } from '../services/pdf/schoolMeta.js';
 import { buildRecuPdf } from '../services/pdf/recu.pdf.js';
 import { buildJournalCaissePdf } from '../services/pdf/journalCaisse.pdf.js';
@@ -192,6 +204,7 @@ async function createSplitPaiements(tx, {
     allocations = [{
       echeanceId,
       libelle: ech.libelle,
+      categorie: categorieEcheance(ech),
       montant: amount,
       dateEcheance: ech.dateEcheance,
       statut: Number(ech.montantPaye) + amount >= Number(ech.montantAttendu) - 0.01 ? 'payee' : 'en_attente',
@@ -234,7 +247,7 @@ async function createSplitPaiements(tx, {
         caisseSessionId: activeSession?.id || null,
         numeroRecu: nextNumero,
         montant: Number(alloc.montant),
-        typePaiement: isAvance ? 'autre' : (typePaiement || 'scolarite'),
+        typePaiement: isAvance ? 'autre' : typePourAllocation(alloc, typePaiement),
         modePaiement: mode,
         reference: reference || null,
         motif: isAvance

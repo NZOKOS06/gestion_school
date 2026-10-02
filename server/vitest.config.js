@@ -35,6 +35,7 @@ export default defineConfig({
       'src/utils/horaires.test.js',
       'src/controllers/emploisDuTemps.test.js',
       'src/services/fraisInscription.service.test.js',
+      'src/services/servicesOptionnels.service.test.js',
       'src/config/v1Modules.test.js',
       'src/services/echeances.service.test.js',
       'src/services/finance.smoke.test.js',

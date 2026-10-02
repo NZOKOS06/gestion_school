@@ -103,8 +103,8 @@ function ProgressBar({ value, max, color = 'var(--color-primary)' }) {
   );
 }
 
-/** Recettes attendues / encaissées / restantes par régime et cantine (année scolaire) */
-function RecettesParRegime({ get, anneeScolaireId, formatPrice, afficherRegimes, afficherCantine }) {
+/** Recettes attendues / encaissées / restantes par régime et par service optionnel (année scolaire) */
+function RecettesParRegime({ get, anneeScolaireId, formatPrice, afficherRegimes }) {
   const [rows, setRows] = useState(null);
 
   useEffect(() => {
@@ -116,14 +116,15 @@ function RecettesParRegime({ get, anneeScolaireId, formatPrice, afficherRegimes,
     return () => { cancelled = true; };
   }, [get, anneeScolaireId]);
 
-  if (!rows?.regimes) return null;
+  if (!rows?.regimes?.length) return null;
+  if (!afficherRegimes && !(rows.services || []).length) return null;
 
   const lignes = [
     ...(afficherRegimes ? rows.regimes : [{ ...rows.regimes[0], libelle: 'Scolarité', effectif: rows.total.effectif,
       attendu: rows.regimes[0].attendu + rows.regimes[1].attendu,
       encaisse: rows.regimes[0].encaisse + rows.regimes[1].encaisse,
       reste: rows.regimes[0].reste + rows.regimes[1].reste }]),
-    ...(afficherCantine && rows.cantine ? [{ regime: 'cantine', libelle: 'Cantine', ...rows.cantine }] : []),
+    ...(rows.services || []).map((sv) => ({ ...sv, regime: `service-${sv.serviceId}` })),
   ];
   const taux = (l) => (l.attendu > 0 ? Math.round((l.encaisse / l.attendu) * 100) : 0);
 
@@ -131,7 +132,7 @@ function RecettesParRegime({ get, anneeScolaireId, formatPrice, afficherRegimes,
     <Card>
       <div className="p-5 space-y-3">
         <div>
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Recettes de l'année par régime</h3>
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Recettes de l'année par régime et par service</h3>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Montants attendus (inscription + scolarité), encaissés et restant dus — hors inscriptions annulées.
           </p>
@@ -140,7 +141,7 @@ function RecettesParRegime({ get, anneeScolaireId, formatPrice, afficherRegimes,
           <table className="w-full text-sm" style={{ minWidth: 560 }}>
             <thead>
               <tr className="text-left text-xs uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                <th className="py-2 pr-3">Régime</th>
+                <th className="py-2 pr-3">Régime / service</th>
                 <th className="py-2 pr-3 text-right">Élèves</th>
                 <th className="py-2 pr-3 text-right">Attendu</th>
                 <th className="py-2 pr-3 text-right">Encaissé</th>
@@ -654,15 +655,12 @@ const Rapports = () => {
         </KpiGrid>
       </div>
 
-      {(tenantConfig?.regimesActifs || tenantConfig?.cantineActive) && (
-        <RecettesParRegime
-          get={get}
-          anneeScolaireId={resolvedAnneeId}
-          formatPrice={formatPrice}
-          afficherRegimes={Boolean(tenantConfig?.regimesActifs)}
-          afficherCantine={Boolean(tenantConfig?.cantineActive)}
-        />
-      )}
+      <RecettesParRegime
+        get={get}
+        anneeScolaireId={resolvedAnneeId}
+        formatPrice={formatPrice}
+        afficherRegimes={Boolean(tenantConfig?.regimesActifs)}
+      />
     </div>
   );
 };

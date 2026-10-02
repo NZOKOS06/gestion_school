@@ -49,14 +49,23 @@ router.put('/:id/tarif',
   ctrl.updateTarif
 );
 
-// Cantine : souscription / résiliation en cours d'année
-router.put('/:id/cantine',
+// Services optionnels (cantine, garderie, TD…) : consultation, souscription, arrêt, tarif spécial
+router.get('/:id/services',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes', 'secretaire', 'comptable'),
+  requireTenantMatch,
+  requireModule('inscriptions'),
+  idParamValidator,
+  ctrl.getServicesInscription
+);
+
+router.put('/:id/services/:serviceId',
   authenticate,
   requireRole('directeur', 'secretaire', 'comptable'),
   requireTenantMatch,
   requireModule('inscriptions'),
   idParamValidator,
-  ctrl.updateCantine
+  ctrl.updateServiceInscription
 );
 
 router.post('/avec-eleve',

@@ -35,27 +35,44 @@ export function monthsInRange(dateDebut, dateFin) {
  * pour les lignes antérieures à la migration.
  */
 export function categorieEcheance(e) {
+  if (e?.souscriptionServiceId || e?.categorie === 'service' || e?.categorie === 'cantine') return 'service';
   if (e?.categorie && e.categorie !== 'scolarite') return e.categorie;
-  if (/^cantine/i.test(e?.libelle || '')) return 'cantine';
   if (/inscription/i.test(e?.libelle || '')) return 'inscription';
   return 'scolarite';
 }
 
+export const PERIODICITES = ['mensuelle', 'trimestrielle', 'annuelle', 'unique'];
+
+/** Nombre de mois couverts par une période de facturation. */
+export function dureePeriodeMois(periodicite) {
+  if (periodicite === 'trimestrielle') return 3;
+  if (periodicite === 'annuelle' || periodicite === 'unique') return 12;
+  return 1;
+}
+
 /**
- * Périodes de cantine sur [debut, fin] : un mois ou un trimestre (blocs de 3 mois).
+ * Périodes de facturation d'un service sur [debut, fin].
+ * mensuelle : un mois ; trimestrielle : blocs de 3 mois ; annuelle / unique : une seule échéance.
  * Retourne [{ libelle, dateEcheance }].
  */
-export function periodesCantine(debut, fin, periodicite = 'mensuelle') {
+export function periodesService(debut, fin, periodicite = 'mensuelle', nom = 'Service') {
   const months = monthsInRange(debut, fin);
+  if (!months.length) return [];
   const due = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 5, 12, 0, 0));
   if (periodicite === 'trimestrielle') {
     const out = [];
     for (let i = 0; i < months.length; i += 3) {
-      out.push({ libelle: `Cantine — Trimestre ${out.length + 1}`, dateEcheance: due(months[i]) });
+      out.push({ libelle: `${nom} — Trimestre ${out.length + 1}`, dateEcheance: due(months[i]) });
     }
     return out;
   }
-  return months.map((d) => ({ libelle: `Cantine — ${libelleMois(d)}`, dateEcheance: due(d) }));
+  if (periodicite === 'annuelle') {
+    return [{ libelle: `${nom} — Année scolaire`, dateEcheance: due(months[0]) }];
+  }
+  if (periodicite === 'unique') {
+    return [{ libelle: nom, dateEcheance: due(months[0]) }];
+  }
+  return months.map((d) => ({ libelle: `${nom} — ${libelleMois(d)}`, dateEcheance: due(d) }));
 }
 
 function isTrancheLibelle(libelle) {
@@ -72,14 +89,14 @@ export async function generateForInscription(txOrPrisma, inscription, opts = {})
     fraisInscription = 0,
     fraisScolarite = 0,
     libelleFraisEntree = inscription.typeFrais === 'reinscription' ? 'Frais de réinscription' : "Frais d'inscription",
-    cantine = null, // { montantParPeriode, periodicite }
     dateInscription = new Date(),
     dateDebut,
     dateFin,
   } = opts;
 
+  // Échéances de scolarité déjà générées ? (les services ont leurs propres échéances)
   const existing = await db.echeance.count({
-    where: { inscriptionId: inscription.id },
+    where: { inscriptionId: inscription.id, souscriptionServiceId: null },
   });
   if (existing > 0) {
     return { created: 0, solde: Number(inscription.soldeScolarite || 0) };
@@ -137,31 +154,11 @@ export async function generateForInscription(txOrPrisma, inscription, opts = {})
     });
   }
 
-  const montantCantine = Number(cantine?.montantParPeriode || 0);
-  if (montantCantine > 0) {
-    for (const p of periodesCantine(debut, fin, cantine.periodicite)) {
-      rows.push({
-        tenantId: inscription.tenantId,
-        inscriptionId: inscription.id,
-        libelle: p.libelle,
-        categorie: 'cantine',
-        montantAttendu: montantCantine,
-        dateEcheance: p.dateEcheance,
-        montantPaye: 0,
-        statut: 'en_attente',
-      });
-    }
-  }
-
   if (rows.length) {
     await db.echeance.createMany({ data: rows });
   }
 
-  const solde = rows.reduce((s, r) => s + Number(r.montantAttendu), 0);
-  await db.inscription.update({
-    where: { id: inscription.id },
-    data: { soldeScolarite: solde },
-  });
+  const solde = await syncInscriptionSolde(db, inscription.tenantId, inscription.id);
 
   return { created: rows.length, solde };
 }
@@ -269,10 +266,11 @@ export async function applyPaymentToEcheance(tx, echeanceId, montant) {
  * Le reliquat après le dernier mois est enregistré comme avance (surpaiement).
  */
 export async function applyPaymentCascade(tx, tenantId, inscriptionId, montant) {
-  const echeances = await tx.echeance.findMany({
+  // Scolarité (et frais d'inscription) d'abord, puis services optionnels ; chacun par date
+  const echeances = (await tx.echeance.findMany({
     where: { tenantId, inscriptionId, statut: { not: 'annulee' } },
     orderBy: { dateEcheance: 'asc' },
-  });
+  })).sort((a, b) => (categorieEcheance(a) === 'service') - (categorieEcheance(b) === 'service'));
 
   let remaining = Number(montant) || 0;
   const allocations = [];
@@ -294,6 +292,7 @@ export async function applyPaymentCascade(tx, tenantId, inscriptionId, montant) 
     allocations.push({
       echeanceId: ech.id,
       libelle: ech.libelle,
+      categorie: categorieEcheance(ech),
       montant: toPay,
       dateEcheance: ech.dateEcheance,
       statut,

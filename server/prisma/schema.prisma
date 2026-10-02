@@ -44,6 +44,8 @@ model Tenant {
   depenses        Depense[]
   emploisDuTemps  EmploiDuTemps[]
   creneauxHoraires CreneauHoraire[]
+  servicesOptionnels ServiceOptionnel[]
+  souscriptionsServices SouscriptionService[]
   absences        Absence[]
   sanctions       Sanction[]
   certificats     Certificat[]
@@ -121,9 +123,6 @@ model TenantConfig {
   fraisScolariteDefault   Decimal @default(0.00) @db.Decimal(12, 2)
   // Options financières (au choix de l'école)
   regimesActifs           Boolean @default(false) // plein temps / mi-temps
-  cantineActive           Boolean @default(false)
-  cantinePeriodicite      String  @default("mensuelle") // mensuelle | trimestrielle
-  tarifCantine            Decimal @default(0.00) @db.Decimal(12, 2) // par période
 
   // Modules SaaS — défauts alignés gel V1 (voir server/src/config/v1Modules.js)
   moduleNotes         Boolean @default(true)
@@ -668,8 +667,6 @@ model Inscription {
   tarifSpecial             Boolean  @default(false)
   motifTarifSpecial        String?
   regime                   String   @default("plein_temps") // plein_temps | mi_temps
-  cantine                  Boolean  @default(false)
-  tarifCantineApplique     Decimal? @db.Decimal(12, 2) // montant par période
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -683,6 +680,7 @@ model Inscription {
 
   paiements  Paiement[]
   echeances  Echeance[]
+  souscriptionsServices SouscriptionService[]
 
   @@unique([tenantId, anneeScolaireId, eleveId])
   @@index([tenantId])
@@ -698,7 +696,8 @@ model Echeance {
   tenantId        String
   inscriptionId   String
   libelle         String // ex: "Tranche 1", "Frais d'inscription"
-  categorie       String         @default("scolarite") // inscription | scolarite | cantine
+  categorie       String         @default("scolarite") // inscription | scolarite | service
+  souscriptionServiceId String?
   montantAttendu  Decimal        @db.Decimal(12, 2)
   dateEcheance    DateTime // Date limite de paiement
   montantPaye     Decimal        @default(0.00) @db.Decimal(12, 2)
@@ -709,6 +708,7 @@ model Echeance {
 
   tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   inscription Inscription @relation(fields: [inscriptionId], references: [id], onDelete: Cascade)
+  souscriptionService SouscriptionService? @relation(fields: [souscriptionServiceId], references: [id], onDelete: SetNull)
   paiements   Paiement[]
 
   @@index([tenantId])
@@ -716,6 +716,7 @@ model Echeance {
   @@index([statut])
   @@index([dateEcheance])
   @@index([categorie])
+  @@index([souscriptionServiceId])
 }
 
 model Evaluation {
@@ -1224,6 +1225,52 @@ model Salle {
 
   @@unique([tenantId, nom])
   @@index([tenantId])
+}
+
+// --- Services optionnels payants (cantine, garderie, crèche, TD, transport…) ---
+model ServiceOptionnel {
+  id          String   @id @default(uuid())
+  tenantId    String
+  nom         String
+  description String?
+  tarif       Decimal  @db.Decimal(12, 2) // par période
+  periodicite String   @default("mensuelle") // mensuelle | trimestrielle | annuelle | unique
+  cycles      Json?    // null = tous les cycles ; ex. ["college","lycee"]
+  classeIds   Json?    // null = toutes les classes des cycles retenus
+  actif       Boolean  @default(true)
+  ordre       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  souscriptions SouscriptionService[]
+
+  @@unique([tenantId, nom])
+  @@index([tenantId])
+}
+
+model SouscriptionService {
+  id                String    @id @default(uuid())
+  tenantId          String
+  inscriptionId     String
+  serviceId         String
+  tarifApplique     Decimal   @db.Decimal(12, 2) // par période, figé à la souscription
+  tarifSpecial      Boolean   @default(false)
+  motifTarifSpecial String?
+  actif             Boolean   @default(true)
+  dateDebut         DateTime  @default(now())
+  dateFin           DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inscription Inscription      @relation(fields: [inscriptionId], references: [id], onDelete: Cascade)
+  service     ServiceOptionnel @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  echeances   Echeance[]
+
+  @@unique([inscriptionId, serviceId])
+  @@index([tenantId])
+  @@index([serviceId])
 }
 
 // --- Grille horaire (créneaux de cours, pauses, récréations) ---

@@ -46,6 +46,8 @@ const TENANT_MODELS = new Set([
   'Bulletin',
   'EmploiDuTemps',
   'CreneauHoraire',
+  'ServiceOptionnel',
+  'SouscriptionService',
   'Absence',
   'Sanction',
   'Paiement',
