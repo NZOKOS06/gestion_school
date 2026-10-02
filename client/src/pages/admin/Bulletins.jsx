@@ -287,32 +287,23 @@ const Bulletins = () => {
       } catch { /* use row */ }
     }
 
-    // Rang par matière depuis les résultats de classe si disponibles
-    const peers = resultats.length ? resultats : [];
-    const withRang = (notes || []).map((n) => {
-      let rangMatiere = n.rangMatiere;
-      if (rangMatiere == null && peers.length && n.matiereId) {
-        const scores = peers
-          .map((p) => {
-            const m = (p.notesDetaillees || []).find((x) => x.matiereId === n.matiereId);
-            return m ? { eleveId: p.eleveId, moy: Number(m.moyenne) } : null;
-          })
-          .filter(Boolean)
-          .sort((a, b) => b.moy - a.moy);
-        const idx = scores.findIndex((s) => s.eleveId === (row.eleveId || full.eleveId));
-        if (idx >= 0) rangMatiere = idx + 1;
-      }
-      return { ...n, rangMatiere };
-    });
-
     setDetail({
       ...full,
       ...row,
-      notesDetaillees: withRang,
+      notesDetaillees: notes,
       elevePrenom: row.elevePrenom || full.eleve?.prenom,
       eleveNom: row.eleveNom || full.eleve?.nom,
       matricule: row.matricule || full.eleve?.matricule,
     });
+  };
+
+  // Moyennes annuelles (moyenne des périodes, rang, décision proposée)
+  const [annuel, setAnnuel] = useState(null);
+  const ouvrirAnnuel = async () => {
+    try {
+      const res = await get(`/api/bulletins/annuel?classeId=${selectedClasse}&anneeScolaireId=${selectedAnnee}`);
+      setAnnuel(res);
+    } catch { /* toast via useAxios */ }
   };
 
   const listeAffichee = useMemo(() => {
@@ -412,6 +403,11 @@ const Bulletins = () => {
               ))}
             </select>
           </div>
+          {selectedClasse && selectedAnnee && (
+            <Button variant="secondary" icon={TrendingUp} onClick={ouvrirAnnuel}>
+              Moyennes annuelles
+            </Button>
+          )}
           {selectedClasse && (
             <Button
               icon={Calculator}
@@ -557,6 +553,43 @@ const Bulletins = () => {
       )}
 
       <Modal
+        open={!!annuel}
+        onClose={() => setAnnuel(null)}
+        title="Moyennes annuelles"
+        subtitle={selectedClasseObj?.nom}
+        size="lg"
+        footer={<Button variant="secondary" onClick={() => setAnnuel(null)}>Fermer</Button>}
+      >
+        {annuel && (
+          <div className="space-y-3">
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Moyenne des périodes déjà calculées (chaque période pèse autant). Seuil de réussite : {annuel.seuilReussite}.
+              La décision est une proposition : la décision finale se prend en fin d'année.
+            </p>
+            <DataTable
+              data={annuel.data || []}
+              emptyMessage="Aucun bulletin calculé pour cette classe cette année"
+              columns={[
+                { key: 'rang', label: 'Rang', render: (v) => `${v}e` },
+                { key: 'eleve', label: 'Élève', render: (v) => `${v?.prenom || ''} ${v?.nom || ''}` },
+                ...(annuel.periodes || []).map((idx) => ({
+                  key: `p${idx}`,
+                  label: `P${idx}`,
+                  render: (_, row) => (row.periodes?.[idx] != null ? Number(row.periodes[idx]).toFixed(2) : '—'),
+                })),
+                { key: 'moyenneAnnuelle', label: 'Moyenne annuelle', render: (v) => <strong>{Number(v).toFixed(2)}</strong> },
+                {
+                  key: 'decisionProposee',
+                  label: 'Proposition',
+                  render: (v) => <Badge variant={v === 'admis' ? 'success' : 'warning'}>{v === 'admis' ? 'Admis' : 'Non admis'}</Badge>,
+                },
+              ]}
+            />
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         open={!!detail}
         onClose={() => setDetail(null)}
         title={detail ? `Détail : ${eleveLabel(detail)}` : 'Détail'}
@@ -589,14 +622,31 @@ const Bulletins = () => {
                 },
                 {
                   key: 'moyenne',
-                  label: 'Note / moy.',
-                  render: (v) => <span className="font-mono">{v != null ? Number(v).toFixed(2) : '—'}</span>,
+                  label: 'Moyenne',
+                  render: (v, row) => (row.nonClasse
+                    ? <span title="Aucune note dans cette matière : exclue du calcul"><Badge variant="neutral">NC</Badge></span>
+                    : <span className="font-mono">{v != null ? Number(v).toFixed(2) : '—'}</span>),
                 },
-                { key: 'coefficient', label: 'Coef.' },
+                { key: 'coefficient', label: 'Coef.', render: (v) => (v != null ? Number(v) : '—') },
                 {
                   key: 'rangMatiere',
-                  label: 'Rang matière',
-                  render: (v) => (v != null ? v : '—'),
+                  label: 'Rang',
+                  render: (v) => (v != null ? `${v}e` : '—'),
+                },
+                {
+                  key: 'moyenneClasse',
+                  label: 'Moy. classe',
+                  render: (v) => (v != null ? Number(v).toFixed(2) : '—'),
+                },
+                {
+                  key: 'moyenneMin',
+                  label: 'Min – Max',
+                  render: (v, row) => (v != null ? `${Number(v).toFixed(1)} – ${Number(row.moyenneMax).toFixed(1)}` : '—'),
+                },
+                {
+                  key: 'appreciation',
+                  label: 'Appréciation',
+                  render: (v) => <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{v || '—'}</span>,
                 },
               ]}
               data={detail.notesDetaillees || []}

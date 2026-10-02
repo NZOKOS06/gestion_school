@@ -7,6 +7,8 @@ import {
   buildQrHash,
   countAbsencesHeures,
   mentionFromMoyenne,
+  calculerMoyennesAnnuelles,
+  chargerConfigBulletin,
 } from '../services/bulletins.service.js';
 import { loadSchoolPdfMeta } from '../services/pdf/schoolMeta.js';
 import { buildBulletinPdf } from '../services/pdf/bulletin.pdf.js';
@@ -26,8 +28,28 @@ const ELEVE_PDF_SELECT = {
   parent: { select: { prenom: true, nom: true } },
 };
 
+async function statsClasseBulletins(tenantId, bulletin) {
+  const lignes = await prisma.bulletin.findMany({
+    where: {
+      tenantId,
+      classeId: bulletin.classeId,
+      anneeScolaireId: bulletin.anneeScolaireId,
+      periodeIndex: bulletin.periodeIndex,
+    },
+    select: { moyenneGenerale: true },
+  });
+  const valeurs = lignes.map((l) => Number(l.moyenneGenerale));
+  if (!valeurs.length) return { moyenneClasse: null, moyenneForte: null, moyenneFaible: null };
+  return {
+    moyenneClasse: Math.round((valeurs.reduce((a, b) => a + b, 0) / valeurs.length) * 100) / 100,
+    moyenneForte: Math.max(...valeurs),
+    moyenneFaible: Math.min(...valeurs),
+  };
+}
+
 async function bulletinPdfPayload(bulletin, tenantId, req) {
   const meta = await loadSchoolPdfMeta(tenantId, req);
+  const stats = await statsClasseBulletins(tenantId, bulletin);
   const periode = await prisma.periodeScolaire.findFirst({
     where: {
       tenantId,
@@ -54,12 +76,20 @@ async function bulletinPdfPayload(bulletin, tenantId, req) {
     rang: bulletin.rang,
     effectifClasse: bulletin.effectifClasse,
     mention: bulletin.mention,
-    notesDetaillees: (bulletin.notesDetaillees || []).map(d => ({
+    ...stats,
+    notesDetaillees: (bulletin.notesDetaillees || []).map((d) => ({
       matiereId: d.matiereId,
       matiereNom: d.matiere?.nom,
       matiereCode: d.matiere?.code,
       moyenne: Number(d.moyenne),
-      coefficient: d.matiere?.coefficient ?? 1,
+      // coefficient réellement appliqué (classe > niveau > catalogue), figé au calcul
+      coefficient: d.coefficient != null ? Number(d.coefficient) : (d.matiere?.coefficient ?? 1),
+      nonClasse: Boolean(d.nonClasse),
+      rangMatiere: d.rangMatiere ?? null,
+      moyenneClasse: d.moyenneClasse != null ? Number(d.moyenneClasse) : null,
+      moyenneMin: d.moyenneMin != null ? Number(d.moyenneMin) : null,
+      moyenneMax: d.moyenneMax != null ? Number(d.moyenneMax) : null,
+      appreciation: d.appreciation || null,
     })),
     absencesHeures: bulletin.absencesHeures,
     qrCodeHash: bulletin.qrCodeHash,
@@ -183,9 +213,16 @@ async function upsertBulletinFromComputed(tenantId, computed, meta, config, req)
   };
 
   // Build notesDetaillees for upsert (delete + recreate)
-  const notesDetailleesData = (computed.notesDetaillees || []).map(n => ({
+  const notesDetailleesData = (computed.notesDetaillees || []).map((n) => ({
     matiereId: n.matiereId,
     moyenne: n.moyenne,
+    coefficient: n.coefficient,
+    nonClasse: Boolean(n.nonClasse),
+    rangMatiere: n.rangMatiere ?? null,
+    moyenneClasse: n.moyenneClasse ?? null,
+    moyenneMin: n.moyenneMin ?? null,
+    moyenneMax: n.moyenneMax ?? null,
+    appreciation: n.appreciation ?? null,
   }));
 
   const existing = await prisma.bulletin.findFirst({
@@ -411,33 +448,13 @@ export const generate = async (req, res) => {
     }
 
     const config = await prisma.tenantConfig.findUnique({ where: { tenantId } });
-    const seuil = Number(config?.seuilReussite ?? 10);
 
-    const computed = await computeEleveBulletin(tenantId, {
-      eleveId,
-      classeId,
-      anneeScolaireId,
-      periodeIndex,
-      seuilReussite: seuil,
-    });
+    // Rang, moyennes de classe et détail par matière sont calculés sur toute la classe
+    const row = await computeEleveBulletin(tenantId, { eleveId, classeId, anneeScolaireId, periodeIndex });
 
-    if (!computed.hasNotes) {
+    if (!row.hasNotes) {
       return res.status(400).json({ error: 'Aucune note trouvée pour cette période' });
     }
-
-    // Rank within class for single generate
-    const classResults = await calculerClasse(tenantId, {
-      anneeScolaireId,
-      classeId,
-      periodeIndex,
-    });
-    const ranked = classResults.find((r) => r.eleveId === eleveId);
-    const row = {
-      ...computed,
-      rang: ranked?.rang || 1,
-      effectifClasse: ranked?.effectifClasse || 1,
-      mention: ranked?.mention || mentionFromMoyenne(computed.moyenneGenerale, seuil),
-    };
 
     const bulletin = await upsertBulletinFromComputed(
       tenantId,
@@ -609,6 +626,38 @@ export const downloadPdf = async (req, res) => {
     res.send(buffer);
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'downloadPdf error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET /api/bulletins/annuel?classeId&anneeScolaireId
+ * Moyenne annuelle par élève (moyenne des périodes), rang et proposition de décision.
+ */
+export const getMoyennesAnnuelles = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { classeId, anneeScolaireId } = req.query;
+    if (!classeId || !anneeScolaireId) {
+      return res.status(400).json({ error: 'classeId et anneeScolaireId requis' });
+    }
+    const [bulletins, config] = await Promise.all([
+      prisma.bulletin.findMany({
+        where: { tenantId, classeId, anneeScolaireId },
+        select: {
+          eleveId: true,
+          periodeIndex: true,
+          moyenneGenerale: true,
+          eleve: { select: { id: true, prenom: true, nom: true, matricule: true } },
+        },
+      }),
+      chargerConfigBulletin(tenantId),
+    ]);
+    const data = calculerMoyennesAnnuelles(bulletins, { seuilReussite: config.seuilReussite });
+    const periodes = [...new Set(bulletins.map((b) => b.periodeIndex))].sort((a, b) => a - b);
+    res.json({ data, periodes, notationSur: config.notationSur, seuilReussite: config.seuilReussite });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Moyennes annuelles error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

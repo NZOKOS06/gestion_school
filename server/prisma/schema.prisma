@@ -120,6 +120,9 @@ model TenantConfig {
   seuilReussite         Decimal @default(10.00) @db.Decimal(5, 2) // Moyenne minimale pour passer
   nombrePeriodes        Int     @default(3) // 3 pour Trimestres, 2 pour Semestres
   conventionPeriode     String  @default("trimestre") // trimestre | semestre
+  // Calcul de la moyenne d'une matière : coefficients des évaluations, ou devoirs + composition
+  bulletinPonderation   String  @default("coefficients") // coefficients | devoirs_composition
+  bulletinPoidsDevoirs  Int     @default(50) // % des devoirs/interrogations (le reste = composition)
   joursEcole            TenantJourEcole[]
   heureDebut            String  @default("08:00")
   heureFin              String  @default("17:00")
@@ -836,6 +839,13 @@ model BulletinDetail {
   bulletinId  String
   matiereId   String
   moyenne     Decimal  @db.Decimal(5, 2)
+  coefficient   Decimal? @db.Decimal(5, 2) // coefficient appliqué (classe > niveau > catalogue)
+  nonClasse     Boolean  @default(false) // aucune note de l'élève dans la matière
+  rangMatiere   Int?
+  moyenneClasse Decimal? @db.Decimal(5, 2)
+  moyenneMin    Decimal? @db.Decimal(5, 2)
+  moyenneMax    Decimal? @db.Decimal(5, 2)
+  appreciation  String?  // appréciation de l'enseignant (dernière note commentée)
   bulletin    Bulletin @relation(fields: [bulletinId], references: [id], onDelete: Cascade)
   matiere     Matiere  @relation(fields: [matiereId], references: [id])
   @@unique([bulletinId, matiereId])

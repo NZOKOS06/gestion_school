@@ -15,7 +15,7 @@ const SCHEMA_CONFIG_FIELDS = new Set([
   'anneeScolaireActiveId', 'notationSur', 'seuilReussite', 'nombrePeriodes', 'conventionPeriode',
   'joursEcole', 'heureDebut', 'heureFin',
   'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault',
-  'regimesActifs',
+  'regimesActifs', 'bulletinPonderation', 'bulletinPoidsDevoirs',
   'paieJour', 'paieRappelJours', 'retenuesActives', 'retenueMode',
   'retenueForfaitRetard', 'retenueForfaitAbsence', 'retenueAbsencesJustifiees',
   'moduleNotes', 'moduleBulletins', 'modulePresences', 'modulePaiements',
@@ -69,10 +69,14 @@ const sanitizeConfigBody = (body) => {
         continue;
       }
     }
-    if (['notationSur', 'nombrePeriodes', 'dureeSessionMinutes', 'pointageToleranceMinutes', 'paieJourCloture', 'paieJour', 'paieRappelJours'].includes(key)) {
+    if (['notationSur', 'nombrePeriodes', 'dureeSessionMinutes', 'pointageToleranceMinutes', 'paieJourCloture', 'paieJour', 'paieRappelJours', 'bulletinPoidsDevoirs'].includes(key)) {
       const num = parseInt(value, 10);
       config[key] = Number.isNaN(num) ? undefined : num;
       if (config[key] === undefined) delete config[key];
+      continue;
+    }
+    if (key === 'bulletinPonderation') {
+      config[key] = value === 'devoirs_composition' ? 'devoirs_composition' : 'coefficients';
       continue;
     }
     if (key === 'retenueMode') {
@@ -257,6 +261,8 @@ export const getBySlug = async (req, res) => {
       pointageToleranceMinutes: cfg?.pointageToleranceMinutes ?? 15,
       paieJourCloture: cfg?.paieJourCloture ?? 25,
       paieJour: cfg?.paieJour ?? 10,
+      bulletinPonderation: cfg?.bulletinPonderation || 'coefficients',
+      bulletinPoidsDevoirs: cfg?.bulletinPoidsDevoirs ?? 50,
       paieRappelJours: cfg?.paieRappelJours ?? 5,
       retenuesActives: cfg?.retenuesActives ?? false,
       retenueMode: cfg?.retenueMode || 'proportionnel',

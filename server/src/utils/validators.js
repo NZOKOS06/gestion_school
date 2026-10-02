@@ -250,6 +250,8 @@ export const tenantConfigValidator = [
   body('nombrePeriodes').optional().isInt({ min: 1, max: 4 }),
   body('fraisInscriptionDefault').optional().isDecimal({ min: 0 }),
   body('fraisReinscriptionDefault').optional().isDecimal({ min: 0 }),
+  body('bulletinPonderation').optional().isIn(['coefficients', 'devoirs_composition']),
+  body('bulletinPoidsDevoirs').optional().isInt({ min: 0, max: 100 }),
   body('paieJour').optional().isInt({ min: 1, max: 28 }).withMessage('Jour de paie entre 1 et 28'),
   body('paieRappelJours').optional().isInt({ min: 0, max: 28 }),
   body('retenueMode').optional().isIn(['proportionnel', 'forfaitaire']),

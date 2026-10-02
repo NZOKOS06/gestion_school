@@ -113,6 +113,8 @@ const Configuration = () => {
     paieJourCloture: 25,
     paieJour: 10,
     paieRappelJours: 5,
+    bulletinPonderation: 'coefficients',
+    bulletinPoidsDevoirs: 50,
     retenuesActives: false,
     retenueMode: 'proportionnel',
     retenueForfaitRetard: 0,
@@ -209,6 +211,8 @@ const Configuration = () => {
         methodePaie: form.methodePaie,
         pointageToleranceMinutes: parseInt(form.pointageToleranceMinutes, 10) || 15,
         paieJourCloture: parseInt(form.paieJourCloture, 10) || 25,
+        bulletinPonderation: form.bulletinPonderation === 'devoirs_composition' ? 'devoirs_composition' : 'coefficients',
+        bulletinPoidsDevoirs: Math.min(100, Math.max(0, parseInt(form.bulletinPoidsDevoirs, 10) || 0)),
         paieJour: Math.min(28, Math.max(1, parseInt(form.paieJour, 10) || 10)),
         paieRappelJours: Math.max(0, parseInt(form.paieRappelJours, 10) || 0),
         retenuesActives: Boolean(form.retenuesActives),
@@ -637,6 +641,45 @@ const Configuration = () => {
               ))}
             </div>
           </div>
+
+          {/* Calcul des moyennes des bulletins */}
+          {form.moduleBulletins && (
+            <div className="border-t border-[var(--border-subtle)] pt-6 space-y-3">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <GraduationCap className="h-4 w-4 text-[var(--color-primary)]" />
+                Calcul des moyennes (bulletins)
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Moyenne d'une matière</label>
+                  <select
+                    value={form.bulletinPonderation || 'coefficients'}
+                    onChange={e => updateForm('bulletinPonderation', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg bg-[var(--surface-raised)]"
+                  >
+                    <option value="coefficients">Moyenne pondérée par le coefficient de chaque évaluation</option>
+                    <option value="devoirs_composition">Devoirs + composition (poids réglable)</option>
+                  </select>
+                </div>
+                {form.bulletinPonderation === 'devoirs_composition' && (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Poids des devoirs (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={form.bulletinPoidsDevoirs ?? 50}
+                      onChange={e => updateForm('bulletinPoidsDevoirs', e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                    <p className="text-xs text-[var(--text-muted)] mt-1">
+                      Composition = {100 - (parseInt(form.bulletinPoidsDevoirs, 10) || 0)} %. Les évaluations de type « examen » forment la composition ; devoirs, interrogations et travaux pratiques forment les devoirs.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Options financières : régimes et services optionnels (au choix de l'école) */}
           <div className="border-t border-[var(--border-subtle)] pt-6 space-y-4">

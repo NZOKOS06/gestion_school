@@ -66,6 +66,14 @@ router.get('/stats',
   ctrl.getStats
 );
 
+router.get('/annuel',
+  authenticate,
+  requireRole(...staffRoles),
+  requireTenantMatch,
+  requireModule('bulletins'),
+  ctrl.getMoyennesAnnuelles
+);
+
 router.get('/:id/pdf',
   authenticate,
   requireRole(...staffRoles),
