@@ -76,6 +76,7 @@ const Salles = lazyWithRetry(() => import('./pages/admin/Salles'));
 const CalendrierScolaire = lazyWithRetry(() => import('./pages/admin/CalendrierScolaire'));
 const Messagerie = lazyWithRetry(() => import('./pages/admin/Messagerie'));
 const Annonces = lazyWithRetry(() => import('./pages/admin/Annonces'));
+const Ventes = lazyWithRetry(() => import('./pages/admin/Ventes'));
 const AnneesScolaires = lazyWithRetry(() => import('./pages/admin/AnneesScolaires'));
 const Examens = lazyWithRetry(() => import('./pages/admin/Examens'));
 const CaissierDashboard = lazyWithRetry(() => import('./pages/admin/CaissierDashboard'));
@@ -236,6 +237,12 @@ const AppRoutes = () => {
           </Route>
         </Route>
 
+        <Route element={<ProtectedRoute allowedRoles={['directeur', 'secretaire']} />}>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/ventes" element={<Ventes />} />
+          </Route>
+        </Route>
+
         <Route element={<ProtectedRoute allowedRoles={['directeur']} />}>
           <Route element={<AdminLayout />}>
             <Route path="/admin/paiements" element={<Paiements />} />
@@ -253,6 +260,7 @@ const AppRoutes = () => {
             <Route path="/caissier/retards" element={<Paiements />} />
             <Route path="/caissier/historique" element={<Paiements />} />
             <Route path="/caissier/depenses" element={<Depenses />} />
+            <Route path="/caissier/ventes" element={<Ventes />} />
             <Route path="/caissier/paie" element={<Paie />} />
             <Route path="/caissier/rapports" element={<Rapports />} />
           </Route>

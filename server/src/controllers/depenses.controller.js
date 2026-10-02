@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { buildDepensesPdf } from '../services/pdf/depenses.pdf.js';
 import { resolveAnneeScolaireId, getAnneeOperationnelle } from '../utils/anneeScolaire.js';
+import { resoudreCategorieDepense, FinanceError } from '../services/finances.service.js';
 
 const log = createLogger('DepensesController');
 
@@ -48,11 +49,13 @@ export const getAll = async (req, res) => {
 
 export const create = async (req, res) => {
   try {
-    const { categorie, montant, motif, reference, dateDepense, anneeScolaireId } = req.body;
+    const { categorie, categorieId, montant, motif, reference, dateDepense, anneeScolaireId } = req.body;
     const amount = parseFloat(montant);
-    if (!categorie || !amount || amount <= 0 || !motif) {
+    if ((!categorie && !categorieId) || !amount || amount <= 0 || !motif) {
       return res.status(400).json({ error: 'categorie, montant > 0 et motif sont requis' });
     }
+    // Catégorie gérée par l'école (par identifiant, ou par nom pour compatibilité)
+    const cat = await resoudreCategorieDepense(req.tenantId, { categorieId, categorie });
 
     const resolvedAnneeId =
       (await resolveAnneeScolaireId(req.tenantId, anneeScolaireId || null)) ||
@@ -63,7 +66,8 @@ export const create = async (req, res) => {
       data: {
         tenantId: req.tenantId,
         anneeScolaireId: resolvedAnneeId,
-        categorie: categorie.trim(),
+        categorie: cat.nom,
+        categorieId: cat.id,
         montant: amount,
         motif: motif.trim(),
         reference: reference?.trim() || null,
@@ -74,6 +78,7 @@ export const create = async (req, res) => {
     });
     res.status(201).json({ ...depense, montant: Number(depense.montant) });
   } catch (error) {
+    if (error instanceof FinanceError) return res.status(error.status).json({ error: error.message });
     log.error({ err: error }, 'create depense error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -82,14 +87,17 @@ export const create = async (req, res) => {
 export const update = async (req, res) => {
   try {
     const { id } = req.params;
-    const { categorie, montant, motif, reference, dateDepense } = req.body;
+    const { categorie, categorieId, montant, motif, reference, dateDepense } = req.body;
     const existing = await prisma.depense.findFirst({ where: { id, tenantId: req.tenantId } });
     if (!existing) return res.status(404).json({ error: 'Dépense non trouvée' });
+    const cat = categorie || categorieId
+      ? await resoudreCategorieDepense(req.tenantId, { categorieId, categorie })
+      : null;
 
     const depense = await prisma.depense.update({
       where: { id },
       data: {
-        ...(categorie && { categorie: categorie.trim() }),
+        ...(cat && { categorie: cat.nom, categorieId: cat.id }),
         ...(montant !== undefined && { montant: parseFloat(montant) }),
         ...(motif && { motif: motif.trim() }),
         ...(reference !== undefined && { reference: reference?.trim() || null }),
@@ -99,6 +107,7 @@ export const update = async (req, res) => {
     });
     res.json({ ...depense, montant: Number(depense.montant) });
   } catch (error) {
+    if (error instanceof FinanceError) return res.status(error.status).json({ error: error.message });
     log.error({ err: error }, 'update depense error');
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -12,17 +12,20 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
 } from 'recharts';
 
-const CATEGORIES = [
-  'Salaires', 'Loyer', 'Électricité / Eau', 'Fournitures', 'Entretien',
-  'Communication', 'Transport', 'Alimentation (cantine)', 'Frais bancaires', 'Autre',
-];
 
 const PIE_COLORS = ['#2563eb', '#ef4444', '#f59e0b', '#22c55e', '#8b5cf6'];
 
 const EMPTY_FORM = { categorie: '', montant: '', motif: '', reference: '', dateDepense: '' };
 
 const Depenses = () => {
-  const { get, post, put, del } = useAxios();
+  const { get, post, put, delete: del } = useAxios();
+  // Catégories de dépenses gérées par l'école (Ventes & recettes → Catégories)
+  const [categoriesDepense, setCategoriesDepense] = useState([]);
+  useEffect(() => {
+    get('/api/finances/categories?type=depense&actives=1', { silent: true })
+      .then((res) => setCategoriesDepense(res?.data || []))
+      .catch(() => setCategoriesDepense([]));
+  }, [get]);
   const { formatPrice } = useTenant();
   const [depenses, setDepenses] = useState([]);
   const [stats, setStats] = useState(null);
@@ -218,7 +221,7 @@ const Depenses = () => {
       <FilterBar>
         <Select fullWidth={false} style={{ height: 36, width: 200 }} value={filters.categorie} onChange={(e) => setFilters({ ...filters, categorie: e.target.value })}>
           <option value="">Toutes les catégories</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {categoriesDepense.map((c) => <option key={c.id} value={c.nom}>{c.nom}</option>)}
         </Select>
       </FilterBar>
 
@@ -316,7 +319,7 @@ const Depenses = () => {
             <FormField label="Catégorie" required>
               <Select value={form.categorie} onChange={(e) => setForm({ ...form, categorie: e.target.value })}>
                 <option value="">Sélectionner</option>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {categoriesDepense.map((c) => <option key={c.id} value={c.nom}>{c.nom}</option>)}
               </Select>
             </FormField>
             <FormField label="Montant (FCFA)" required>

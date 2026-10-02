@@ -35,6 +35,21 @@ export function calculerTotalBilletterie(billetterie) {
 
 // ─── 1. Ouvrir une Session de Caisse ──────────────────────────────────────────
 
+/** Ventes (articles, recettes diverses) encaissées pendant une session de caisse. */
+async function ventesDeSession(tenantId, session) {
+  return prisma.vente.findMany({
+    where: {
+      tenantId,
+      statut: 'payee',
+      OR: [
+        { caisseSessionId: session.id },
+        { vendeurId: session.caissierId, dateVente: { gte: session.dateOuverture }, caisseSessionId: null },
+      ],
+    },
+    select: { id: true, montantTotal: true, modePaiement: true, caisseSessionId: true },
+  });
+}
+
 export const ouvrirSession = async (req, res) => {
   try {
     const tenantId = req.tenantId;
@@ -139,16 +154,21 @@ export const getSessionCourante = async (req, res) => {
     let totalMobileMoney = 0;
     let totalAutres = 0;
 
-    for (const p of paiements) {
-      const montant = Number(p.montant);
-      if (p.modePaiement === 'especes') {
-        totalEspeces += montant;
-      } else if (p.modePaiement === 'mobile_money') {
-        totalMobileMoney += montant;
+    const ventes = await ventesDeSession(tenantId, session);
+    const mouvements = [
+      ...paiements.map((p) => ({ montant: Number(p.montant), mode: p.modePaiement })),
+      ...ventes.map((v) => ({ montant: Number(v.montantTotal), mode: v.modePaiement })),
+    ];
+    for (const m of mouvements) {
+      if (m.mode === 'especes') {
+        totalEspeces += m.montant;
+      } else if (m.mode === 'mobile_money') {
+        totalMobileMoney += m.montant;
       } else {
-        totalAutres += montant;
+        totalAutres += m.montant;
       }
     }
+    const totalVentes = ventes.reduce((acc, v) => acc + Number(v.montantTotal), 0);
 
     const fond = Number(session.fondDeCaisse);
     const totalEncaisse = totalEspeces + totalMobileMoney + totalAutres;
@@ -158,6 +178,8 @@ export const getSessionCourante = async (req, res) => {
       data: {
         ...session,
         nombrePaiements: paiements.length,
+        nombreVentes: ventes.length,
+        totalVentes,
         totalEncaisse,
         totalEspeces,
         totalMobileMoney,
@@ -212,13 +234,22 @@ export const cloturerSession = async (req, res) => {
       });
     }
 
+    // Ventes de la session : rattachées explicitement puis comptées
+    const ventes = await ventesDeSession(tenantId, session);
+    const ventesNonLiees = ventes.filter((v) => !v.caisseSessionId).map((v) => v.id);
+    if (ventesNonLiees.length > 0) {
+      await prisma.vente.updateMany({ where: { id: { in: ventesNonLiees } }, data: { caisseSessionId: session.id } });
+    }
+
     let totalEspeces = 0;
     let totalGeneral = 0;
-    for (const p of paiements) {
-      const m = Number(p.montant);
-      totalGeneral += m;
-      if (p.modePaiement === 'especes') {
-        totalEspeces += m;
+    for (const m of [
+      ...paiements.map((p) => ({ montant: Number(p.montant), mode: p.modePaiement })),
+      ...ventes.map((v) => ({ montant: Number(v.montantTotal), mode: v.modePaiement })),
+    ]) {
+      totalGeneral += m.montant;
+      if (m.mode === 'especes') {
+        totalEspeces += m.montant;
       }
     }
 

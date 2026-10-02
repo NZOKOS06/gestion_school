@@ -45,6 +45,10 @@ model Tenant {
   emploisDuTemps  EmploiDuTemps[]
   creneauxHoraires CreneauHoraire[]
   servicesOptionnels ServiceOptionnel[]
+  categoriesFinance CategorieFinance[]
+  articlesCatalogue ArticleCatalogue[]
+  ventes          Vente[]
+  ventesLignes    VenteLigne[]
   annonces        Annonce[]
   annoncesDestinataires AnnonceDestinataire[]
   souscriptionsServices SouscriptionService[]
@@ -254,6 +258,7 @@ model Staff {
   pointagesJournaliersSaisis PointageJournalier[] @relation("PointageJournalierSaisiPar")
   periodesPaieOuvertes PeriodePaie[]   @relation("PeriodePaieOuvertePar")
   annoncesPubliees  Annonce[]          @relation("AnnonceAuteur")
+  ventes            Vente[]            @relation("VenteVendeur")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -704,6 +709,7 @@ model Inscription {
   classeCible   Classe?         @relation("InscriptionClasseCible", fields: [classeCibleId], references: [id], onDelete: SetNull)
   resultatExamen ResultatExamen? @relation(fields: [resultatExamenId], references: [id], onDelete: SetNull)
 
+  ventes     Vente[]
   paiements  Paiement[]
   echeances  Echeance[]
   souscriptionsServices SouscriptionService[]
@@ -958,8 +964,10 @@ model Depense {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  categorieId   String?
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   saisiePar     Staff          @relation("DepenseSaisiePar", fields: [saisieParId], references: [id])
+  categorieRef  CategorieFinance? @relation(fields: [categorieId], references: [id], onDelete: SetNull)
   anneeScolaire AnneeScolaire? @relation(fields: [anneeScolaireId], references: [id], onDelete: SetNull)
   bulletinsPaie BulletinPaie[]
 
@@ -1252,6 +1260,98 @@ model Salle {
 
   @@unique([tenantId, nom])
   @@index([tenantId])
+}
+
+// --- Catégories de recettes et de dépenses gérées par l'école ---
+model CategorieFinance {
+  id        String   @id @default(uuid())
+  tenantId  String
+  type      String   // recette | depense
+  nom       String
+  actif     Boolean  @default(true)
+  systeme   Boolean  @default(false) // ex. « Salaires » (paie) : non supprimable
+  ordre     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  depenses Depense[]
+  articles ArticleCatalogue[]
+  lignes   VenteLigne[]
+
+  @@unique([tenantId, type, nom])
+  @@index([tenantId, type])
+}
+
+// --- Ventes ponctuelles et recettes diverses (maillots, uniformes, émulation, dons…) ---
+model ArticleCatalogue {
+  id          String   @id @default(uuid())
+  tenantId    String
+  nom         String
+  description String?
+  prix        Decimal  @db.Decimal(12, 2)
+  categorieId String?
+  gereStock   Boolean  @default(false)
+  stock       Int?
+  actif       Boolean  @default(true)
+  ordre       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categorie CategorieFinance? @relation(fields: [categorieId], references: [id], onDelete: SetNull)
+  lignes    VenteLigne[]
+
+  @@unique([tenantId, nom])
+  @@index([tenantId])
+}
+
+model Vente {
+  id               String       @id @default(uuid())
+  tenantId         String
+  numero           Int          // numéro de reçu de vente, par école
+  dateVente        DateTime     @default(now())
+  inscriptionId    String?      // élève acheteur (facultatif)
+  clientNom        String?      // acheteur hors élève (parent, visiteur, donateur…)
+  montantTotal     Decimal      @db.Decimal(12, 2)
+  modePaiement     ModePaiement
+  reference        String?
+  vendeurId        String
+  caisseSessionId  String?
+  statut           String       @default("payee") // payee | annulee
+  motifAnnulation  String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inscription   Inscription?   @relation(fields: [inscriptionId], references: [id], onDelete: SetNull)
+  vendeur       Staff          @relation("VenteVendeur", fields: [vendeurId], references: [id])
+  caisseSession CaisseSession? @relation(fields: [caisseSessionId], references: [id], onDelete: SetNull)
+  lignes        VenteLigne[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, dateVente])
+  @@index([caisseSessionId])
+}
+
+model VenteLigne {
+  id           String   @id @default(uuid())
+  tenantId     String
+  venteId      String
+  articleId    String?
+  categorieId  String?
+  libelle      String
+  quantite     Int      @default(1)
+  prixUnitaire Decimal  @db.Decimal(12, 2)
+  montant      Decimal  @db.Decimal(12, 2)
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vente     Vente             @relation(fields: [venteId], references: [id], onDelete: Cascade)
+  article   ArticleCatalogue? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  categorie CategorieFinance? @relation(fields: [categorieId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([venteId])
 }
 
 // --- Annonces de l'école aux parents (tous, un cycle, une classe, les impayés) ---
@@ -1746,6 +1846,7 @@ model CaisseSession {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   caissier Staff  @relation("CaissierSession", fields: [caissierId], references: [id])
   paiements Paiement[]
+  ventes    Vente[]
 
   @@index([tenantId])
   @@index([caissierId])

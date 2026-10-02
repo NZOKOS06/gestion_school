@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { Button, Card, KpiCard, KpiGrid, DataTable, PageHeader, SegmentedControl, Badge } from '../../components/ui';
 
 const PERIODES = [
@@ -181,8 +182,60 @@ function RecettesParRegime({ get, anneeScolaireId, formatPrice, afficherRegimes 
   );
 }
 
+/** Compte de résultat : recettes par catégorie − dépenses par catégorie (année scolaire active) */
+function CompteResultat({ get, formatPrice }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    get('/api/rapports/resultat', { silent: true }).then(setData).catch(() => setData(null));
+  }, [get]);
+  if (!data) return null;
+
+  const Bloc = ({ titre, lignes, total, couleur }) => (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>{titre}</p>
+      <table className="w-full text-sm">
+        <tbody>
+          {lignes.map((l) => (
+            <tr key={`${l.groupe}-${l.libelle}`} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+              <td className="py-1.5 pr-2" style={{ color: 'var(--text-muted)' }}>{l.groupe}</td>
+              <td className="py-1.5 pr-2" style={{ color: 'var(--text-primary)' }}>{l.libelle}</td>
+              <td className="py-1.5 text-right">{formatPrice(l.montant)}</td>
+            </tr>
+          ))}
+          <tr className="font-semibold" style={{ borderTop: '2px solid var(--border-subtle)' }}>
+            <td className="py-1.5" colSpan={2}>Total</td>
+            <td className="py-1.5 text-right" style={{ color: couleur }}>{formatPrice(total)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <Card>
+      <div className="p-5 space-y-4">
+        <div className="flex items-baseline justify-between flex-wrap gap-2">
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Compte de résultat de l'année</h3>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            du {new Date(data.periode.debut).toLocaleDateString('fr-FR')} au {new Date(data.periode.fin).toLocaleDateString('fr-FR')}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Bloc titre="Recettes encaissées" lignes={data.recettes} total={data.totalRecettes} couleur="var(--color-success)" />
+          <Bloc titre="Dépenses" lignes={data.depenses} total={data.totalDepenses} couleur="var(--color-danger)" />
+        </div>
+        <div className="flex justify-between items-center rounded-lg px-4 py-3 font-bold" style={{ background: 'var(--surface-overlay)' }}>
+          <span>Résultat (recettes − dépenses)</span>
+          <span style={{ color: data.resultat >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>{formatPrice(data.resultat)}</span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 const Rapports = () => {
   const { formatPrice, config: tenantConfig } = useTenant();
+  const { user } = useAuth();
   const { get, loading } = useAxios();
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -654,6 +707,8 @@ const Rapports = () => {
           })}
         </KpiGrid>
       </div>
+
+      {['directeur', 'comptable'].includes(user?.role) && <CompteResultat get={get} formatPrice={formatPrice} />}
 
       <RecettesParRegime
         get={get}

@@ -68,6 +68,8 @@ import relancesRoutes from './routes/relances.js';
 import facturationRoutes from './routes/facturation.js';
 import servicesOptionnelsRoutes from './routes/servicesOptionnels.js';
 import annoncesRoutes from './routes/annonces.js';
+import ventesRoutes from './routes/ventes.js';
+import financesRoutes from './routes/finances.js';
 
 const app = express();
 if (process.env.NODE_ENV === 'production') {
@@ -328,6 +330,8 @@ app.use('/api/relances', tenantMiddleware, relancesRoutes);
 app.use('/api/facturation', tenantMiddleware, facturationRoutes);
 app.use('/api/services-optionnels', tenantMiddleware, servicesOptionnelsRoutes);
 app.use('/api/annonces', tenantMiddleware, annoncesRoutes);
+app.use('/api/ventes', tenantMiddleware, ventesRoutes);
+app.use('/api/finances', tenantMiddleware, financesRoutes);
 
 // Super admin routes
 app.use('/api/superadmin', superadminRoutes);

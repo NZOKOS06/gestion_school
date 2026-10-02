@@ -8,6 +8,7 @@ import {
   recapPointageStaff,
   calculerRetenue,
 } from '../services/paie.service.js';
+import { resoudreCategorieDepense } from '../services/finances.service.js';
 
 const log = createLogger('PaieController');
 
@@ -409,6 +410,7 @@ export const validerBulletin = async (req, res) => {
           tenantId,
           anneeScolaireId: bulletin.periodePaie.anneeScolaireId,
           categorie: 'Salaires',
+          categorieId: (await resoudreCategorieDepense(tenantId, { categorie: 'Salaires' })).id,
           montant: bulletin.montantTotal,
           motif,
           dateDepense: new Date(),
@@ -466,6 +468,7 @@ export const validerPeriode = async (req, res) => {
           tenantId,
           anneeScolaireId: bulletin.periodePaie.anneeScolaireId,
           categorie: 'Salaires',
+          categorieId: (await resoudreCategorieDepense(tenantId, { categorie: 'Salaires' })).id,
           montant: bulletin.montantTotal,
           motif,
           dateDepense: new Date(),

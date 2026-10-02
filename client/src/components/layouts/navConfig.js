@@ -26,6 +26,7 @@ import {
   Timer,
   Banknote,
   Megaphone,
+  ShoppingBag,
 } from 'lucide-react';
 
 export const ADMIN_ROUTE_LABELS = {
@@ -54,6 +55,7 @@ export const ADMIN_ROUTE_LABELS = {
   '/admin/pointage': 'Pointage personnel',
   '/admin/heures-enseignees': 'Validation des heures',
   '/admin/paie': 'Paie du personnel',
+  '/admin/ventes': 'Ventes & recettes diverses',
   '/admin/configuration': 'Configuration',
   '/admin/profil': 'Profil',
 };
@@ -100,6 +102,7 @@ export const ADMIN_NAV = [
     items: [
       { path: '/admin/paiements', icon: Wallet, labelKey: 'paiements', module: 'paiements', primary: true, roles: ['directeur'] },
       { path: '/admin/paie', icon: Banknote, labelKey: 'paie_personnel', module: 'paie', roles: ['directeur', 'comptable'] },
+      { path: '/admin/ventes', icon: ShoppingBag, labelKey: 'ventes', module: 'paiements', roles: ['directeur', 'secretaire'] },
     ],
   },
   {
@@ -190,6 +193,7 @@ export const CAISSIER_NAV = [
       { path: '/caissier', icon: LayoutDashboard, labelKey: 'dashboard', primary: true },
       { path: '/caissier/eleves', icon: GraduationCap, labelKey: 'eleves_finances', module: 'paiements', primary: true },
       { path: '/caissier/historique', icon: Wallet, labelKey: 'caisse', module: 'paiements', primary: true },
+      { path: '/caissier/ventes', icon: ShoppingBag, labelKey: 'ventes', module: 'paiements', primary: true },
       { path: '/caissier/depenses', icon: TrendingDown, labelKey: 'depenses', module: 'paiements', primary: true },
       { path: '/caissier/paie', icon: Banknote, labelKey: 'paie_personnel', module: 'paie', primary: true },
       { path: '/caissier/rapports', icon: BarChart3, labelKey: 'rapports', module: 'rapports', primary: true },
@@ -201,6 +205,7 @@ export const CAISSIER_ROUTE_LABELS = {
   '/caissier': 'Tableau de bord',
   '/caissier/eleves': 'Élèves (Finances)',
   '/caissier/historique': 'Journal de caisse',
+  '/caissier/ventes': 'Ventes & recettes diverses',
   '/caissier/retards': 'Retards',
   '/caissier/encaisser': 'Encaisser',
   '/caissier/depenses': 'Dépenses',

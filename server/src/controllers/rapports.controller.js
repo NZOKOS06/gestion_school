@@ -361,3 +361,97 @@ export const getRecettesParRegime = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+/**
+ * GET /api/rapports/resultat?dateDebut=YYYY-MM-DD&dateFin=YYYY-MM-DD
+ * Compte de résultat simplifié : recettes (scolarité, services optionnels, ventes et
+ * recettes diverses par catégorie) − dépenses par catégorie. Par défaut : année scolaire active.
+ */
+export const getCompteResultat = async (req, res) => {
+  const tenantId = req.tenantId;
+  try {
+    const { getAnneeOperationnelle } = await import('../utils/anneeScolaire.js');
+    const { categorieEcheance } = await import('../services/echeances.service.js');
+
+    let debut = req.query.dateDebut ? new Date(req.query.dateDebut) : null;
+    let fin = req.query.dateFin ? new Date(`${req.query.dateFin}T23:59:59`) : null;
+    if (!debut || !fin) {
+      const annee = await getAnneeOperationnelle(tenantId);
+      debut = debut || (annee?.dateDebut ? new Date(annee.dateDebut) : new Date(new Date().getFullYear(), 0, 1));
+      fin = fin || (annee?.dateFin ? new Date(annee.dateFin) : new Date());
+    }
+
+    const [paiements, lignesVentes, depenses] = await Promise.all([
+      prisma.paiement.findMany({
+        where: { tenantId, datePaiement: { gte: debut, lte: fin } },
+        select: {
+          montant: true,
+          typePaiement: true,
+          echeance: {
+            select: {
+              libelle: true,
+              categorie: true,
+              souscriptionServiceId: true,
+              souscriptionService: { select: { service: { select: { nom: true } } } },
+            },
+          },
+        },
+      }),
+      prisma.venteLigne.findMany({
+        where: { tenantId, vente: { statut: 'payee', dateVente: { gte: debut, lte: fin } } },
+        select: { montant: true, categorie: { select: { nom: true } } },
+      }),
+      prisma.depense.findMany({
+        where: { tenantId, dateDepense: { gte: debut, lte: fin } },
+        select: { montant: true, categorie: true, categorieRef: { select: { nom: true } } },
+      }),
+    ]);
+
+    const cumul = (map, groupe, libelle, montant) => {
+      const key = `${groupe}|${libelle}`;
+      const cur = map.get(key) || { groupe, libelle, montant: 0 };
+      cur.montant += Number(montant) || 0;
+      map.set(key, cur);
+    };
+
+    const recettes = new Map();
+    for (const p of paiements) {
+      const cat = p.echeance ? categorieEcheance(p.echeance) : (p.typePaiement === 'inscription' ? 'inscription' : 'scolarite');
+      if (cat === 'service') {
+        cumul(recettes, 'Services optionnels', p.echeance?.souscriptionService?.service?.nom || 'Service', p.montant);
+      } else if (cat === 'inscription') {
+        cumul(recettes, 'Scolarité', "Frais d'inscription / réinscription", p.montant);
+      } else {
+        cumul(recettes, 'Scolarité', 'Scolarité', p.montant);
+      }
+    }
+    for (const l of lignesVentes) {
+      cumul(recettes, 'Ventes et recettes diverses', l.categorie?.nom || 'Sans catégorie', l.montant);
+    }
+
+    const depensesMap = new Map();
+    for (const d of depenses) {
+      cumul(depensesMap, 'Dépenses', d.categorieRef?.nom || d.categorie || 'Sans catégorie', d.montant);
+    }
+
+    const arrondir = (rows) => rows
+      .map((r) => ({ ...r, montant: Math.round(r.montant * 100) / 100 }))
+      .sort((a, b) => a.groupe.localeCompare(b.groupe, 'fr') || b.montant - a.montant);
+    const lignesRecettes = arrondir([...recettes.values()]);
+    const lignesDepenses = arrondir([...depensesMap.values()]);
+    const totalRecettes = Math.round(lignesRecettes.reduce((s, r) => s + r.montant, 0) * 100) / 100;
+    const totalDepenses = Math.round(lignesDepenses.reduce((s, r) => s + r.montant, 0) * 100) / 100;
+
+    res.json({
+      periode: { debut, fin },
+      recettes: lignesRecettes,
+      depenses: lignesDepenses,
+      totalRecettes,
+      totalDepenses,
+      resultat: Math.round((totalRecettes - totalDepenses) * 100) / 100,
+    });
+  } catch (error) {
+    log.error({ err: error, tenantId }, 'Compte de résultat error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

@@ -29,6 +29,15 @@ router.get('/regimes',
   ctrl.getRecettesParRegime
 );
 
+// Compte de résultat : recettes par catégorie − dépenses par catégorie
+router.get('/resultat',
+  authenticate,
+  requireRole('directeur', 'comptable'),
+  requireTenantMatch,
+  requireModule('rapports'),
+  ctrl.getCompteResultat
+);
+
 router.get('/export',
   authenticate,
   requireRole('directeur', 'comptable', 'secretaire'),
