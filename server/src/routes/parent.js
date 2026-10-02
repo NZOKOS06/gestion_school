@@ -16,6 +16,8 @@ router.post('/enfants/:id/paiements/init', ctrl.initMomoPayment);
 router.post('/paiements/:ref/confirm', ctrl.confirmMomoPayment);
 router.get('/enfants/:id/absences', ctrl.getEnfantAbsences);
 router.get('/enfants/:id/sanctions', ctrl.getEnfantSanctions);
+router.get('/annonces', ctrl.getAnnonces);
+router.put('/annonces/:id/lu', ctrl.markAnnonceLue);
 router.get('/notifications', ctrl.getNotifications);
 router.put('/notifications/read-all', ctrl.markAllNotificationsRead);
 router.put('/notifications/:id/read', ctrl.markNotificationRead);

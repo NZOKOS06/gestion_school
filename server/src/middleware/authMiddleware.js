@@ -89,6 +89,13 @@ export const authenticate = async (req, res, next) => {
             error: 'User not found or inactive'
           });
         }
+        // Module Parents coupé par le super-admin ou accès retiré par l'école
+        if (!parent.tenant?.config?.moduleParents || !parent.portailActif) {
+          return res.status(403).json({
+            error: 'Parent portal disabled',
+            message: "L'espace parent n'est pas activé.",
+          });
+        }
 
         user = {
           id: parent.id,
@@ -97,7 +104,8 @@ export const authenticate = async (req, res, next) => {
           tenant: parent.tenant,
           email: parent.email,
           nom: parent.nom,
-          prenom: parent.prenom
+          prenom: parent.prenom,
+          mustChangePassword: parent.mustChangePassword,
         };
         await cacheSet(cacheKey, user, AUTH_CACHE_TTL);
       }

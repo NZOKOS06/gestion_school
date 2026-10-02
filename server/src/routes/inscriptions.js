@@ -68,6 +68,26 @@ router.put('/:id/services/:serviceId',
   ctrl.updateServiceInscription
 );
 
+// Famille : tuteur, espace parent, accès aux notes
+router.get('/:id/famille',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes', 'secretaire', 'comptable'),
+  requireTenantMatch,
+  requireModule('inscriptions'),
+  idParamValidator,
+  ctrl.getFamille
+);
+
+// Dérogation : notes / bulletins visibles malgré un impayé (directeur uniquement)
+router.put('/:id/derogation-notes',
+  authenticate,
+  requireRole('directeur'),
+  requireTenantMatch,
+  requireModule('inscriptions'),
+  idParamValidator,
+  ctrl.setDerogationNotes
+);
+
 router.post('/avec-eleve',
   authenticate,
   requireRole('directeur', 'directeur_etudes', 'secretaire'),

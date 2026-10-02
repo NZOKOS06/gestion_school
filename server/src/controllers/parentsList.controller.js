@@ -1,7 +1,7 @@
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
+import { logAudit } from '../utils/auditLogger.js';
+import { moduleParentsActif, activerPortailParent, desactiverPortailParent } from '../services/portailParent.service.js';
 
 const log = createLogger('ParentsListController');
 
@@ -22,7 +22,7 @@ export const getAll = async (req, res) => {
     }
     const parents = await prisma.user.findMany({
       where,
-      select: { id: true, nom: true, prenom: true, email: true, telephone: true },
+      select: { id: true, nom: true, prenom: true, email: true, telephone: true, portailActif: true },
       orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
       take,
     });
@@ -33,7 +33,7 @@ export const getAll = async (req, res) => {
   }
 };
 
-/** Création rapide d'un parent (admin) — mot de passe temporaire généré. */
+/** Création rapide d'une fiche tuteur (admin) — sans accès au portail tant qu'il n'est pas activé. */
 export const create = async (req, res) => {
   try {
     const tenantId = req.tenantId;
@@ -47,8 +47,6 @@ export const create = async (req, res) => {
     if (existing) {
       return res.status(409).json({ error: 'Cet email est déjà utilisé' });
     }
-    const tempPassword = crypto.randomBytes(4).toString('hex');
-    const passwordHash = await bcrypt.hash(tempPassword, 12);
     const parent = await prisma.user.create({
       data: {
         tenantId,
@@ -56,13 +54,44 @@ export const create = async (req, res) => {
         prenom: prenom.trim(),
         email: email.trim().toLowerCase(),
         telephone: telephone?.trim() || null,
-        passwordHash,
+        passwordHash: null,
+        portailActif: false,
       },
-      select: { id: true, nom: true, prenom: true, email: true, telephone: true },
+      select: { id: true, nom: true, prenom: true, email: true, telephone: true, portailActif: true },
     });
-    res.status(201).json({ ...parent, temporaryPassword: tempPassword });
+    res.status(201).json(parent);
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'Create parent error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * PUT /api/parents/:id/portail  { actif: boolean }
+ * Active l'espace parent (nouveau mot de passe provisoire, renvoyé une seule fois)
+ * ou le retire. Nécessite le module Parents.
+ */
+export const setPortail = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const actif = req.body.actif === true || req.body.actif === 'true';
+    const parent = await prisma.user.findFirst({ where: { id: req.params.id, tenantId } });
+    if (!parent) return res.status(404).json({ error: 'Parent introuvable' });
+
+    if (actif) {
+      if (!(await moduleParentsActif(tenantId))) {
+        return res.status(403).json({ error: "Le module Parents n'est pas activé pour l'établissement." });
+      }
+      const acces = await prisma.$transaction((tx) => activerPortailParent(tx, parent));
+      await logAudit(req, 'portail_parent_active', 'User', parent.id, { nom: acces.nom });
+      return res.json({ portailActif: true, accesParent: acces });
+    }
+
+    await prisma.$transaction((tx) => desactiverPortailParent(tx, parent));
+    await logAudit(req, 'portail_parent_desactive', 'User', parent.id, {});
+    res.json({ portailActif: false });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Set portail parent error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -16,8 +16,12 @@ export const handleValidationErrors = (req, res, next) => {
 };
 
 // Validators Auth
+// Identifiant : email (staff, parents) ou numéro de téléphone (parents)
 export const loginValidator = [
-  body('email').isEmail().normalizeEmail().withMessage('Email invalide'),
+  body('email').trim().notEmpty().withMessage('Email ou téléphone requis'),
+  body('email').if(body('email').contains('@')).isEmail().withMessage('Email invalide').normalizeEmail(),
+  body('email').if(body('email').not().contains('@'))
+    .matches(/^\+?[0-9][0-9 .-]{5,19}$/).withMessage('Email ou téléphone invalide'),
   body('password').notEmpty().withMessage('Mot de passe requis'),
   handleValidationErrors
 ];

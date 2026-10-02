@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button, Modal, Badge, QuickSearchSelect } from '../../components/ui';
 import { User, Phone, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, CreditCard, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTenant } from '../../contexts/TenantContext';
 
 const LIENS_PARENTE = [
   'Père',
@@ -25,6 +26,10 @@ export default function InscriptionWizard({
   post,
   get,
 }) {
+  const { config: tenantConfig } = useTenant();
+  // Portail parent : proposé uniquement si le module est activé pour l'école
+  const portailDisponible = Boolean(tenantConfig?.moduleParents);
+  const [accesParent, setAccesParent] = useState(null);
   const [step, setStep] = useState(1);
   const [mode, setMode] = useState('nouveau'); // 'nouveau' | 'existant'
   const [parentMode, setParentMode] = useState('nouveau'); // 'nouveau' | 'existant'
@@ -64,7 +69,7 @@ export default function InscriptionWizard({
     email: '',
     lienParente: 'Père',
     adresse: '',
-    activerEspaceParent: true,
+    activerEspaceParent: false,
   });
 
   const effectiveAnneeId = anneeScolaireId || annees.find((a) => a.actif || a.statut === 'active')?.id || annees[0]?.id || '';
@@ -230,6 +235,7 @@ export default function InscriptionWizard({
         eleve: mode === 'nouveau' ? eleve : undefined,
         parentId: parentMode === 'existant' ? existingParentId : undefined,
         tuteur: parentMode === 'nouveau' ? tuteur : undefined,
+        activerEspaceParent: portailDisponible && Boolean(tuteur.activerEspaceParent),
         regime,
         services: servicesChoisis,
         ...(tarifSpecial ? {
@@ -239,10 +245,15 @@ export default function InscriptionWizard({
         } : {}),
       };
 
-      await post('/api/inscriptions/avec-eleve', payload);
+      const result = await post('/api/inscriptions/avec-eleve', payload);
       toast.success('Inscription enregistrée avec succès !');
       onSuccess?.();
-      onClose();
+      if (result?.accesParent) {
+        // Identifiants provisoires affichés une seule fois
+        setAccesParent(result.accesParent);
+      } else {
+        onClose();
+      }
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Erreur lors de l\'inscription');
     }
@@ -256,7 +267,7 @@ export default function InscriptionWizard({
       title="Acheminement d'Inscription Scolaire"
       subtitle="Parcours guidé : Élève → Tuteur Obligatoire → Récapitulatif"
       size="lg"
-      footer={
+      footer={accesParent ? null : (
         <div className="flex items-center justify-between w-full">
           <div>
             {step > 1 && (
@@ -285,8 +296,25 @@ export default function InscriptionWizard({
             )}
           </div>
         </div>
-      }
+      )}
     >
+      {accesParent ? (
+        <div className="space-y-4 text-center py-4">
+          <ShieldCheck className="h-10 w-10 mx-auto" style={{ color: 'var(--color-success)' }} />
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Espace parent activé pour {accesParent.nom}</p>
+          <div className="inline-block text-left rounded-xl p-4 space-y-1" style={{ background: 'var(--surface-overlay)', border: '1px solid var(--border-subtle)' }}>
+            <p className="text-sm">Identifiant : <strong style={{ fontFamily: 'var(--font-mono, monospace)' }}>{accesParent.identifiant}</strong></p>
+            <p className="text-sm">Mot de passe provisoire : <strong style={{ fontFamily: 'var(--font-mono, monospace)' }}>{accesParent.motDePasse}</strong></p>
+          </div>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Remettez ces identifiants au parent : ils ne seront plus affichés. Il devra choisir son propre mot de passe à la première connexion.
+          </p>
+          <div className="flex justify-center gap-2">
+            <Button variant="secondary" onClick={() => window.print()}>Imprimer</Button>
+            <Button onClick={() => { setAccesParent(null); onClose(); }}>Terminer</Button>
+          </div>
+        </div>
+      ) : (
       <div className="space-y-6">
         {/* Progress Bar / Stepper Header */}
         <div className="grid grid-cols-3 gap-2">
@@ -504,6 +532,16 @@ export default function InscriptionWizard({
                   getLabel={(p) => `${p.prenom || ''} ${p.nom || ''} (${p.telephone || p.email || 'Sans contact'})`}
                   placeholder="Rechercher par nom ou numéro de téléphone..."
                 />
+                {portailDisponible && existingParentId && !parents.find((p) => p.id === existingParentId)?.portailActif && (
+                  <label className="flex items-center gap-2 text-sm mt-3 cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
+                    <input
+                      type="checkbox"
+                      checked={tuteur.activerEspaceParent}
+                      onChange={(e) => setTuteur({ ...tuteur, activerEspaceParent: e.target.checked })}
+                    />
+                    Activer l'espace parent de ce tuteur (mot de passe provisoire)
+                  </label>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -566,6 +604,7 @@ export default function InscriptionWizard({
                     onChange={(e) => setTuteur({ ...tuteur, adresse: e.target.value })}
                   />
                 </div>
+                {portailDisponible && (
                 <div className="sm:col-span-2 p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] mt-2">
                   <label className="flex items-start gap-2.5 cursor-pointer">
                     <input
@@ -579,11 +618,13 @@ export default function InscriptionWizard({
                         Activer l'accès Espace Parent en ligne (Portail Parent)
                       </span>
                       <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>
-                        Génère automatiquement les accès de connexion (téléphone/email + mot de passe temporaire) pour suivre les notes, absences et paiements.
+                        Génère un mot de passe provisoire (connexion par téléphone ou email) : absences, sanctions, annonces, factures,
+                        et notes / bulletins lorsque la scolarité du mois écoulé est réglée.
                       </span>
                     </div>
                   </label>
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -628,12 +669,14 @@ export default function InscriptionWizard({
                     Tél : {parentMode === 'existant' ? parents.find((p) => p.id === existingParentId)?.telephone : tuteur.telephone}
                   </span>
                 </div>
+                {portailDisponible && (
                 <div>
                   <span className="text-xs text-[var(--text-muted)] block">Espace Parent en ligne</span>
                   <Badge variant={tuteur.activerEspaceParent ? 'success' : 'neutral'}>
-                    {tuteur.activerEspaceParent ? 'Activé' : 'Désactivé'}
+                    {tuteur.activerEspaceParent ? 'Sera activé' : 'Non activé'}
                   </Badge>
                 </div>
+                )}
               </div>
             </div>
 
@@ -750,6 +793,7 @@ export default function InscriptionWizard({
           </div>
         )}
       </div>
+      )}
     </Modal>
   );
 }

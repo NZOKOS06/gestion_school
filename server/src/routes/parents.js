@@ -21,4 +21,12 @@ router.post('/',
   ctrl.create
 );
 
+// Activation / retrait de l'espace parent (identifiants provisoires renvoyés une fois)
+router.put('/:id/portail',
+  authenticate,
+  requireRole('directeur', 'secretaire'),
+  requireTenantMatch,
+  ctrl.setPortail
+);
+
 export default router;

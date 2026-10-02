@@ -104,11 +104,11 @@ const ParentDashboard = () => {
                   <>
                     <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
                       <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Moyenne</p>
-                      <p className="font-bold text-sm sm:text-base" style={{ color: 'var(--color-primary)' }}>{enfant.moyenneGenerale ? Number(enfant.moyenneGenerale).toFixed(2) : 'N/A'}</p>
+                      <p className="font-bold text-sm sm:text-base" style={{ color: enfant.notesBloquees ? 'var(--color-warning)' : 'var(--color-primary)' }} title={enfant.notesBloquees ? 'Disponible après régularisation de la scolarité du mois écoulé' : undefined}>{enfant.notesBloquees ? 'Masquée' : (enfant.moyenneGenerale ? Number(enfant.moyenneGenerale).toFixed(2) : 'N/A')}</p>
                     </div>
                     <div className="p-2 rounded-lg" style={{ background: 'var(--surface-overlay)' }}>
                       <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>Rang</p>
-                      <p className="font-bold text-sm sm:text-base" style={{ color: 'var(--color-primary)' }}>{enfant.rang ? `${enfant.rang}e` : 'N/A'}</p>
+                      <p className="font-bold text-sm sm:text-base" style={{ color: enfant.notesBloquees ? 'var(--color-warning)' : 'var(--color-primary)' }}>{enfant.notesBloquees ? 'Masqué' : (enfant.rang ? `${enfant.rang}e` : 'N/A')}</p>
                     </div>
                   </>
                 )}

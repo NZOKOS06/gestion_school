@@ -803,11 +803,12 @@ async function main() {
   const parentHash = await bcrypt.hash(parentPassword, BCRYPT_ROUNDS);
   const parentUser = await prisma.user.upsert({
     where: { tenantId_email: { tenantId: demoTenant.id, email: 'parent@demo.cg' } },
-    update: { passwordHash: parentHash, actif: true },
+    update: { passwordHash: parentHash, actif: true, portailActif: true },
     create: {
       tenantId: demoTenant.id,
       email: 'parent@demo.cg',
       passwordHash: parentHash,
+      portailActif: true,
       nom: 'Ossobi',
       prenom: 'Joseph',
       telephone: '+242 06 222 2222',

@@ -11,6 +11,8 @@ import {
   emitBulletinGenere,
 } from './schoolEvents.js';
 
+import { parentJoignable, situationNotes } from '../services/portailParent.service.js';
+
 const log = createLogger('Notifications');
 
 /**
@@ -28,6 +30,9 @@ export async function notifyParent({
   if (!userId || !tenantId) return null;
 
   try {
+    // Module Parents désactivé ou espace parent non activé pour ce tuteur : rien n'est envoyé
+    if (!(await parentJoignable(tenantId, userId))) return null;
+
     const notif = await prisma.notification.create({
       data: {
         tenantId,
@@ -117,6 +122,9 @@ export async function notifyParentOfEleve(tenantId, eleveId, payload, tenantSlug
 /** Staff room + parent when a note is saved */
 export async function broadcastNote(tenantSlug, tenantId, note) {
   emitNouvelleNote(tenantId, note);
+  // Notes : seulement si la scolarité du mois écoulé est réglée (ou dérogation)
+  const acces = await situationNotes(tenantId, note.eleveId).catch(() => ({ accessible: false }));
+  if (!acces.accessible) return;
   await notifyParentOfEleve(tenantId, note.eleveId, {
     type: 'note',
     titre: 'Nouvelle note',
@@ -180,6 +188,17 @@ export async function broadcastPaiementEchu(tenantSlug, tenantId, echeance, pare
 
 export async function broadcastBulletin(tenantSlug, tenantId, bulletin) {
   emitBulletinGenere(tenantId, bulletin);
+  const acces = await situationNotes(tenantId, bulletin.eleveId).catch(() => ({ accessible: false }));
+  if (!acces.accessible) {
+    // Le parent est prévenu de la publication, sans le contenu
+    await notifyParentOfEleve(tenantId, bulletin.eleveId, {
+      type: 'bulletin',
+      titre: 'Bulletin publié',
+      contenu: 'Le bulletin de votre enfant est publié. Il sera consultable après régularisation de la scolarité du mois écoulé.',
+      lien: '/parent/facturation',
+    }, tenantSlug);
+    return;
+  }
   await notifyParentOfEleve(tenantId, bulletin.eleveId, {
     type: 'bulletin',
     titre: 'Bulletin publié',

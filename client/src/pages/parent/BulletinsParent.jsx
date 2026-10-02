@@ -8,6 +8,7 @@ const BulletinsParent = () => {
   const { get } = useAxios();
   const { formatPrice } = useTenant();
   const [bulletins, setBulletins] = useState([]);
+  const [blocage, setBlocage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedEnfant, setSelectedEnfant] = useState('');
   const [enfants, setEnfants] = useState([]);
@@ -28,7 +29,9 @@ const BulletinsParent = () => {
     setLoading(true);
     try {
       const res = await get(`/api/parent/enfants/${selectedEnfant}/bulletins`);
-      setBulletins(res?.data || res || []);
+      // Bulletins masqués tant que la scolarité du mois écoulé n'est pas réglée
+      setBlocage(res?.bloque ? { message: res.message, montantDu: res.montantDu } : null);
+      setBulletins(Array.isArray(res) ? res : (res?.bulletins || []));
     } catch { /* silent */ }
     setLoading(false);
   }, [selectedEnfant]);
@@ -55,6 +58,17 @@ const BulletinsParent = () => {
         </select>
       </div>
 
+      {blocage && (
+        <div className="rounded-xl p-4 text-sm" style={{ background: 'color-mix(in srgb, var(--color-warning) 12%, transparent)', color: 'var(--text-primary)' }}>
+          <p className="font-medium">{blocage.message}</p>
+          <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
+            Montant à régulariser : <strong>{formatPrice(blocage.montantDu)}</strong> —{' '}
+            <a href="/parent/facturation" style={{ color: 'var(--color-primary)' }}>voir la facturation</a>
+          </p>
+        </div>
+      )}
+
+      {!blocage && (
       <DataTable
         columns={[
           { key: 'anneeScolaireLibelle', label: 'Année', render: (v) => <span style={{ color: 'var(--text-primary)' }}>{v}</span> },
@@ -76,6 +90,7 @@ const BulletinsParent = () => {
         loading={loading}
         emptyMessage="Aucun bulletin disponible"
       />
+      )}
     </div>
   );
 };

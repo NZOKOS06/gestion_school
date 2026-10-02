@@ -75,6 +75,7 @@ const ConseilDeClasse = lazyWithRetry(() => import('./pages/admin/ConseilDeClass
 const Salles = lazyWithRetry(() => import('./pages/admin/Salles'));
 const CalendrierScolaire = lazyWithRetry(() => import('./pages/admin/CalendrierScolaire'));
 const Messagerie = lazyWithRetry(() => import('./pages/admin/Messagerie'));
+const Annonces = lazyWithRetry(() => import('./pages/admin/Annonces'));
 const AnneesScolaires = lazyWithRetry(() => import('./pages/admin/AnneesScolaires'));
 const Examens = lazyWithRetry(() => import('./pages/admin/Examens'));
 const CaissierDashboard = lazyWithRetry(() => import('./pages/admin/CaissierDashboard'));
@@ -97,6 +98,7 @@ const ParentDashboard = lazyWithRetry(() => import('./pages/parent/ParentDashboa
 const MesEnfants = lazyWithRetry(() => import('./pages/parent/MesEnfants'));
 const BulletinsParent = lazyWithRetry(() => import('./pages/parent/BulletinsParent'));
 const AbsencesParent = lazyWithRetry(() => import('./pages/parent/AbsencesParent'));
+const AnnoncesParent = lazyWithRetry(() => import('./pages/parent/AnnoncesParent'));
 const SanctionsParent = lazyWithRetry(() => import('./pages/parent/SanctionsParent'));
 const FacturationParent = lazyWithRetry(() => import('./pages/parent/FacturationParent'));
 
@@ -216,6 +218,7 @@ const AppRoutes = () => {
             <Route path="/admin/conseil-de-classe" element={<ConseilDeClasse />} />
             <Route path="/admin/certificats" element={<Certificats />} />
             <Route path="/admin/messagerie" element={<Messagerie />} />
+            <Route path="/admin/annonces" element={<Annonces />} />
           </Route>
         </Route>
 
@@ -278,6 +281,7 @@ const AppRoutes = () => {
             <Route path="/parent/absences" element={<AbsencesParent />} />
             <Route path="/parent/sanctions" element={<SanctionsParent />} />
             <Route path="/parent/facturation" element={<FacturationParent />} />
+            <Route path="/parent/annonces" element={<AnnoncesParent />} />
             <Route path="/parent/messagerie" element={<Messagerie />} />
           </Route>
         </Route>

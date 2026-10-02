@@ -25,6 +25,7 @@ import {
   Clock,
   Timer,
   Banknote,
+  Megaphone,
 } from 'lucide-react';
 
 export const ADMIN_ROUTE_LABELS = {
@@ -47,6 +48,7 @@ export const ADMIN_ROUTE_LABELS = {
   '/admin/annees-scolaires': 'Années & périodes',
   '/admin/examens': 'Examens nationaux',
   '/admin/messagerie': 'Messagerie',
+  '/admin/annonces': 'Annonces aux parents',
   '/admin/rapports': 'Rapports',
   '/admin/personnel': 'Personnel',
   '/admin/pointage': 'Pointage personnel',
@@ -111,6 +113,7 @@ export const ADMIN_NAV = [
     groupKey: 'communication',
     items: [
       { path: '/admin/messagerie', icon: Mail, labelKey: 'messagerie', primary: true, roles: ['directeur', 'directeur_etudes', 'secretaire', 'surveillant'] },
+      { path: '/admin/annonces', icon: Megaphone, labelKey: 'annonces', module: 'parents', roles: ['directeur', 'directeur_etudes', 'secretaire'] },
     ],
   },
 ];
@@ -163,6 +166,7 @@ export const PARENT_NAV = [
       { path: '/parent/absences', icon: CalendarX, labelKey: 'absences', module: 'presences' },
       { path: '/parent/sanctions', icon: Gavel, labelKey: 'sanctions', module: 'sanctions' },
       { path: '/parent/facturation', icon: Wallet, labelKey: 'facturation', module: 'paiements', primary: true },
+      { path: '/parent/annonces', icon: Megaphone, labelKey: 'annonces', primary: true },
       { path: '/parent/messagerie', icon: Mail, labelKey: 'messagerie', primary: true },
     ],
   },
@@ -175,6 +179,7 @@ export const PARENT_ROUTE_LABELS = {
   '/parent/absences': 'Absences',
   '/parent/sanctions': 'Sanctions',
   '/parent/facturation': 'Facturation',
+  '/parent/annonces': 'Annonces',
   '/parent/messagerie': 'Messagerie',
 };
 

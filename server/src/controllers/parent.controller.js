@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { assertParentOwnsEleve } from '../utils/ownership.js';
 import { initSandboxPayment, confirmSandboxPayment } from '../services/momo.sandbox.js';
+import { situationNotes } from '../services/portailParent.service.js';
 
 const log = createLogger('ParentController');
 
@@ -40,15 +41,20 @@ export const getDashboard = async (req, res) => {
 
     const enfantIds = enfants.map((e) => e.id);
 
-    const [absencesNonJust, bulletins, notifications] = await Promise.all([
+    // Notes / bulletins : uniquement pour les enfants à jour de la scolarité du mois écoulé
+    const acces = new Map(await Promise.all(enfants.map(async (e) => [e.id, await situationNotes(tenantId, e.id)])));
+    const enfantsAccessibles = enfantIds.filter((id) => acces.get(id)?.accessible);
+
+    const [absencesNonJust, bulletins, annoncesNonLues, notifications] = await Promise.all([
       enfantIds.length
         ? prisma.absence.count({
             where: { tenantId, eleveId: { in: enfantIds }, justifiee: false },
           })
         : 0,
-      enfantIds.length
-        ? prisma.bulletin.count({ where: { tenantId, eleveId: { in: enfantIds } } })
+      enfantsAccessibles.length
+        ? prisma.bulletin.count({ where: { tenantId, eleveId: { in: enfantsAccessibles }, valide: true } })
         : 0,
+      prisma.annonceDestinataire.count({ where: { tenantId, userId: parentId, luLe: null } }),
       prisma.notification.findMany({
         where: { tenantId, userId: parentId },
         orderBy: { createdAt: 'desc' },
@@ -62,14 +68,17 @@ export const getDashboard = async (req, res) => {
           where: { tenantId, eleveId: e.id, justifiee: false },
         });
         const lastBulletin = await prisma.bulletin.findFirst({
-          where: { tenantId, eleveId: e.id },
+          where: { tenantId, eleveId: e.id, valide: true },
           orderBy: { createdAt: 'desc' },
         });
         const summary = mapEnfantSummary(e);
+        const situation = acces.get(e.id) || { accessible: true };
         return {
           ...summary,
-          moyenneGenerale: lastBulletin ? Number(lastBulletin.moyenneGenerale) : null,
-          rang: lastBulletin?.rang ?? null,
+          moyenneGenerale: situation.accessible && lastBulletin ? Number(lastBulletin.moyenneGenerale) : null,
+          rang: situation.accessible ? (lastBulletin?.rang ?? null) : null,
+          notesBloquees: !situation.accessible,
+          montantDuNotes: situation.montantDu || 0,
           nbAbsencesNonJustifiees: absNj,
         };
       })
@@ -82,6 +91,7 @@ export const getDashboard = async (req, res) => {
       nbBulletins: bulletins,
       soldeTotal,
       nbAbsencesNonJustifiees: absencesNonJust,
+      annoncesNonLues,
       enfants: enfantsDetail,
       notifications: notifications.map((n) => ({
         id: n.id,
@@ -115,8 +125,10 @@ export const getEnfantDetail = async (req, res) => {
     const eleve = await assertParentOwnsEleve(req, res, req.params.id);
     if (!eleve) return;
 
+    const situation = await situationNotes(req.tenantId, eleve.id);
+
     const [notes, absences, full] = await Promise.all([
-      prisma.note.findMany({
+      !situation.accessible ? [] : prisma.note.findMany({
         where: { tenantId: req.tenantId, eleveId: eleve.id },
         include: {
           evaluation: {
@@ -139,6 +151,9 @@ export const getEnfantDetail = async (req, res) => {
 
     res.json({
       ...mapEnfantSummary(full),
+      notesBloquees: !situation.accessible,
+      montantDuNotes: situation.montantDu || 0,
+      messageNotes: situation.message,
       notes: notes.map((n) => ({
         matiereNom: n.evaluation?.matiere?.nom || null,
         evaluation: n.evaluation?.nom || null,
@@ -161,14 +176,26 @@ export const getEnfantBulletins = async (req, res) => {
     const eleve = await assertParentOwnsEleve(req, res, req.params.id);
     if (!eleve) return;
 
+    const situation = await situationNotes(req.tenantId, eleve.id);
+    if (!situation.accessible) {
+      return res.json({
+        bloque: true,
+        montantDu: situation.montantDu,
+        message: situation.message,
+        bulletins: [],
+      });
+    }
+
     const bulletins = await prisma.bulletin.findMany({
       where: { tenantId: req.tenantId, eleveId: eleve.id, valide: true },
       include: { anneeScolaire: { select: { libelle: true } } },
       orderBy: [{ anneeScolaireId: 'desc' }, { periodeIndex: 'desc' }],
     });
 
-    res.json(
-      bulletins.map((b) => ({
+    res.json({
+      bloque: false,
+      derogation: situation.derogation,
+      bulletins: bulletins.map((b) => ({
         id: b.id,
         anneeScolaireLibelle: b.anneeScolaire?.libelle || null,
         periodeIndex: b.periodeIndex,
@@ -177,8 +204,8 @@ export const getEnfantBulletins = async (req, res) => {
         mention: b.mention,
         valide: b.valide,
         pdfUrl: b.pdfUrl || null,
-      }))
-    );
+      })),
+    });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'enfant bulletins error');
     res.status(500).json({ error: 'Internal server error' });
@@ -436,6 +463,45 @@ export const markAllNotificationsRead = async (req, res) => {
     res.json({ count: result.count });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'mark all notifications read error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/** GET /api/parent/annonces — annonces reçues par le parent, plus récentes d'abord */
+export const getAnnonces = async (req, res) => {
+  try {
+    const rows = await prisma.annonceDestinataire.findMany({
+      where: { tenantId: req.tenantId, userId: req.user.id },
+      include: { annonce: { include: { auteur: { select: { nom: true, prenom: true, role: true } } } } },
+      orderBy: { annonce: { createdAt: 'desc' } },
+      take: 100,
+    });
+    res.json({
+      data: rows.map((r) => ({
+        id: r.annonce.id,
+        titre: r.annonce.titre,
+        contenu: r.annonce.contenu,
+        date: r.annonce.createdAt,
+        auteur: r.annonce.auteur ? `${r.annonce.auteur.prenom} ${r.annonce.auteur.nom}`.trim() : null,
+        lu: Boolean(r.luLe),
+      })),
+    });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'parent annonces error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/** PUT /api/parent/annonces/:id/lu */
+export const markAnnonceLue = async (req, res) => {
+  try {
+    await prisma.annonceDestinataire.updateMany({
+      where: { tenantId: req.tenantId, userId: req.user.id, annonceId: req.params.id, luLe: null },
+      data: { luLe: new Date() },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'parent annonce lue error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

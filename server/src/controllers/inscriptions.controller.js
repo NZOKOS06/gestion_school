@@ -42,7 +42,7 @@ async function souscrireServicesInscription(tx, tenantId, inscription, classe, d
 }
 import { messageErreurDateNaissance, safeOrderBy } from '../utils/formatters.js';
 import { resolveAnneeScolaireId, getAnneeOperationnelle } from '../utils/anneeScolaire.js';
-import { hashPassword } from '../utils/password.js';
+import { moduleParentsActif, activerPortailParent, situationNotes, inscriptionCourante } from '../services/portailParent.service.js';
 
 const log = createLogger('InscriptionsController');
 
@@ -238,6 +238,12 @@ export const createAvecEleve = async (req, res) => {
     const servicesDemandes = parseServicesDemandes(req.body.services);
     await resolveServices(tenantId, classe, servicesDemandes.map((d) => d.id));
 
+    // Espace parent : seulement si le module est actif pour l'école ET demandé pour ce tuteur
+    const portailDisponible = await moduleParentsActif(tenantId);
+    const activerEspaceParent = portailDisponible
+      && estVrai(req.body.activerEspaceParent ?? tuteurData?.activerEspaceParent);
+    let accesParent = null;
+
     const result = await prisma.$transaction(async (tx) => {
       let finalParentId = explicitParentId || eleveData?.parentId || null;
 
@@ -257,7 +263,7 @@ export const createAvecEleve = async (req, res) => {
         });
 
         if (!parentUser) {
-          const pwdHash = await hashPassword('Parent123!');
+          // Fiche tuteur sans mot de passe : l'accès au portail s'active séparément
           const generatedEmail =
             cleanEmail ||
             `parent_${cleanTel.replace(/\D/g, '') || Date.now()}@${req.tenant?.slug || 'gestschool'}.cg`;
@@ -270,12 +276,20 @@ export const createAvecEleve = async (req, res) => {
               telephone: cleanTel,
               email: generatedEmail,
               adresse: tuteurData.adresse?.trim() || null,
-              passwordHash: pwdHash,
+              passwordHash: null,
+              portailActif: false,
               actif: true,
             },
           });
         }
         finalParentId = parentUser.id;
+      }
+
+      if (activerEspaceParent && finalParentId) {
+        const parentUser = await tx.user.findFirst({ where: { id: finalParentId, tenantId } });
+        if (parentUser && !parentUser.portailActif) {
+          accesParent = await activerPortailParent(tx, parentUser);
+        }
       }
 
       let eleveId = existingEleveId || null;
@@ -360,11 +374,13 @@ export const createAvecEleve = async (req, res) => {
       eleveId: result.eleveId,
       classeId,
       createdEleve: !existingEleveId,
+      espaceParentActive: Boolean(accesParent),
       typeFrais: fees.typeFrais,
       ...(fees.tarifSpecial ? { tarifSpecial: true, motif: fees.motifTarifSpecial, fraisInscription, fraisScolarite } : {}),
     });
 
-    res.status(201).json(result);
+    // Identifiants provisoires renvoyés une seule fois (à remettre au parent)
+    res.status(201).json({ ...result, accesParent });
   } catch (error) {
     if (error.status || error instanceof FraisError) {
       return res.status(error.status || 400).json({ error: error.message });
@@ -1120,6 +1136,75 @@ export const updateServiceInscription = async (req, res) => {
       return res.status(error.status).json({ error: error.message });
     }
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'updateServiceInscription error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET /api/inscriptions/:id/famille
+ * Tuteur, état de son espace parent et accès aux notes (impayé du mois écoulé, dérogation).
+ */
+export const getFamille = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+    const inscription = await prisma.inscription.findFirst({
+      where: { id, tenantId },
+      include: {
+        eleve: { select: { id: true, parent: { select: { id: true, nom: true, prenom: true, email: true, telephone: true, portailActif: true } } } },
+        echeances: {
+          where: { statut: { not: 'annulee' } },
+          select: { libelle: true, categorie: true, souscriptionServiceId: true, montantAttendu: true, montantPaye: true, dateEcheance: true },
+        },
+      },
+    });
+    if (!inscription) return res.status(404).json({ error: 'Inscription non trouvée' });
+
+    const [moduleParents, situation] = await Promise.all([
+      moduleParentsActif(tenantId),
+      situationNotes(tenantId, inscription.eleveId, { inscription }),
+    ]);
+
+    res.json({
+      moduleParents,
+      parent: inscription.eleve?.parent || null,
+      derogationNotes: inscription.derogationNotes,
+      motifDerogationNotes: inscription.motifDerogationNotes,
+      notesAccessibles: situation.accessible,
+      montantDuMoisEcoule: situation.montantDu,
+    });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'getFamille error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * PUT /api/inscriptions/:id/derogation-notes  { active, motif }
+ * Le directeur rend les notes / bulletins visibles malgré un impayé (accord de paiement, cas social).
+ */
+export const setDerogationNotes = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+    const active = estVrai(req.body.active);
+    const motif = String(req.body.motif || '').trim();
+    if (active && !motif) return res.status(400).json({ error: 'Le motif de la dérogation est obligatoire' });
+
+    const existing = await prisma.inscription.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Inscription non trouvée' });
+
+    const inscription = await prisma.inscription.update({
+      where: { id },
+      data: { derogationNotes: active, motifDerogationNotes: active ? motif : null },
+    });
+    await logAudit(req, active ? 'derogation_notes_accordee' : 'derogation_notes_retiree', 'Inscription', id, {
+      eleveId: existing.eleveId,
+      motif: active ? motif : undefined,
+    });
+    res.json({ derogationNotes: inscription.derogationNotes, motifDerogationNotes: inscription.motifDerogationNotes });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'setDerogationNotes error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

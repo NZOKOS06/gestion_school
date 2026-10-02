@@ -45,6 +45,8 @@ model Tenant {
   emploisDuTemps  EmploiDuTemps[]
   creneauxHoraires CreneauHoraire[]
   servicesOptionnels ServiceOptionnel[]
+  annonces        Annonce[]
+  annoncesDestinataires AnnonceDestinataire[]
   souscriptionsServices SouscriptionService[]
   absences        Absence[]
   sanctions       Sanction[]
@@ -235,6 +237,7 @@ model Staff {
   conseilParticipants ConseilParticipant[]
   conseilsPresides  ConseilDeClasse[]  @relation("ConseilPresident")
   caisseSessions    CaisseSession[]    @relation("CaissierSession")
+  annoncesPubliees  Annonce[]          @relation("AnnonceAuteur")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -252,6 +255,9 @@ model User {
   telephone         String?
   adresse           String?
   actif             Boolean   @default(true)
+  // Accès à l'espace parent (module « Parents » de l'école + activation par tuteur)
+  portailActif       Boolean  @default(false)
+  mustChangePassword Boolean  @default(false)
   derniereConnexion DateTime?
   lastIp            String?
   lastUserAgent     String?
@@ -262,6 +268,7 @@ model User {
 
   // Un parent peut avoir plusieurs enfants (élèves) dans l'école
   enfants Eleve[]
+  annoncesRecues AnnonceDestinataire[]
 
   // Notifications destinées au parent
   notifications Notification[] @relation("UserDestinataire")
@@ -667,6 +674,9 @@ model Inscription {
   tarifSpecial             Boolean  @default(false)
   motifTarifSpecial        String?
   regime                   String   @default("plein_temps") // plein_temps | mi_temps
+  // Notes / bulletins visibles par les parents malgré un impayé (décision du directeur)
+  derogationNotes          Boolean  @default(false)
+  motifDerogationNotes     String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -1116,6 +1126,7 @@ enum TypeNotification {
   relance_impaye
   systeme
   evenement
+  annonce
 }
 
 // ==================== MODÈLE AUDIT ====================
@@ -1225,6 +1236,40 @@ model Salle {
 
   @@unique([tenantId, nom])
   @@index([tenantId])
+}
+
+// --- Annonces de l'école aux parents (tous, un cycle, une classe, les impayés) ---
+model Annonce {
+  id              String   @id @default(uuid())
+  tenantId        String
+  titre           String
+  contenu         String
+  cible           String   @default("tous") // tous | cycle | classe | impayes
+  cibleValeur     String?  // cycle ou classeId selon la cible
+  auteurId        String
+  nbDestinataires Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  auteur       Staff                 @relation("AnnonceAuteur", fields: [auteurId], references: [id], onDelete: Cascade)
+  destinataires AnnonceDestinataire[]
+
+  @@index([tenantId, createdAt])
+}
+
+model AnnonceDestinataire {
+  id        String    @id @default(uuid())
+  tenantId  String
+  annonceId String
+  userId    String
+  luLe      DateTime?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  annonce Annonce @relation(fields: [annonceId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([annonceId, userId])
+  @@index([tenantId, userId])
 }
 
 // --- Services optionnels payants (cantine, garderie, crèche, TD, transport…) ---

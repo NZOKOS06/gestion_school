@@ -75,6 +75,7 @@ const TRANSLATIONS = {
     annees_scolaires: 'Années & périodes',
     examens: 'Examens nationaux',
     messagerie: 'Messagerie',
+    annonces: 'Annonces',
     directeur_etudes: 'Directeur des études',
     gestionnaire: 'Gestionnaire',
     nouveau_paiement: 'Nouveau paiement',

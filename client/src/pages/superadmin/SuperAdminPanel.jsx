@@ -1536,6 +1536,24 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
                           onChange={(cycles) => setCreateConfig({ ...createConfig, concerneCycles: cycles })}
                         />
                       </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-slate-700">Modules activés</label>
+                        <p className="text-xs text-slate-500 mb-2">
+                          Dont le portail parent (module « Parents ») : désactivé par défaut, l'école ne pourra ouvrir d'espaces parents que s'il est activé ici.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {MODULES_CONFIG.map((m) => (
+                            <ModuleToggle
+                              key={m.key}
+                              data-testid={`create-toggle-${m.key}`}
+                              module={m}
+                              tenantPlan={createForm.plan}
+                              value={createConfig[m.key]}
+                              onChange={(v) => setCreateConfig({ ...createConfig, [m.key]: v })}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     </div>
                     <div className="flex justify-end mt-6">
                       <Button data-testid="btn-etape-suivante" variant="primary" icon={ArrowRight} onClick={() => setCreateStep(2)} disabled={!createForm.nom || !createForm.slug || !createForm.email}>Suivant</Button>

@@ -159,8 +159,18 @@ export const login = async (req, res) => {
       // 2. Chercher le parent (user) dans le tenant courant, ou cross-tenant si pas de tenant
       let parentMatches = [];
       if (tenantId) {
+        // Identifiant parent : email ou numéro de téléphone
+        const identifiant = req.body.email?.trim() || '';
         const parent = await prisma.user.findFirst({
-          where: { email, tenantId },
+          where: {
+            tenantId,
+            OR: [
+              { email },
+              ...(identifiant && !identifiant.includes('@')
+                ? [{ telephone: identifiant }, { telephone: identifiant.replace(/[\s.-]/g, '') }]
+                : []),
+            ],
+          },
           include: { tenant: { include: { config: true } } }
         });
         if (parent) parentMatches = [parent];
@@ -181,6 +191,9 @@ export const login = async (req, res) => {
       if (user) {
         if (!user.actif) {
           return res.status(403).json({ error: 'Compte désactivé' });
+        }
+        if (!user.tenant?.config?.moduleParents || !user.portailActif || !user.passwordHash) {
+          return res.status(403).json({ error: "L'espace parent n'est pas activé pour ce compte. Contactez l'école." });
         }
         role = 'parent';
         userType = 'parent';
@@ -303,6 +316,9 @@ export const register = async (req, res) => {
     if (!tenantId) {
       return res.status(400).json({ error: 'Tenant requis pour l\'inscription.' });
     }
+    if (!req.tenant?.config?.moduleParents) {
+      return res.status(403).json({ error: "L'espace parent n'est pas proposé par cet établissement." });
+    }
 
     const existingUser = await prisma.user.findFirst({
       where: { email, tenantId }
@@ -322,8 +338,8 @@ export const register = async (req, res) => {
         nom,
         prenom,
         telephone,
-        dateNaissance: dateNaissance ? new Date(dateNaissance) : null,
-        adresse
+        adresse,
+        portailActif: true,
       },
       include: { tenant: { include: { config: true } } }
     });
@@ -501,7 +517,7 @@ export const changePassword = async (req, res) => {
     if (user.role === 'parent') {
       updatedUser = await prisma.user.update({
         where: { id: user.id },
-        data: { passwordHash: newHash }
+        data: { passwordHash: newHash, mustChangePassword: false }
       });
     } else {
       updatedUser = await prisma.staff.update({

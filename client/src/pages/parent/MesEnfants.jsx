@@ -95,6 +95,14 @@ const MesEnfants = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
               <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Notes récentes</h4>
+              {detail.notesBloquees ? (
+                <div className="rounded-lg p-3 text-sm" style={{ background: 'color-mix(in srgb, var(--color-warning) 12%, transparent)', color: 'var(--text-primary)' }}>
+                  {detail.messageNotes}
+                  <span className="block mt-1" style={{ color: 'var(--text-secondary)' }}>
+                    Montant à régulariser : <strong>{formatPrice(detail.montantDuNotes || 0)}</strong>
+                  </span>
+                </div>
+              ) : (
               <DataTable
                 columns={[
                   { key: 'matiere', label: 'Matière', render: (_, r) => <span style={{ color: 'var(--text-primary)' }}>{r.matiereNom}</span> },
@@ -104,6 +112,7 @@ const MesEnfants = () => {
                 data={detail.notes || []}
                 emptyMessage="Aucune note"
               />
+              )}
             </div>
             <div>
               <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Absences</h4>

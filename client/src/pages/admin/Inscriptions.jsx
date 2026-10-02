@@ -59,6 +59,11 @@ const Inscriptions = () => {
   const [servicesInsc, setServicesInsc] = useState([]);
   const [serviceBusy, setServiceBusy] = useState(null);
   const [serviceTarif, setServiceTarif] = useState(null); // { serviceId, tarif, motif }
+  const [famille, setFamille] = useState(null);
+  const [familleBusy, setFamilleBusy] = useState(false);
+  const [accesParentAffiche, setAccesParentAffiche] = useState(null);
+  const [derogationMotif, setDerogationMotif] = useState('');
+  const isDirecteur = user?.role === 'directeur';
   const [tarifSaving, setTarifSaving] = useState(false);
   const [inscriptions, setInscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -328,7 +333,11 @@ const Inscriptions = () => {
     setTarifOpen(insc);
     setServiceTarif(null);
     setServicesInsc([]);
+    setFamille(null);
+    setAccesParentAffiche(null);
+    setDerogationMotif('');
     loadServicesInsc(insc.id);
+    loadFamille(insc.id);
     setTarifForm({
       fraisInscription: insc.fraisInscriptionApplique != null ? String(Number(insc.fraisInscriptionApplique)) : '',
       fraisScolarite: insc.fraisScolariteApplique != null ? String(Number(insc.fraisScolariteApplique)) : '',
@@ -352,6 +361,47 @@ const Inscriptions = () => {
       fetchInscriptions();
     } catch { /* toast via useAxios */ }
     setTarifSaving(false);
+  };
+
+  const loadFamille = async (inscId) => {
+    try {
+      const res = await get(`/api/inscriptions/${inscId}/famille`, { silent: true });
+      setFamille(res || null);
+      setDerogationMotif(res?.motifDerogationNotes || '');
+    } catch {
+      setFamille(null);
+    }
+  };
+
+  const changerPortailParent = async (actif) => {
+    if (!famille?.parent || !tarifOpen) return;
+    const msg = actif
+      ? 'Activer l\'espace parent ? Un mot de passe provisoire va être généré.'
+      : 'Retirer l\'accès à l\'espace parent pour ce tuteur ?';
+    if (!window.confirm(msg)) return;
+    setFamilleBusy(true);
+    try {
+      const res = await put(`/api/parents/${famille.parent.id}/portail`, { actif });
+      if (res?.accesParent) setAccesParentAffiche(res.accesParent);
+      toast.success(actif ? 'Espace parent activé' : 'Accès retiré');
+      await loadFamille(tarifOpen.id);
+    } catch { /* toast via useAxios */ }
+    setFamilleBusy(false);
+  };
+
+  const changerDerogation = async (active) => {
+    if (!tarifOpen) return;
+    if (active && !derogationMotif.trim()) {
+      toast.error('Indiquez le motif de la dérogation');
+      return;
+    }
+    setFamilleBusy(true);
+    try {
+      await put(`/api/inscriptions/${tarifOpen.id}/derogation-notes`, { active, motif: derogationMotif.trim() });
+      toast.success(active ? 'Notes visibles par les parents malgré l\'impayé' : 'Dérogation retirée');
+      await loadFamille(tarifOpen.id);
+    } catch { /* toast via useAxios */ }
+    setFamilleBusy(false);
   };
 
   const changerService = async (svc, body, confirmation) => {
@@ -636,7 +686,7 @@ const Inscriptions = () => {
                   </button>
                 )}
                 {canEditTarif && row.statut !== 'annulee' && (
-                  <button onClick={() => openTarif(row)} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Tarif, régime et services">
+                  <button onClick={() => openTarif(row)} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Tarif, services et famille">
                     <Tag className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
                   </button>
                 )}
@@ -730,7 +780,7 @@ const Inscriptions = () => {
       <Modal
         open={!!tarifOpen}
         onClose={() => setTarifOpen(null)}
-        title="Tarif, régime et services"
+        title="Tarif, services et famille"
         subtitle={tarifOpen ? `${tarifOpen.eleve?.prenom || ''} ${tarifOpen.eleve?.nom || ''} — ${tarifOpen.classe?.nom || ''}` : ''}
         size="md"
         footer={
@@ -797,6 +847,70 @@ const Inscriptions = () => {
               onChange={(e) => setTarifForm({ ...tarifForm, motif: e.target.value })}
             />
           </label>
+          {famille && (
+            <div className="pt-3 border-t border-[var(--border-subtle)] space-y-3">
+              <span className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Famille</span>
+              {famille.parent ? (
+                <div className="flex items-center justify-between gap-2 flex-wrap text-sm">
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    {famille.parent.prenom} {famille.parent.nom} · {famille.parent.telephone || famille.parent.email}
+                    {famille.moduleParents && (
+                      <span className="ml-2">
+                        <Badge variant={famille.parent.portailActif ? 'success' : 'neutral'}>
+                          {famille.parent.portailActif ? 'Espace parent actif' : 'Espace parent non activé'}
+                        </Badge>
+                      </span>
+                    )}
+                  </span>
+                  {famille.moduleParents && ['directeur', 'secretaire'].includes(user?.role) && (
+                    <Button size="sm" variant="secondary" loading={familleBusy} onClick={() => changerPortailParent(!famille.parent.portailActif)}>
+                      {famille.parent.portailActif ? 'Retirer l\'accès' : 'Activer l\'espace parent'}
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Aucun tuteur rattaché à cet élève.</p>
+              )}
+              {accesParentAffiche && (
+                <div className="rounded-lg p-3 text-sm" style={{ background: 'color-mix(in srgb, var(--color-success) 10%, transparent)' }}>
+                  Identifiant : <strong>{accesParentAffiche.identifiant}</strong> · Mot de passe provisoire : <strong>{accesParentAffiche.motDePasse}</strong>
+                  <span className="block text-xs mt-1" style={{ color: 'var(--text-muted)' }}>À remettre au parent : il ne sera plus affiché.</span>
+                </div>
+              )}
+              {famille.moduleParents && (
+                <div className="text-sm space-y-2">
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    Notes et bulletins pour les parents :{' '}
+                    {famille.derogationNotes ? (
+                      <Badge variant="info">Visibles (dérogation)</Badge>
+                    ) : famille.notesAccessibles ? (
+                      <Badge variant="success">Visibles</Badge>
+                    ) : (
+                      <Badge variant="warning">Bloqués — {formatPrice(famille.montantDuMoisEcoule)} dus</Badge>
+                    )}
+                  </span>
+                  {isDirecteur && (famille.derogationNotes || !famille.notesAccessibles) && (
+                    <div className="flex gap-2 flex-wrap">
+                      {!famille.derogationNotes && (
+                        <input
+                          className="flex-1 min-w-[200px] px-3 py-1.5 border rounded-lg text-sm"
+                          placeholder="Motif (accord de paiement, cas social…)"
+                          value={derogationMotif}
+                          onChange={(e) => setDerogationMotif(e.target.value)}
+                        />
+                      )}
+                      <Button size="sm" variant="secondary" loading={familleBusy} onClick={() => changerDerogation(!famille.derogationNotes)}>
+                        {famille.derogationNotes ? 'Retirer la dérogation' : 'Débloquer les notes'}
+                      </Button>
+                    </div>
+                  )}
+                  {famille.derogationNotes && famille.motifDerogationNotes && (
+                    <span className="block text-xs" style={{ color: 'var(--text-muted)' }}>Motif : {famille.motifDerogationNotes}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {servicesInsc.length > 0 && (
             <div className="pt-3 border-t border-[var(--border-subtle)] space-y-2">
               <span className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Services optionnels</span>
