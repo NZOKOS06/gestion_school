@@ -5,6 +5,114 @@ import { parsePlage, toMinutes, overlaps } from '../utils/horaires.js';
 
 const log = createLogger('EmploisDuTempsController');
 
+const TYPES_CRENEAU = ['cours', 'pause', 'recreation'];
+const CYCLES = ['prescolaire', 'primaire', 'college', 'lycee'];
+
+/**
+ * Grille horaire applicable à un cycle : grille propre au cycle si elle existe,
+ * sinon grille commune (cycle null).
+ */
+async function getGrilleEffective(tenantId, cycle) {
+  if (cycle) {
+    const propres = await prisma.creneauHoraire.findMany({
+      where: { tenantId, cycle },
+      orderBy: [{ ordre: 'asc' }, { heureDebut: 'asc' }],
+    });
+    if (propres.length) return { creneaux: propres, source: 'cycle' };
+  }
+  const commune = await prisma.creneauHoraire.findMany({
+    where: { tenantId, cycle: null },
+    orderBy: [{ ordre: 'asc' }, { heureDebut: 'asc' }],
+  });
+  return { creneaux: commune, source: commune.length ? 'commune' : 'aucune' };
+}
+
+/** GET /api/emplois-du-temps/creneaux?cycle=college[&strict=1] */
+export const getCreneaux = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const cycle = CYCLES.includes(req.query.cycle) ? req.query.cycle : null;
+    if (req.query.strict) {
+      const creneaux = await prisma.creneauHoraire.findMany({
+        where: { tenantId, cycle },
+        orderBy: [{ ordre: 'asc' }, { heureDebut: 'asc' }],
+      });
+      return res.json({ data: creneaux, source: cycle ? 'cycle' : 'commune' });
+    }
+    const { creneaux, source } = await getGrilleEffective(tenantId, cycle);
+    res.json({ data: creneaux, source });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Get creneaux error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * PUT /api/emplois-du-temps/creneaux
+ * Body: { cycle: null | 'college' | …, creneaux: [{ heureDebut, heureFin, type, libelle }] }
+ * Remplace la grille du cycle (ou la grille commune). Liste vide = suppression.
+ */
+export const saveCreneaux = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const cycle = req.body.cycle && CYCLES.includes(req.body.cycle) ? req.body.cycle : null;
+    const input = Array.isArray(req.body.creneaux) ? req.body.creneaux : null;
+    if (!input) return res.status(400).json({ error: 'creneaux[] requis' });
+    if (input.length > 40) return res.status(400).json({ error: 'Maximum 40 créneaux par grille' });
+
+    const rows = [];
+    for (const [i, c] of input.entries()) {
+      const plage = parsePlage(c.heureDebut, c.heureFin);
+      if (plage.error) return res.status(400).json({ error: `Ligne ${i + 1} : ${plage.error}` });
+      const type = TYPES_CRENEAU.includes(c.type) ? c.type : 'cours';
+      rows.push({
+        heureDebut: plage.debut,
+        heureFin: plage.fin,
+        debutMin: plage.debutMin,
+        finMin: plage.finMin,
+        type,
+        libelle: String(c.libelle || '').trim().slice(0, 60) || null,
+      });
+    }
+    rows.sort((a, b) => a.debutMin - b.debutMin);
+    for (let i = 1; i < rows.length; i += 1) {
+      if (rows[i].debutMin < rows[i - 1].finMin) {
+        return res.status(400).json({
+          error: `Les créneaux ${rows[i - 1].heureDebut}–${rows[i - 1].heureFin} et ${rows[i].heureDebut}–${rows[i].heureFin} se chevauchent`,
+        });
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.creneauHoraire.deleteMany({ where: { tenantId, cycle } });
+      if (rows.length) {
+        await tx.creneauHoraire.createMany({
+          data: rows.map((r, ordre) => ({
+            tenantId,
+            cycle,
+            ordre,
+            heureDebut: r.heureDebut,
+            heureFin: r.heureFin,
+            type: r.type,
+            libelle: r.libelle,
+          })),
+        });
+      }
+    });
+
+    await logAudit(req, 'grille_horaire_updated', 'CreneauHoraire', cycle || 'commune', { cycle, nb: rows.length });
+
+    const creneaux = await prisma.creneauHoraire.findMany({
+      where: { tenantId, cycle },
+      orderBy: [{ ordre: 'asc' }],
+    });
+    res.json({ data: creneaux });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'Save creneaux error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 const JOURS = ['', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 
 /**
@@ -17,6 +125,15 @@ const JOURS = ['', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 
  * Retourne un message d'erreur ou null.
  */
 async function findConflit(tenantId, { jourSemaine, debutMin, finMin, classeId, enseignantId, salleId, excludeId }) {
+  // Pas de cours sur une pause / récréation de la grille horaire
+  const classe = await prisma.classe.findFirst({ where: { id: classeId, tenantId }, select: { cycle: true } });
+  const { creneaux: grille } = await getGrilleEffective(tenantId, classe?.cycle || null);
+  const pause = grille.find((c) => c.type !== 'cours'
+    && overlaps(debutMin, finMin, toMinutes(c.heureDebut), toMinutes(c.heureFin)));
+  if (pause) {
+    return `Ce cours chevauche ${pause.libelle || (pause.type === 'recreation' ? 'la récréation' : 'une pause')} (${pause.heureDebut} – ${pause.heureFin})`;
+  }
+
   const or = [{ classeId }, { enseignantId }];
   if (salleId) or.push({ salleId });
 

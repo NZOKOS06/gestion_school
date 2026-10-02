@@ -43,6 +43,7 @@ model Tenant {
   paiements       Paiement[]
   depenses        Depense[]
   emploisDuTemps  EmploiDuTemps[]
+  creneauxHoraires CreneauHoraire[]
   absences        Absence[]
   sanctions       Sanction[]
   certificats     Certificat[]
@@ -1211,6 +1212,25 @@ model Salle {
 
   @@unique([tenantId, nom])
   @@index([tenantId])
+}
+
+// --- Grille horaire (créneaux de cours, pauses, récréations) ---
+model CreneauHoraire {
+  id         String             @id @default(uuid())
+  tenantId   String
+  cycle      CycleEnseignement? // null = grille commune à tous les cycles
+  ordre      Int                @default(0)
+  heureDebut String             // "HH:MM"
+  heureFin   String             // "HH:MM"
+  type       String             @default("cours") // cours | pause | recreation
+  libelle    String?            // ex. "Récréation", "Pause déjeuner"
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, cycle])
 }
 
 // --- Calendrier scolaire ---

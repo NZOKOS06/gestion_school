@@ -17,6 +17,23 @@ router.get('/',
   ctrl.getAll
 );
 
+// Grille horaire (créneaux, pauses, récréations) — avant les routes /:id
+router.get('/creneaux',
+  authenticate,
+  requireRole(...readRoles),
+  requireTenantMatch,
+  requireModule('emploiDuTemps'),
+  ctrl.getCreneaux
+);
+
+router.put('/creneaux',
+  authenticate,
+  requireRole(...writeRoles),
+  requireTenantMatch,
+  requireModule('emploiDuTemps'),
+  ctrl.saveCreneaux
+);
+
 router.get('/:id/eleves',
   authenticate,
   requireRole(...readRoles),
