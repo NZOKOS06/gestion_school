@@ -16,6 +16,7 @@ import {
   Filter, Calendar, ArrowDown, ArrowUp, Cookie, ClipboardList
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import GroupesAdmin from './GroupesAdmin';
 import toast from 'react-hot-toast';
 import Button from '../../components/ui/Button';
 import KpiCard from '../../components/ui/KpiCard';
@@ -979,6 +980,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
             <option value="dashboard">📊 Dashboard</option>
             <option value="etablissements">🏪 Établissements</option>
             <option value="creation">✨ Création</option>
+            <option value="groupes">🏫 Groupes</option>
             <option value="audit">📋 Audit</option>
           </select>
           {/* Onglets desktop scrollables */}
@@ -1008,6 +1010,14 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
               >
                 {t('creation')}
               </TabButton>
+              <TabButton
+                active={activeTab === 'groupes'}
+                onClick={() => setActiveTab('groupes')}
+                icon={Building2}
+                data-testid="tab-groupes"
+                >
+                Groupes
+                </TabButton>
               <TabButton
                 active={activeTab === 'audit'}
                 onClick={() => setActiveTab('audit')}
@@ -1614,6 +1624,8 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
         {/* ═══════════════════════════════════════════════════════════════════════
             ONGLET 4 — AUDIT & TRAÇABILITÉ
            ═══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'groupes' && <GroupesAdmin />}
+
         {activeTab === 'audit' && (
           <div className="space-y-6">
             {/* Stats rapides */}

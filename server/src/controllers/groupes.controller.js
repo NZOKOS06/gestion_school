@@ -7,11 +7,14 @@ const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 /** Super-admin : liste, création, rattachement d'écoles, tableau de bord consolidé. */
 export const list = async (req, res) => {
   try {
-    const groupes = await rawPrisma.groupeScolaire.findMany({
-      orderBy: { nom: 'asc' },
-      include: { sites: { select: { id: true, nom: true, slug: true } } },
-    });
-    res.json({ data: groupes });
+    const [groupes, ecoles] = await Promise.all([
+      rawPrisma.groupeScolaire.findMany({
+        orderBy: { nom: 'asc' },
+        include: { sites: { select: { id: true, nom: true, slug: true, staff: { where: { role: 'directeur', actif: true }, select: { id: true, nom: true, prenom: true } } } } },
+      }),
+      rawPrisma.tenant.findMany({ orderBy: { nom: 'asc' }, select: { id: true, nom: true, slug: true, groupeId: true } }),
+    ]);
+    res.json({ data: groupes, ecoles });
   } catch (error) {
     log.error({ err: error }, 'list groupes');
     res.status(500).json({ error: 'Internal server error' });

@@ -137,7 +137,7 @@ export const DEFAULT_CONFIG = {
 
 export const JOURS_SEMAINE_CONFIG = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 
-export const SUPERADMIN_TABS = ['dashboard', 'etablissements', 'creation', 'audit'];
+export const SUPERADMIN_TABS = ['dashboard', 'etablissements', 'creation', 'groupes', 'audit'];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // UTILITAIRES
