@@ -799,7 +799,7 @@ async function main() {
   console.log(`✓ ${absencesData.length} absences créées (3 types: absent, retard, départ anticipé)`);
 
   // ==================== COMPTE PARENT ====================
-  const parentPassword = 'Parent123!';
+  const parentPassword = 'ParentDemo123!';
   const parentHash = await bcrypt.hash(parentPassword, BCRYPT_ROUNDS);
   const parentUser = await prisma.user.upsert({
     where: { tenantId_email: { tenantId: demoTenant.id, email: 'parent@demo.cg' } },
@@ -1137,7 +1137,7 @@ async function main() {
   console.log('     ----------------------------------------');
   console.log('     👨‍👩‍👦 Parent');
   console.log('        Email    : parent@demo.cg');
-  console.log('        Password : Parent123!');
+  console.log('        Password : ParentDemo123!');
   console.log('');
   console.log('  📦 DONNÉES CRÉÉES :');
   console.log('     • 1 année scolaire (2025-2026)');

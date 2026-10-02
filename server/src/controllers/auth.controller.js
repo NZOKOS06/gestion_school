@@ -14,6 +14,7 @@ import {
 } from '../services/email.service.js';
 import { buildTenantUrl } from '../utils/tenantUrl.js';
 import { invalidateAuthCache } from '../middleware/authMiddleware.js';
+import { estCompromis } from '../utils/motsDePasseCompromis.js';
 
 const log = createLogger('AuthController');
 
@@ -207,6 +208,26 @@ export const login = async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.passwordHash);
     if (!validPassword) {
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
+    }
+
+    // Ancien mot de passe parent commun (connu de tous) : accès révoqué, l'école doit le réactiver
+    if (userType === 'parent' && password === 'Parent123!') {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: null, portailActif: false },
+      });
+      await logAuditDirect({
+        tenantId: user.tenantId,
+        actorId: user.id,
+        actorRole: 'parent',
+        action: 'portail_parent_revoque_mdp_compromis',
+        ipAddress: req.ip || null,
+        userAgent: req.headers?.['user-agent'] || null,
+        details: { email: user.email },
+      });
+      return res.status(403).json({
+        error: "Ce mot de passe n'est plus autorisé. Contactez l'école pour recevoir un nouveau mot de passe provisoire.",
+      });
     }
 
     await issueSession(res, { userId: user.id, role, tenantId: user.tenantId });
@@ -501,6 +522,14 @@ export const changePassword = async (req, res) => {
       if (!valid) {
         return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
       }
+    }
+
+    if (estCompromis(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ce mot de passe est trop connu. Choisissez-en un autre.',
+        message: 'Ce mot de passe est trop connu. Choisissez-en un autre.',
+      });
     }
 
     const isStrong = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/.test(newPassword);

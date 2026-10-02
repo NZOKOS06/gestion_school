@@ -6,7 +6,7 @@ const CREDENTIALS = {
   enseignant:  { email: 'enseignant@demo.cg',  password: 'Enseignant123!' },
   surveillant: { email: 'surveillant@demo.cg', password: 'Surveillant123!' },
   comptable:   { email: 'comptable@demo.cg',   password: 'Comptable123!' },
-  parent:      { email: 'parent@demo.cg',      password: 'Parent123!' },
+  parent:      { email: 'parent@demo.cg',      password: 'ParentDemo123!' },
   superadmin:  { email: 'superadmin@gestschool.com', password: 'SuperAdmin123!' },
   // Alias rôles UI
   admin:       { email: 'directeur@demo.cg',   password: 'Directeur123!' },

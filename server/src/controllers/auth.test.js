@@ -278,6 +278,28 @@ describe('Auth — login', () => {
     expect(expiresAt.getTime() - Date.now()).toBeGreaterThan(fifteenHours - 5000)
   })
 
+  it('parent avec l\'ancien mot de passe commun : accès révoqué, pas de session', async () => {
+    mockStaffFindFirst.mockResolvedValue(null)
+    const hash = await bcrypt.hash('Parent123!', 10)
+    mockUserFindFirst.mockResolvedValue({
+      id: 'user-1', tenantId: 'tenant-1', email: 'parent@test.cg', actif: true, portailActif: true,
+      passwordHash: hash, tenant: { actif: true, config: { moduleParents: true } },
+    })
+    mockUserUpdate.mockResolvedValue({})
+
+    const req = mockReq({ body: { email: 'parent@test.cg', password: 'Parent123!' } })
+    const res = mockRes()
+
+    await login(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(mockUserUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'user-1' },
+      data: { passwordHash: null, portailActif: false },
+    }))
+    expect(res.cookie).not.toHaveBeenCalled()
+  })
+
   it('les deux cookies sont posés avec httpOnly: true', async () => {
     const hash = await bcrypt.hash('Password1!', 10)
     mockStaffFindFirst.mockResolvedValue({ ...staffBase, passwordHash: hash })
@@ -620,6 +642,22 @@ describe('Auth — changePassword', () => {
     await changePassword(req, res)
 
     expect(res.status).toHaveBeenCalledWith(400)
+  })
+
+  it('refuse un mot de passe trop connu (ancien mot de passe par défaut)', async () => {
+    const hash = await bcrypt.hash('OldPass1!', 10)
+    mockUserFindUnique.mockResolvedValue({ id: 'user-1', passwordHash: hash, mustChangePassword: false })
+
+    const req = mockReq({
+      user: { id: 'user-1', role: 'parent', mustChangePassword: false },
+      body: { currentPassword: 'OldPass1!', newPassword: 'Parent123!' }
+    })
+    const res = mockRes()
+
+    await changePassword(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(mockUserUpdate).not.toHaveBeenCalled()
   })
 
   it('change le mot de passe d\'un parent sans mettre à jour mustChangePassword', async () => {
