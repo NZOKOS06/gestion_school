@@ -20,10 +20,36 @@ const log = createLogger('AuthController');
 const JWT_SECRET = config.jwtSecret;
 const JWT_REFRESH_SECRET = config.jwtRefreshSecret;
 const isProd = process.env.NODE_ENV === 'production';
-const JWT_EXPIRES_IN = isProd ? '15m' : (process.env.JWT_EXPIRES_IN || '15m');
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 const ACCESS_COOKIE_MS = 15 * 60 * 1000;
-const REFRESH_COOKIE_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Session de travail : durée absolue depuis la connexion (défaut 15 h).
+// L'access token reste court (15 min) et est renouvelé silencieusement via /refresh
+// jusqu'à la fin de la session ; au-delà, reconnexion obligatoire.
+const DEFAULT_SESSION_MINUTES = 900;
+const MIN_SESSION_MINUTES = 15;
+const MAX_SESSION_MINUTES = 24 * 60;
+
+const clampSessionMinutes = (value) => {
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_SESSION_MINUTES;
+  return Math.min(MAX_SESSION_MINUTES, Math.max(MIN_SESSION_MINUTES, n));
+};
+
+const resolveSessionMinutes = async (role, tenantId) => {
+  if (role === 'super_admin' || !tenantId) {
+    return clampSessionMinutes(process.env.SESSION_DURATION_MINUTES || DEFAULT_SESSION_MINUTES);
+  }
+  try {
+    const cfg = await rawPrisma.tenantConfig.findUnique({
+      where: { tenantId },
+      select: { dureeSessionMinutes: true },
+    });
+    return clampSessionMinutes(cfg?.dureeSessionMinutes ?? DEFAULT_SESSION_MINUTES);
+  } catch (err) {
+    log.warn({ err, tenantId }, 'Durée de session tenant illisible — défaut appliqué');
+    return DEFAULT_SESSION_MINUTES;
+  }
+};
 
 const cookieBase = () => ({
   httpOnly: true,
@@ -32,23 +58,43 @@ const cookieBase = () => ({
   path: '/',
 });
 
-const accessCookieOpts = () => ({ ...cookieBase(), maxAge: ACCESS_COOKIE_MS });
-const refreshCookieOpts = () => ({ ...cookieBase(), maxAge: REFRESH_COOKIE_MS });
+const generateTokens = (userId, role, tenantId, sessionExpiresAt) => {
+  const remainingSec = Math.max(1, Math.floor((sessionExpiresAt.getTime() - Date.now()) / 1000));
 
-const generateTokens = (userId, role, tenantId) => {
   const accessToken = jwt.sign(
     { userId, role, tenantId },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    { expiresIn: Math.min(remainingSec, 15 * 60) }
   );
 
   const refreshToken = jwt.sign(
     { userId, role, tenantId, type: 'refresh' },
     JWT_REFRESH_SECRET,
-    { expiresIn: JWT_REFRESH_EXPIRES_IN }
+    { expiresIn: remainingSec }
   );
 
   return { accessToken, refreshToken };
+};
+
+/**
+ * Émet le couple access/refresh, persiste le refresh token et pose les cookies.
+ * `sessionExpiresAt` est conservé tel quel lors des rotations (session absolue).
+ */
+const issueSession = async (res, { userId, role, tenantId, sessionExpiresAt }) => {
+  const expiresAt = sessionExpiresAt
+    || new Date(Date.now() + (await resolveSessionMinutes(role, tenantId)) * 60 * 1000);
+
+  const { accessToken, refreshToken } = generateTokens(userId, role, tenantId, expiresAt);
+
+  await prisma.refreshToken.create({
+    data: { userId, token: refreshToken, expiresAt },
+  });
+
+  const remainingMs = Math.max(0, expiresAt.getTime() - Date.now());
+  res.cookie('accessToken', accessToken, { ...cookieBase(), maxAge: Math.min(ACCESS_COOKIE_MS, remainingMs) });
+  res.cookie('refreshToken', refreshToken, { ...cookieBase(), maxAge: remainingMs });
+
+  return { expiresAt };
 };
 
 export const login = async (req, res) => {
@@ -150,18 +196,7 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
     }
 
-    const { accessToken, refreshToken } = generateTokens(user.id, role, user.tenantId);
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    await prisma.refreshToken.create({
-      data: {
-        userId: user.id,
-        token: refreshToken,
-        expiresAt
-      }
-    });
+    await issueSession(res, { userId: user.id, role, tenantId: user.tenantId });
 
     const ipAddress = req.ip || req.headers?.['x-forwarded-for'] || null;
     const userAgent = req.headers?.['user-agent'] || null;
@@ -232,10 +267,6 @@ export const login = async (req, res) => {
       details: { email: user.email, name: `${user.prenom} ${user.nom}` }
     });
 
-    res.cookie('accessToken', accessToken, accessCookieOpts());
-
-    res.cookie('refreshToken', refreshToken, refreshCookieOpts());
-
     res.json({
       user: {
         id: user.id,
@@ -255,7 +286,7 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     captureError(error, {
-      tenantId,
+      tenantId: req.tenantId,
       tenantSlug: req.tenant?.slug,
       action: 'login'
     });
@@ -319,22 +350,7 @@ export const register = async (req, res) => {
       log.error({ err: emailError, email }, 'Failed to send registration verification email');
     }
 
-    const { accessToken, refreshToken } = generateTokens(user.id, 'parent', tenantId);
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    await prisma.refreshToken.create({
-      data: {
-        userId: user.id,
-        token: refreshToken,
-        expiresAt
-      }
-    });
-
-    res.cookie('accessToken', accessToken, accessCookieOpts());
-
-    res.cookie('refreshToken', refreshToken, refreshCookieOpts());
+    await issueSession(res, { userId: user.id, role: 'parent', tenantId });
 
     res.status(201).json({
       user: {
@@ -394,23 +410,13 @@ export const refresh = async (req, res) => {
 
     await prisma.refreshToken.delete({ where: { token: refreshToken } });
 
-    const { accessToken, refreshToken: newRefresh } = generateTokens(
-      decoded.userId,
-      decoded.role,
-      decoded.tenantId
-    );
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-    await prisma.refreshToken.create({
-      data: {
-        userId: decoded.userId,
-        token: newRefresh,
-        expiresAt,
-      },
+    // Rotation : la fin de session reste celle fixée à la connexion
+    await issueSession(res, {
+      userId: decoded.userId,
+      role: decoded.role,
+      tenantId: decoded.tenantId,
+      sessionExpiresAt: storedToken.expiresAt,
     });
-
-    res.cookie('accessToken', accessToken, accessCookieOpts());
-    res.cookie('refreshToken', newRefresh, refreshCookieOpts());
 
     res.json({ success: true });
   } catch (error) {

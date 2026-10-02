@@ -4,7 +4,7 @@ import { useAxios } from '../../hooks/useAxios';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader, DataTable, Badge, Button, Modal, SearchInput, FilterBar, Select, QuickSearchSelect } from '../../components/ui';
-import { RefreshCw, Plus, Check, Pause, X } from 'lucide-react';
+import { RefreshCw, Plus, Check, Pause, X, Tag } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import InscriptionWizard from './InscriptionWizard.jsx';
 import toast from 'react-hot-toast';
@@ -52,6 +52,10 @@ const Inscriptions = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const canDecideFinAnnee = ['directeur', 'directeur_etudes'].includes(user?.role);
+  const canEditTarif = ['directeur', 'secretaire', 'comptable'].includes(user?.role);
+  const [tarifOpen, setTarifOpen] = useState(null);
+  const [tarifForm, setTarifForm] = useState({ fraisInscription: '', fraisScolarite: '', motif: '' });
+  const [tarifSaving, setTarifSaving] = useState(false);
   const [inscriptions, setInscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -110,19 +114,13 @@ const Inscriptions = () => {
   useEffect(() => {
     (async () => {
       try {
-        const [cl, cfg] = await Promise.all([
+        // Config de l'école connectée uniquement (jamais celle d'une autre école)
+        const slug = localStorage.getItem('tenantSlug');
+        const [cl, configPayload] = await Promise.all([
           get('/api/classes?limit=200', { silent: true }),
-          get('/api/config/demo', { silent: true }).catch(() => null),
+          slug ? get(`/api/config/${slug}`, { silent: true }).catch(() => null) : Promise.resolve(null),
         ]);
         setFilterClasses(cl?.data || cl || []);
-        // Prefer tenant slug from storage when available
-        const slug = localStorage.getItem('tenantSlug') || 'demo';
-        let configPayload = cfg;
-        if (slug && slug !== 'demo') {
-          try {
-            configPayload = await get(`/api/config/${slug}`, { silent: true });
-          } catch { /* keep demo cfg */ }
-        }
         setFraisInscriptionDefault(Number(configPayload?.fraisInscriptionDefault ?? configPayload?.config?.fraisInscriptionDefault ?? 0));
       } catch { /* silent */ }
     })();
@@ -134,7 +132,9 @@ const Inscriptions = () => {
       get('/api/classes?limit=200', { silent: true }),
       get('/api/annees-scolaires', { silent: true }),
       get('/api/parents?limit=500', { silent: true }),
-      get(`/api/config/${localStorage.getItem('tenantSlug') || 'demo'}`, { silent: true }),
+      localStorage.getItem('tenantSlug')
+        ? get(`/api/config/${localStorage.getItem('tenantSlug')}`, { silent: true })
+        : Promise.resolve(null),
     ]);
     const val = (i) => (results[i].status === 'fulfilled' ? results[i].value : null);
     const elevesList = val(0)?.data || val(0) || [];
@@ -309,6 +309,31 @@ const Inscriptions = () => {
       toast.success('Inscription validée : élève scolarisé');
       fetchInscriptions();
     } catch { /* silent */ }
+  };
+
+  const openTarif = (insc) => {
+    setTarifOpen(insc);
+    setTarifForm({
+      fraisInscription: insc.fraisInscriptionApplique != null ? String(Number(insc.fraisInscriptionApplique)) : '',
+      fraisScolarite: insc.fraisScolariteApplique != null ? String(Number(insc.fraisScolariteApplique)) : '',
+      motif: insc.motifTarifSpecial || '',
+    });
+  };
+
+  const saveTarif = async () => {
+    if (!tarifOpen) return;
+    setTarifSaving(true);
+    try {
+      await put(`/api/inscriptions/${tarifOpen.id}/tarif`, {
+        fraisInscription: tarifForm.fraisInscription === '' ? undefined : Number(tarifForm.fraisInscription),
+        fraisScolarite: tarifForm.fraisScolarite === '' ? undefined : Number(tarifForm.fraisScolarite),
+        motifTarifSpecial: tarifForm.motif.trim(),
+      });
+      toast.success('Tarif mis à jour, échéancier recalculé');
+      setTarifOpen(null);
+      fetchInscriptions();
+    } catch { /* toast via useAxios */ }
+    setTarifSaving(false);
   };
 
   const changeStatut = async (insc, statut) => {
@@ -519,9 +544,16 @@ const Inscriptions = () => {
           {
             key: 'soldeScolarite',
             label: 'Solde restant',
-            render: (val) => (
-              <span className="font-semibold" style={{ color: val > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
-                {formatPrice(val || 0)}
+            render: (val, row) => (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="font-semibold" style={{ color: val > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                  {formatPrice(val || 0)}
+                </span>
+                {row.tarifSpecial && (
+                  <span title={row.motifTarifSpecial || 'Tarif spécial'}>
+                    <Badge variant="warning">Tarif spécial</Badge>
+                  </span>
+                )}
               </span>
             ),
           },
@@ -565,6 +597,11 @@ const Inscriptions = () => {
                 {row.statut !== 'suspendue' && row.statut !== 'annulee' && row.statut === 'validee' && (
                   <button onClick={() => changeStatut(row, 'suspendue')} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Suspendre">
                     <Pause className="h-4 w-4" style={{ color: 'var(--color-warning)' }} />
+                  </button>
+                )}
+                {canEditTarif && row.statut !== 'annulee' && (
+                  <button onClick={() => openTarif(row)} className="p-2 rounded-md hover:bg-[var(--surface-hover)] min-h-[40px] min-w-[40px] flex items-center justify-center" title="Modifier le tarif (tarif spécial)">
+                    <Tag className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
                   </button>
                 )}
                 {row.statut !== 'annulee' && (
@@ -654,6 +691,61 @@ const Inscriptions = () => {
         </div>
       </Modal>
 
+      <Modal
+        open={!!tarifOpen}
+        onClose={() => setTarifOpen(null)}
+        title="Modifier le tarif"
+        subtitle={tarifOpen ? `${tarifOpen.eleve?.prenom || ''} ${tarifOpen.eleve?.nom || ''} — ${tarifOpen.classe?.nom || ''}` : ''}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setTarifOpen(null)}>Annuler</Button>
+            <Button onClick={saveTarif} loading={tarifSaving}>Enregistrer</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Les montants déjà payés sont conservés ; le reste dû est réparti sur les échéances non soldées.
+            Laissez un champ vide pour garder le tarif normal. Tout écart avec le tarif normal exige un motif.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block text-sm">
+              <span className="block mb-1" style={{ color: 'var(--text-secondary)' }}>
+                {tarifOpen?.typeFrais === 'reinscription' ? 'Frais de réinscription' : "Frais d'inscription"}
+              </span>
+              <input
+                type="number"
+                min="0"
+                className="w-full px-3 py-2 border rounded-lg"
+                value={tarifForm.fraisInscription}
+                onChange={(e) => setTarifForm({ ...tarifForm, fraisInscription: e.target.value })}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="block mb-1" style={{ color: 'var(--text-secondary)' }}>Scolarité annuelle</span>
+              <input
+                type="number"
+                min="0"
+                className="w-full px-3 py-2 border rounded-lg"
+                value={tarifForm.fraisScolarite}
+                onChange={(e) => setTarifForm({ ...tarifForm, fraisScolarite: e.target.value })}
+              />
+            </label>
+          </div>
+          <label className="block text-sm">
+            <span className="block mb-1" style={{ color: 'var(--text-secondary)' }}>Motif du tarif spécial</span>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border rounded-lg"
+              placeholder="Ex. famille en difficulté, orphelin, fratrie…"
+              value={tarifForm.motif}
+              onChange={(e) => setTarifForm({ ...tarifForm, motif: e.target.value })}
+            />
+          </label>
+        </div>
+      </Modal>
+
       {/* Modal Wizard Inscription Multi-étapes avec Tuteur Obligatoire */}
       <InscriptionWizard
         open={createOpen}
@@ -666,6 +758,7 @@ const Inscriptions = () => {
         formatPrice={formatPrice}
         onSuccess={fetchInscriptions}
         post={post}
+        get={get}
       />
 
       <Modal

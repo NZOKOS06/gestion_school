@@ -32,6 +32,8 @@ export default defineConfig({
       'src/utils/anneeActive.test.js',
       'src/utils/tenantCycles.test.js',
       'src/utils/httpCache.test.js',
+      'src/utils/horaires.test.js',
+      'src/services/fraisInscription.service.test.js',
       'src/config/v1Modules.test.js',
       'src/services/echeances.service.test.js',
       'src/services/finance.smoke.test.js',

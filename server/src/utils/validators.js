@@ -245,6 +245,7 @@ export const tenantConfigValidator = [
   body('seuilReussite').optional().isDecimal({ min: 0 }),
   body('nombrePeriodes').optional().isInt({ min: 1, max: 4 }),
   body('fraisInscriptionDefault').optional().isDecimal({ min: 0 }),
+  body('fraisReinscriptionDefault').optional().isDecimal({ min: 0 }),
   body('fraisScolariteDefault').optional().isDecimal({ min: 0 }),
   handleValidationErrors
 ];

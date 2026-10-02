@@ -20,14 +20,14 @@ const Classes = () => {
   const [filterCycle, setFilterCycle] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(null);
-  const [editForm, setEditForm] = useState({ nom: '', capacite: 40, fraisInscription: 0, fraisMensuel: 0, nombreMois: 9 });
+  const [editForm, setEditForm] = useState({ nom: '', capacite: 40, fraisInscription: 0, fraisReinscription: 0, fraisMensuel: 0, nombreMois: 9 });
   const [detail, setDetail] = useState(null);
   const [niveaux, setNiveaux] = useState([]);
   const [filieres, setFilieres] = useState([]);
   const [anneeId, setAnneeId] = useState('');
   const [form, setForm] = useState({
     nom: '', niveauOfficielId: '', filiereOfficielleId: '', capacite: 40,
-    fraisInscription: 0, fraisMensuel: 0, nombreMois: 9,
+    fraisInscription: 0, fraisReinscription: 0, fraisMensuel: 0, nombreMois: 9,
   });
 
   const printClasseListe = () => {
@@ -104,6 +104,7 @@ const Classes = () => {
         niveauOfficielId: form.niveauOfficielId,
         capacite: parseInt(form.capacite, 10) || 40,
         fraisInscription: fi,
+        fraisReinscription: parseFloat(form.fraisReinscription) || 0,
         fraisMensuel: fm,
         nombreMois: nm,
         fraisScolarite: fm * nm,
@@ -113,7 +114,7 @@ const Classes = () => {
 
       await post('/api/classes', payload);
       setCreateOpen(false);
-      setForm({ nom: '', niveauOfficielId: '', filiereOfficielleId: '', capacite: 40, fraisInscription: 0, fraisMensuel: 0, nombreMois: 9 });
+      setForm({ nom: '', niveauOfficielId: '', filiereOfficielleId: '', capacite: 40, fraisInscription: 0, fraisReinscription: 0, fraisMensuel: 0, nombreMois: 9 });
       toast.success('Classe créée');
       fetchClasses();
     } catch (err) {
@@ -129,6 +130,7 @@ const Classes = () => {
       nom: classe.nom || '',
       capacite: classe.capacite ?? 40,
       fraisInscription: Number(classe.fraisInscription) || 0,
+      fraisReinscription: Number(classe.fraisReinscription) || 0,
       fraisMensuel: Number(classe.fraisMensuel) || 0,
       nombreMois: classe.nombreMois ?? 9,
     });
@@ -144,6 +146,7 @@ const Classes = () => {
         nom: editForm.nom,
         capacite: editForm.capacite,
         fraisInscription: fi,
+        fraisReinscription: parseFloat(editForm.fraisReinscription) || 0,
         fraisMensuel: fm,
         nombreMois: nm,
         fraisScolarite: fm * nm,
@@ -308,8 +311,11 @@ const Classes = () => {
             </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Frais d'inscription (FCFA)" hint="Montant dû à l'inscription">
+            <FormField label="Frais d'inscription (FCFA)" hint="Nouvel élève">
               <Input type="number" value={form.fraisInscription} onChange={(e) => setForm({ ...form, fraisInscription: parseFloat(e.target.value) || 0 })} min={0} />
+            </FormField>
+            <FormField label="Frais de réinscription (FCFA)" hint="Ancien élève — 0 = défaut école">
+              <Input type="number" value={form.fraisReinscription} onChange={(e) => setForm({ ...form, fraisReinscription: parseFloat(e.target.value) || 0 })} min={0} />
             </FormField>
             <FormField label="Mensualité (FCFA)" hint="Montant mensuel de scolarité">
               <Input type="number" value={form.fraisMensuel} onChange={(e) => setForm({ ...form, fraisMensuel: parseFloat(e.target.value) || 0 })} min={0} />
@@ -353,8 +359,11 @@ const Classes = () => {
             </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Frais d'inscription (FCFA)">
+            <FormField label="Frais d'inscription (FCFA)" hint="Nouvel élève">
               <Input type="number" value={editForm.fraisInscription} onChange={(e) => setEditForm({ ...editForm, fraisInscription: parseFloat(e.target.value) || 0 })} min={0} />
+            </FormField>
+            <FormField label="Frais de réinscription (FCFA)" hint="Ancien élève — 0 = défaut école">
+              <Input type="number" value={editForm.fraisReinscription} onChange={(e) => setEditForm({ ...editForm, fraisReinscription: parseFloat(e.target.value) || 0 })} min={0} />
             </FormField>
             <FormField label="Mensualité (FCFA)">
               <Input type="number" value={editForm.fraisMensuel} onChange={(e) => setEditForm({ ...editForm, fraisMensuel: parseFloat(e.target.value) || 0 })} min={0} />

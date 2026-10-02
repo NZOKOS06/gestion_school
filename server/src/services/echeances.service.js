@@ -43,6 +43,7 @@ export async function generateForInscription(txOrPrisma, inscription, opts = {})
   const {
     fraisInscription = 0,
     fraisScolarite = 0,
+    libelleFraisEntree = inscription.typeFrais === 'reinscription' ? 'Frais de réinscription' : "Frais d'inscription",
     dateInscription = new Date(),
     dateDebut,
     dateFin,
@@ -78,7 +79,7 @@ export async function generateForInscription(txOrPrisma, inscription, opts = {})
     rows.push({
       tenantId: inscription.tenantId,
       inscriptionId: inscription.id,
-      libelle: "Frais d'inscription",
+      libelle: libelleFraisEntree,
       montantAttendu: fraisInscription,
       dateEcheance: d,
       montantPaye: 0,

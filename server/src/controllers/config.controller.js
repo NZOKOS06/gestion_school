@@ -14,7 +14,7 @@ const SCHEMA_CONFIG_FIELDS = new Set([
   'adresse', 'telephone', 'email', 'devise', 'messageAccueil',
   'anneeScolaireActiveId', 'notationSur', 'seuilReussite', 'nombrePeriodes', 'conventionPeriode',
   'joursEcole', 'heureDebut', 'heureFin',
-  'fraisInscriptionDefault', 'fraisScolariteDefault',
+  'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault',
   'moduleNotes', 'moduleBulletins', 'modulePresences', 'modulePaiements',
   'moduleEmploiDuTemps', 'moduleParents', 'moduleEleves', 'moduleSanctions',
   'moduleBiblio', 'moduleCantine', 'moduleTransport', 'moduleCertificats',
@@ -80,7 +80,7 @@ const sanitizeConfigBody = (body) => {
       }
       continue;
     }
-    if (['seuilReussite', 'fraisInscriptionDefault', 'fraisScolariteDefault'].includes(key)) {
+    if (['seuilReussite', 'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault'].includes(key)) {
       const num = parseFloat(value);
       config[key] = Number.isNaN(num) ? undefined : num;
       if (config[key] === undefined) delete config[key];
@@ -225,6 +225,7 @@ export const getBySlug = async (req, res) => {
       heureDebut: cfg?.heureDebut || '08:00',
       heureFin: cfg?.heureFin || '17:00',
       fraisInscriptionDefault: num(cfg?.fraisInscriptionDefault, 0),
+      fraisReinscriptionDefault: num(cfg?.fraisReinscriptionDefault, 0),
       fraisScolariteDefault: num(cfg?.fraisScolariteDefault, 0),
       moduleNotes: cfg?.moduleNotes ?? true,
       moduleBulletins: cfg?.moduleBulletins ?? true,
@@ -248,7 +249,7 @@ export const getBySlug = async (req, res) => {
       pointageToleranceMinutes: cfg?.pointageToleranceMinutes ?? 15,
       paieJourCloture: cfg?.paieJourCloture ?? 25,
       concerneCycles: cfg?.concerneCycles ?? null,
-      dureeSessionMinutes: cfg?.dureeSessionMinutes ?? 480,
+      dureeSessionMinutes: cfg?.dureeSessionMinutes ?? 900,
       forcer2FA: cfg?.forcer2FA ?? false,
       privacyPolicyUrl: cfg?.privacyPolicyUrl ?? null,
       termsOfServiceUrl: cfg?.termsOfServiceUrl ?? null,

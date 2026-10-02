@@ -122,7 +122,7 @@ export const create = async (req, res) => {
     const {
       nom, niveau, anneeScolaireId, filiere, capacite, fraisScolarite, cycle,
       niveauOfficielId, filiereOfficielleId,
-      fraisInscription, fraisMensuel, nombreMois,
+      fraisInscription, fraisReinscription, fraisMensuel, nombreMois,
     } = req.body;
 
     let targetAnneeId = anneeScolaireId;
@@ -210,6 +210,7 @@ export const create = async (req, res) => {
         capacite: capacite != null ? parseInt(capacite, 10) : 40,
         // Frais détaillés
         fraisInscription: fraisInscription != null ? parseFloat(fraisInscription) : 0,
+        fraisReinscription: fraisReinscription != null ? parseFloat(fraisReinscription) || 0 : 0,
         fraisMensuel: fraisMensuel != null ? parseFloat(fraisMensuel) : 0,
         nombreMois: nombreMois != null ? parseInt(nombreMois, 10) : 9,
         // fraisScolarite = fraisMensuel * nombreMois (scolarité annuelle, hors frais d'inscription)
@@ -241,7 +242,7 @@ export const update = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
-    const { nom, niveau, filiere, capacite, fraisScolarite, actif, fraisInscription, fraisMensuel, nombreMois } = req.body;
+    const { nom, niveau, filiere, capacite, fraisScolarite, actif, fraisInscription, fraisReinscription, fraisMensuel, nombreMois } = req.body;
 
     const existing = await prisma.classe.findFirst({ where: { id, tenantId } });
     if (!existing) {
@@ -254,6 +255,7 @@ export const update = async (req, res) => {
     if (filiere !== undefined) data.filiere = filiere;
     if (capacite !== undefined) data.capacite = capacite;
     if (fraisInscription !== undefined) data.fraisInscription = parseFloat(fraisInscription) || 0;
+    if (fraisReinscription !== undefined) data.fraisReinscription = parseFloat(fraisReinscription) || 0;
     if (fraisMensuel !== undefined) data.fraisMensuel = parseFloat(fraisMensuel) || 0;
     if (nombreMois !== undefined) data.nombreMois = parseInt(nombreMois, 10) || 9;
     // Recalcul de la scolarité annuelle si les champs détaillés sont fournis

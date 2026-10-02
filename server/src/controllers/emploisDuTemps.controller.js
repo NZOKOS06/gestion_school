@@ -1,8 +1,58 @@
 import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { parsePlage, toMinutes, overlaps } from '../utils/horaires.js';
 
 const log = createLogger('EmploisDuTempsController');
+
+const JOURS = ['', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+
+/**
+ * Règles de conflit (même jour + chevauchement à la minute près) :
+ * - une classe ne peut pas avoir deux cours en même temps ;
+ * - un enseignant ne peut pas être dans deux cours en même temps (même classe ou non,
+ *   même matière ou non) ;
+ * - une salle ne peut pas accueillir deux cours en même temps.
+ * Les mêmes horaires un autre jour ne sont jamais un conflit.
+ * Retourne un message d'erreur ou null.
+ */
+async function findConflit(tenantId, { jourSemaine, debutMin, finMin, classeId, enseignantId, salleId, excludeId }) {
+  const or = [{ classeId }, { enseignantId }];
+  if (salleId) or.push({ salleId });
+
+  const candidats = await prisma.emploiDuTemps.findMany({
+    where: {
+      tenantId,
+      jourSemaine,
+      OR: or,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    include: {
+      classe: { select: { nom: true } },
+      matiere: { select: { nom: true } },
+      salleRef: { select: { nom: true } },
+    },
+  });
+
+  const jour = JOURS[jourSemaine] || 'ce jour-là';
+  for (const c of candidats) {
+    const cDebut = toMinutes(c.heureDebut);
+    const cFin = toMinutes(c.heureFin);
+    if (cDebut === null || cFin === null || !overlaps(debutMin, finMin, cDebut, cFin)) continue;
+
+    const plage = `${c.heureDebut} à ${c.heureFin}`;
+    if (c.enseignantId === enseignantId) {
+      return `Cet enseignant a déjà cours (${c.matiere?.nom || 'matière'}) en ${c.classe?.nom || 'une autre classe'} le ${jour} de ${plage}`;
+    }
+    if (c.classeId === classeId) {
+      return `La classe a déjà un cours (${c.matiere?.nom || 'matière'}) le ${jour} de ${plage}`;
+    }
+    if (salleId && c.salleId === salleId) {
+      return `La salle ${c.salleRef?.nom || ''} est déjà occupée par ${c.classe?.nom || 'une classe'} le ${jour} de ${plage}`;
+    }
+  }
+  return null;
+}
 
 export const getAll = async (req, res) => {
   try {
@@ -59,38 +109,26 @@ export const create = async (req, res) => {
       });
     }
 
-    const conflit = await prisma.emploiDuTemps.findFirst({
-      where: {
-        tenantId,
-        classeId,
-        jourSemaine: parseInt(jourSemaine),
-        OR: [
-          { heureDebut: { lte: heureDebut }, heureFin: { gt: heureDebut } },
-          { heureDebut: { lt: heureFin }, heureFin: { gte: heureFin } },
-        ],
-      },
-    });
-
-    if (conflit) {
-      return res.status(409).json({ error: 'Conflit d\'horaire pour cette classe' });
+    const plage = parsePlage(heureDebut, heureFin);
+    if (plage.error) {
+      return res.status(400).json({ error: plage.error });
     }
 
-    // Un enseignant peut cumuler les classes le même jour, mais pas sur des horaires qui se chevauchent
-    const conflitEnseignant = await prisma.emploiDuTemps.findFirst({
-      where: {
-        tenantId,
-        enseignantId: resolvedEnseignantId,
-        jourSemaine: parseInt(jourSemaine),
-        heureDebut: { lt: heureFin },
-        heureFin: { gt: heureDebut },
-      },
-      include: { classe: { select: { nom: true } } },
-    });
+    const jour = parseInt(jourSemaine, 10);
+    if (!Number.isInteger(jour) || jour < 1 || jour > 7) {
+      return res.status(400).json({ error: 'Jour de la semaine invalide' });
+    }
 
-    if (conflitEnseignant) {
-      return res.status(409).json({
-        error: `Cet enseignant a déjà cours en ${conflitEnseignant.classe?.nom || 'une autre classe'} de ${conflitEnseignant.heureDebut} à ${conflitEnseignant.heureFin} ce jour-là`,
-      });
+    const conflit = await findConflit(tenantId, {
+      jourSemaine: jour,
+      debutMin: plage.debutMin,
+      finMin: plage.finMin,
+      classeId,
+      enseignantId: resolvedEnseignantId,
+      salleId: salleId || null,
+    });
+    if (conflit) {
+      return res.status(409).json({ error: conflit });
     }
 
     const emploi = await prisma.emploiDuTemps.create({
@@ -99,9 +137,9 @@ export const create = async (req, res) => {
         classeId,
         matiereId,
         enseignantId: resolvedEnseignantId,
-        jourSemaine: parseInt(jourSemaine),
-        heureDebut,
-        heureFin,
+        jourSemaine: jour,
+        heureDebut: plage.debut,
+        heureFin: plage.fin,
         salle: salle || null,
         salleId: salleId || null,
       },
@@ -120,20 +158,47 @@ export const update = async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.tenantId;
-    const { jourSemaine, heureDebut, heureFin, salle, salleId, actif } = req.body;
+    const { jourSemaine, heureDebut, heureFin, salle, salleId, matiereId, enseignantId } = req.body;
 
     const existing = await prisma.emploiDuTemps.findFirst({ where: { id, tenantId } });
     if (!existing) {
       return res.status(404).json({ error: 'Cours non trouvé' });
     }
 
-    const data = {};
-    if (jourSemaine !== undefined) data.jourSemaine = parseInt(jourSemaine);
-    if (heureDebut !== undefined) data.heureDebut = heureDebut;
-    if (heureFin !== undefined) data.heureFin = heureFin;
-    if (salle !== undefined) data.salle = salle;
-    if (salleId !== undefined) data.salleId = salleId || null;
-    if (actif !== undefined) data.actif = actif;
+    // Valeurs finales (fusion payload + existant) pour revalider les conflits
+    const jour = jourSemaine !== undefined ? parseInt(jourSemaine, 10) : existing.jourSemaine;
+    if (!Number.isInteger(jour) || jour < 1 || jour > 7) {
+      return res.status(400).json({ error: 'Jour de la semaine invalide' });
+    }
+    const plage = parsePlage(heureDebut ?? existing.heureDebut, heureFin ?? existing.heureFin);
+    if (plage.error) {
+      return res.status(400).json({ error: plage.error });
+    }
+    const finalEnseignantId = enseignantId || existing.enseignantId;
+    const finalSalleId = salleId !== undefined ? (salleId || null) : existing.salleId;
+
+    const conflit = await findConflit(tenantId, {
+      jourSemaine: jour,
+      debutMin: plage.debutMin,
+      finMin: plage.finMin,
+      classeId: existing.classeId,
+      enseignantId: finalEnseignantId,
+      salleId: finalSalleId,
+      excludeId: id,
+    });
+    if (conflit) {
+      return res.status(409).json({ error: conflit });
+    }
+
+    const data = {
+      jourSemaine: jour,
+      heureDebut: plage.debut,
+      heureFin: plage.fin,
+      enseignantId: finalEnseignantId,
+      salleId: finalSalleId,
+    };
+    if (salle !== undefined) data.salle = salle || null;
+    if (matiereId) data.matiereId = matiereId;
 
     const emploi = await prisma.emploiDuTemps.update({ where: { id }, data });
 

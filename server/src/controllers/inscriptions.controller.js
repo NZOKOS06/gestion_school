@@ -2,22 +2,18 @@ import { prisma } from '../utils/prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { generateForInscription } from '../services/echeances.service.js';
+import {
+  resolveFees,
+  appliquerTarifSpecial,
+  champsTarifInscription,
+  modifierTarifInscription,
+  FraisError,
+} from '../services/fraisInscription.service.js';
 import { messageErreurDateNaissance, safeOrderBy } from '../utils/formatters.js';
 import { resolveAnneeScolaireId, getAnneeOperationnelle } from '../utils/anneeScolaire.js';
 import { hashPassword } from '../utils/password.js';
 
 const log = createLogger('InscriptionsController');
-
-async function resolveFees(tenantId, classeId) {
-  const [classe, config] = await Promise.all([
-    prisma.classe.findFirst({ where: { id: classeId, tenantId } }),
-    prisma.tenantConfig.findUnique({ where: { tenantId } }),
-  ]);
-  const fraisScolarite = Number(classe?.fraisScolarite ?? config?.fraisScolariteDefault ?? 0);
-  const fi = Number(classe?.fraisInscription ?? 0);
-  const fraisInscription = fi > 0 ? fi : Number(config?.fraisInscriptionDefault ?? 0);
-  return { classe, config, fraisScolarite, fraisInscription };
-}
 
 export const getAll = async (req, res) => {
   try {
@@ -119,7 +115,11 @@ export const create = async (req, res) => {
       return res.status(409).json({ error: 'Cet élève est déjà inscrit pour cette année scolaire' });
     }
 
-    const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, classeId);
+    const fees = appliquerTarifSpecial(
+      await resolveFees(tenantId, classeId, { eleveId, anneeScolaireId, typeFrais: req.body.typeFrais }),
+      req.body
+    );
+    const { fraisScolarite, fraisInscription } = fees;
 
     const inscription = await prisma.$transaction(async (tx) => {
       const insc = await tx.inscription.create({
@@ -130,6 +130,7 @@ export const create = async (req, res) => {
           anneeScolaireId,
           statut: 'en_attente',
           soldeScolarite: fraisInscription + fraisScolarite,
+          ...champsTarifInscription(fees),
         },
       });
       await generateForInscription(tx, insc, {
@@ -146,10 +147,18 @@ export const create = async (req, res) => {
       });
     });
 
-    await logAudit(req, 'inscription_created', 'Inscription', inscription.id, { eleveId, classeId });
+    await logAudit(req, 'inscription_created', 'Inscription', inscription.id, {
+      eleveId,
+      classeId,
+      typeFrais: fees.typeFrais,
+      ...(fees.tarifSpecial ? { tarifSpecial: true, motif: fees.motifTarifSpecial, fraisInscription, fraisScolarite } : {}),
+    });
 
     res.status(201).json(inscription);
   } catch (error) {
+    if (error instanceof FraisError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     log.error({ err: error, tenantId: req.tenantId }, 'Create inscription error');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -176,7 +185,15 @@ export const createAvecEleve = async (req, res) => {
     const classe = await prisma.classe.findFirst({ where: { id: classeId, tenantId, anneeScolaireId } });
     if (!classe) return res.status(400).json({ error: 'Classe invalide pour cette année' });
 
-    const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, classeId);
+    const fees = appliquerTarifSpecial(
+      await resolveFees(tenantId, classeId, {
+        eleveId: existingEleveId || null,
+        anneeScolaireId,
+        typeFrais: req.body.typeFrais,
+      }),
+      req.body
+    );
+    const { fraisScolarite, fraisInscription } = fees;
 
     const result = await prisma.$transaction(async (tx) => {
       let finalParentId = explicitParentId || eleveData?.parentId || null;
@@ -276,6 +293,7 @@ export const createAvecEleve = async (req, res) => {
           anneeScolaireId,
           statut: 'en_attente',
           soldeScolarite: fraisInscription + fraisScolarite,
+          ...champsTarifInscription(fees),
         },
       });
       await generateForInscription(tx, insc, {
@@ -298,12 +316,14 @@ export const createAvecEleve = async (req, res) => {
       eleveId: result.eleveId,
       classeId,
       createdEleve: !existingEleveId,
+      typeFrais: fees.typeFrais,
+      ...(fees.tarifSpecial ? { tarifSpecial: true, motif: fees.motifTarifSpecial, fraisInscription, fraisScolarite } : {}),
     });
 
     res.status(201).json(result);
   } catch (error) {
-    if (error.status) {
-      return res.status(error.status).json({ error: error.message });
+    if (error.status || error instanceof FraisError) {
+      return res.status(error.status || 400).json({ error: error.message });
     }
     log.error(
       { err: error, message: error.message, code: error.code, meta: error.meta, tenantId: req.tenantId },
@@ -448,7 +468,8 @@ export const decideFinAnnee = async (req, res) => {
           },
         });
         if (!already) {
-          const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, classeCible.id);
+          const fees = await resolveFees(tenantId, classeCible.id, { typeFrais: 'reinscription' });
+          const { fraisScolarite, fraisInscription } = fees;
           nouvelleInscription = await prisma.$transaction(async (tx) => {
             const insc = await tx.inscription.create({
               data: {
@@ -458,6 +479,7 @@ export const decideFinAnnee = async (req, res) => {
                 anneeScolaireId: anneeCibleId,
                 statut: 'en_attente',
                 soldeScolarite: fraisInscription + fraisScolarite,
+                ...champsTarifInscription(fees),
               },
             });
             await generateForInscription(tx, insc, {
@@ -502,7 +524,17 @@ export const validate = async (req, res) => {
       return res.status(404).json({ error: 'Inscription non trouvée' });
     }
 
-    const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, existing.classeId);
+    // Tarif figé à l'inscription (tarif spécial compris) ; sinon tarif courant
+    const fees = existing.fraisInscriptionApplique != null || existing.fraisScolariteApplique != null
+      ? {
+        fraisInscription: Number(existing.fraisInscriptionApplique ?? 0),
+        fraisScolarite: Number(existing.fraisScolariteApplique ?? 0),
+      }
+      : await resolveFees(tenantId, existing.classeId, {
+        eleveId: existing.eleveId,
+        anneeScolaireId: existing.anneeScolaireId,
+        typeFrais: existing.typeFrais,
+      });
 
     const inscription = await prisma.$transaction(async (tx) => {
       const insc = await tx.inscription.update({
@@ -511,8 +543,8 @@ export const validate = async (req, res) => {
       });
       if (!existing.echeances?.length) {
         await generateForInscription(tx, insc, {
-          fraisInscription,
-          fraisScolarite: Number(existing.classe?.fraisScolarite ?? fraisScolarite),
+          fraisInscription: fees.fraisInscription,
+          fraisScolarite: fees.fraisScolarite,
         });
       }
       return tx.inscription.findUnique({
@@ -774,7 +806,12 @@ export const reinscriptionLot = async (req, res) => {
           continue;
         }
 
-        const { fraisScolarite, fraisInscription } = await resolveFees(tenantId, classeCible.id);
+        // Tarif spécial possible par élève : item.fraisInscription / fraisScolarite / motifTarifSpecial
+        const fees = appliquerTarifSpecial(
+          await resolveFees(tenantId, classeCible.id, { typeFrais: 'reinscription' }),
+          item
+        );
+        const { fraisScolarite, fraisInscription } = fees;
         await prisma.$transaction(async (tx) => {
           const insc = await tx.inscription.create({
             data: {
@@ -784,6 +821,7 @@ export const reinscriptionLot = async (req, res) => {
               anneeScolaireId: anneeCibleId,
               statut: 'validee',
               soldeScolarite: fraisInscription + fraisScolarite,
+              ...champsTarifInscription(fees),
             },
           });
           await generateForInscription(tx, insc, { fraisInscription, fraisScolarite });
@@ -801,6 +839,88 @@ export const reinscriptionLot = async (req, res) => {
     res.json(result);
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'reinscriptionLot error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET /api/inscriptions/frais-preview?classeId&eleveId&anneeScolaireId&typeFrais
+ * Tarif par défaut qui sera appliqué (type inscription/réinscription + origine du montant).
+ */
+export const fraisPreview = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { classeId, eleveId, anneeScolaireId, typeFrais } = req.query;
+    if (!classeId) return res.status(400).json({ error: 'classeId requis' });
+
+    const fees = await resolveFees(tenantId, classeId, {
+      eleveId: eleveId || null,
+      anneeScolaireId: anneeScolaireId || null,
+      typeFrais: typeFrais || null,
+    });
+    if (!fees.classe) return res.status(404).json({ error: 'Classe introuvable' });
+
+    res.json({
+      typeFrais: fees.typeFrais,
+      fraisInscription: fees.fraisInscription,
+      sourceFraisInscription: fees.sourceFraisInscription,
+      fraisScolarite: fees.fraisScolarite,
+      total: fees.fraisInscription + fees.fraisScolarite,
+    });
+  } catch (error) {
+    log.error({ err: error, tenantId: req.tenantId }, 'fraisPreview error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * PUT /api/inscriptions/:id/tarif
+ * Body: { fraisInscription?, fraisScolarite?, motifTarifSpecial? }
+ * Modifie le tarif d'une inscription (cas sociaux, remise) sans toucher aux paiements déjà faits.
+ */
+export const updateTarif = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.tenantId;
+
+    const existing = await prisma.inscription.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Inscription non trouvée' });
+    if (existing.statut === 'annulee') {
+      return res.status(400).json({ error: "Impossible de modifier le tarif d'une inscription annulée" });
+    }
+
+    const base = await resolveFees(tenantId, existing.classeId, {
+      eleveId: existing.eleveId,
+      anneeScolaireId: existing.anneeScolaireId,
+      typeFrais: existing.typeFrais,
+    });
+    const fees = appliquerTarifSpecial(base, req.body);
+
+    const avant = {
+      fraisInscription: Number(existing.fraisInscriptionApplique ?? base.fraisInscription),
+      fraisScolarite: Number(existing.fraisScolariteApplique ?? base.fraisScolarite),
+    };
+
+    const solde = await prisma.$transaction((tx) => modifierTarifInscription(tx, tenantId, existing, fees));
+
+    await logAudit(req, 'inscription_tarif_modifie', 'Inscription', id, {
+      eleveId: existing.eleveId,
+      avant,
+      apres: { fraisInscription: fees.fraisInscription, fraisScolarite: fees.fraisScolarite },
+      tarifSpecial: fees.tarifSpecial,
+      motif: fees.motifTarifSpecial,
+    });
+
+    const inscription = await prisma.inscription.findFirst({
+      where: { id, tenantId },
+      include: { echeances: { orderBy: { dateEcheance: 'asc' } } },
+    });
+    res.json({ inscription, soldeScolarite: solde });
+  } catch (error) {
+    if (error instanceof FraisError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'updateTarif error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

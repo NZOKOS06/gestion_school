@@ -34,7 +34,7 @@ const VALID_CONFIG_FIELDS = new Set([
   'facebookUrl', 'instagramUrl', 'whatsappUrl', 'telegramUrl', 'googleMapsUrl', 'latitude', 'longitude',
   'horaireOuverture', 'messageAccueil',
   'metaTitle', 'metaDescription', 'metaKeywords',
-  'notationSur', 'seuilReussite', 'nombrePeriodes', 'fraisInscriptionDefault', 'fraisScolariteDefault',
+  'notationSur', 'seuilReussite', 'nombrePeriodes', 'fraisInscriptionDefault', 'fraisReinscriptionDefault', 'fraisScolariteDefault',
   'emailAlertes', 'dureeSessionMinutes', 'ipWhitelist', 'forcer2FA',
   'privacyPolicyUrl', 'termsOfServiceUrl', 'cookiePolicyUrl', 'cookieBannerText', 'cookieBannerEnabled', 'analyticsEnabled',
   'moduleEleves', 'moduleClasses', 'moduleNotes', 'moduleBulletins', 'modulePaiements',
@@ -87,7 +87,7 @@ const sanitizeConfigBody = (body) => {
     if (key === 'notationSur' || key === 'nombrePeriodes') {
       const num = parseInt(value, 10);
       config[key] = isNaN(num) ? 0 : num;
-    } else if (key === 'seuilReussite' || key === 'fraisInscriptionDefault' || key === 'fraisScolariteDefault') {
+    } else if (key === 'seuilReussite' || key === 'fraisInscriptionDefault' || key === 'fraisReinscriptionDefault' || key === 'fraisScolariteDefault') {
       const num = parseFloat(value);
       config[key] = isNaN(num) ? 0 : num;
     } else if (key === 'anneeCreation' || key === 'dureeSessionMinutes') {

@@ -116,6 +116,7 @@ model TenantConfig {
 
   // Paramétrage Financier
   fraisInscriptionDefault Decimal @default(0.00) @db.Decimal(12, 2)
+  fraisReinscriptionDefault Decimal @default(0.00) @db.Decimal(12, 2) // 0 = mêmes frais que l'inscription
   fraisScolariteDefault   Decimal @default(0.00) @db.Decimal(12, 2)
 
   // Modules SaaS — défauts alignés gel V1 (voir server/src/config/v1Modules.js)
@@ -150,7 +151,7 @@ model TenantConfig {
   saisieNotesOuverte      Boolean @default(true)
 
   // Sécurité & sessions
-  dureeSessionMinutes Int     @default(480)
+  dureeSessionMinutes Int     @default(900)
   ipWhitelist         TenantIpWhitelist[]
   forcer2FA           Boolean @default(false)
 
@@ -465,6 +466,7 @@ model Classe {
   capacite        Int      @default(40)
   fraisScolarite  Decimal  @db.Decimal(12, 2)
   fraisInscription Decimal @default(0) @db.Decimal(12, 2)
+  fraisReinscription Decimal @default(0) @db.Decimal(12, 2) // 0 = défaut école, sinon frais d'inscription
   fraisMensuel    Decimal  @default(0) @db.Decimal(12, 2)
   nombreMois      Int      @default(9)
   createdAt       DateTime @default(now())
@@ -651,6 +653,12 @@ model Inscription {
   motifDecision   String?
   resultatExamenId String?
   soldeScolarite  Decimal           @default(0.00) @db.Decimal(12, 2)
+  // Tarif appliqué (figé à l'inscription ; modifiable pour cas sociaux)
+  typeFrais                String   @default("inscription") // inscription | reinscription
+  fraisInscriptionApplique Decimal? @db.Decimal(12, 2)
+  fraisScolariteApplique   Decimal? @db.Decimal(12, 2)
+  tarifSpecial             Boolean  @default(false)
+  motifTarifSpecial        String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 

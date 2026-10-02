@@ -23,6 +23,7 @@ export default function InscriptionWizard({
   formatPrice = (v) => `${v} FCFA`,
   onSuccess,
   post,
+  get,
 }) {
   const [step, setStep] = useState(1);
   const [mode, setMode] = useState('nouveau'); // 'nouveau' | 'existant'
@@ -78,8 +79,51 @@ export default function InscriptionWizard({
     [classes, classeId]
   );
 
-  const fraisInscription = Number(selectedClasse?.fraisInscription || 0) || Number(fraisInscriptionDefault || 0);
-  const fraisScolarite = Number(selectedClasse?.fraisScolarite || 0);
+  // Tarif par défaut calculé par le serveur (inscription vs réinscription, classe vs défaut école)
+  const [tarifServeur, setTarifServeur] = useState(null);
+  const eleveIdPourTarif = mode === 'existant' ? existingEleveId : '';
+  useEffect(() => {
+    if (!get || !classeId) {
+      setTarifServeur(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const params = new URLSearchParams({ classeId, anneeScolaireId: effectiveAnneeId || '' });
+    if (eleveIdPourTarif) params.set('eleveId', eleveIdPourTarif);
+    get(`/api/inscriptions/frais-preview?${params.toString()}`, { silent: true })
+      .then((res) => { if (!cancelled) setTarifServeur(res || null); })
+      .catch(() => { if (!cancelled) setTarifServeur(null); });
+    return () => { cancelled = true; };
+  }, [get, classeId, effectiveAnneeId, eleveIdPourTarif]);
+
+  const fraisInscriptionBase = tarifServeur
+    ? Number(tarifServeur.fraisInscription || 0)
+    : Number(selectedClasse?.fraisInscription || 0) || Number(fraisInscriptionDefault || 0);
+  const fraisScolariteBase = tarifServeur
+    ? Number(tarifServeur.fraisScolarite || 0)
+    : Number(selectedClasse?.fraisScolarite || 0);
+  const estReinscription = tarifServeur?.typeFrais === 'reinscription';
+  const sourceLabel = {
+    classe_inscription: 'tarif de la classe',
+    classe_reinscription: 'tarif de la classe',
+    ecole_inscription: "défaut de l'école",
+    ecole_reinscription: "défaut de l'école",
+    aucun: 'aucun tarif défini',
+  }[tarifServeur?.sourceFraisInscription] || null;
+
+  // Tarif spécial (cas sociaux, remise) : montants libres + motif obligatoire
+  const [tarifSpecial, setTarifSpecial] = useState(false);
+  const [tarifCustom, setTarifCustom] = useState({ fraisInscription: '', fraisScolarite: '', motif: '' });
+  useEffect(() => {
+    setTarifCustom((t) => ({
+      ...t,
+      fraisInscription: String(fraisInscriptionBase),
+      fraisScolarite: String(fraisScolariteBase),
+    }));
+  }, [fraisInscriptionBase, fraisScolariteBase]);
+
+  const fraisInscription = tarifSpecial ? Math.max(0, Number(tarifCustom.fraisInscription) || 0) : fraisInscriptionBase;
+  const fraisScolarite = tarifSpecial ? Math.max(0, Number(tarifCustom.fraisScolarite) || 0) : fraisScolariteBase;
   const totalFrais = fraisInscription + fraisScolarite;
 
   const inputStyle = {
@@ -148,6 +192,10 @@ export default function InscriptionWizard({
 
   const handleSubmit = async () => {
     if (!validateStep1() || !validateStep2()) return;
+    if (tarifSpecial && !tarifCustom.motif.trim()) {
+      toast.error('Indiquez le motif du tarif spécial');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -157,6 +205,11 @@ export default function InscriptionWizard({
         eleve: mode === 'nouveau' ? eleve : undefined,
         parentId: parentMode === 'existant' ? existingParentId : undefined,
         tuteur: parentMode === 'nouveau' ? tuteur : undefined,
+        ...(tarifSpecial ? {
+          fraisInscription,
+          fraisScolarite,
+          motifTarifSpecial: tarifCustom.motif.trim(),
+        } : {}),
       };
 
       await post('/api/inscriptions/avec-eleve', payload);
@@ -563,7 +616,10 @@ export default function InscriptionWizard({
                 <CreditCard className="h-3.5 w-3.5" /> Frais scolaires associés
               </h4>
               <div className="flex justify-between text-sm py-1 border-b border-[var(--border-subtle)]">
-                <span style={{ color: 'var(--text-secondary)' }}>Frais d'inscription</span>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  {estReinscription ? 'Frais de réinscription' : "Frais d'inscription"}
+                  {!tarifSpecial && sourceLabel && <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>({sourceLabel})</span>}
+                </span>
                 <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatPrice(fraisInscription)}</span>
               </div>
               <div className="flex justify-between text-sm py-1 border-b border-[var(--border-subtle)]">
@@ -576,6 +632,53 @@ export default function InscriptionWizard({
                 <span style={{ color: 'var(--text-primary)' }}>Total à ouvrir au dossier</span>
                 <span style={{ color: 'var(--color-primary)' }}>{formatPrice(totalFrais)}</span>
               </div>
+
+              <label className="flex items-center gap-2 text-sm pt-2 cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={tarifSpecial}
+                  onChange={(e) => setTarifSpecial(e.target.checked)}
+                />
+                Appliquer un tarif spécial (situation sociale, remise, bourse…)
+              </label>
+              {tarifSpecial && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <span className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>
+                      {estReinscription ? 'Frais de réinscription' : "Frais d'inscription"} (défaut : {formatPrice(fraisInscriptionBase)})
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      style={inputStyle}
+                      value={tarifCustom.fraisInscription}
+                      onChange={(e) => setTarifCustom({ ...tarifCustom, fraisInscription: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <span className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>
+                      Scolarité annuelle (défaut : {formatPrice(fraisScolariteBase)})
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      style={inputStyle}
+                      value={tarifCustom.fraisScolarite}
+                      onChange={(e) => setTarifCustom({ ...tarifCustom, fraisScolarite: e.target.value })}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <span className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Motif (obligatoire, conservé dans l'historique)</span>
+                    <input
+                      type="text"
+                      style={inputStyle}
+                      placeholder="Ex. famille en difficulté, orphelin, fratrie…"
+                      value={tarifCustom.motif}
+                      onChange={(e) => setTarifCustom({ ...tarifCustom, motif: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

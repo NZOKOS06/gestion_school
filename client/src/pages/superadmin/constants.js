@@ -107,7 +107,7 @@ export const DEFAULT_CONFIG = {
   metaDescription: '',
   metaKeywords: '',
   emailAlertes: '',
-  dureeSessionMinutes: 480,
+  dureeSessionMinutes: 900,
   ipWhitelist: [],
   forcer2FA: false,
   privacyPolicyUrl: '',

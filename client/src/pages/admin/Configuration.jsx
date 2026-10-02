@@ -110,6 +110,9 @@ const Configuration = () => {
     methodePaie: 'mensuel',
     pointageToleranceMinutes: 15,
     paieJourCloture: 25,
+    fraisInscriptionDefault: 0,
+    fraisReinscriptionDefault: 0,
+    fraisScolariteDefault: 0,
     moduleRapports: true,
     moduleActualites: false
   });
@@ -197,6 +200,9 @@ const Configuration = () => {
         methodePaie: form.methodePaie,
         pointageToleranceMinutes: parseInt(form.pointageToleranceMinutes, 10) || 15,
         paieJourCloture: parseInt(form.paieJourCloture, 10) || 25,
+        fraisInscriptionDefault: parseFloat(form.fraisInscriptionDefault) || 0,
+        fraisReinscriptionDefault: parseFloat(form.fraisReinscriptionDefault) || 0,
+        fraisScolariteDefault: parseFloat(form.fraisScolariteDefault) || 0,
         concerneCycles: form.concerneCycles,
         moduleRapports: form.moduleRapports,
       };
@@ -582,6 +588,36 @@ const Configuration = () => {
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="2025-2026"
               />
+            </div>
+          </div>
+
+          {/* Frais par défaut (utilisés quand la classe n'a pas son propre tarif) */}
+          <div className="border-t border-[var(--border-subtle)] pt-6 space-y-3">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+              <Banknote className="h-4 w-4 text-[var(--color-primary)]" />
+              Frais par défaut de l'établissement
+            </h3>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Appliqués lorsqu'une classe n'a pas de tarif propre (champ à 0). Les frais de réinscription s'appliquent aux élèves déjà inscrits une année précédente ; laissez 0 pour reprendre les frais d'inscription. Chaque montant reste modifiable élève par élève (tarif spécial avec motif).
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                { key: 'fraisInscriptionDefault', label: "Frais d'inscription" },
+                { key: 'fraisReinscriptionDefault', label: 'Frais de réinscription' },
+                { key: 'fraisScolariteDefault', label: 'Scolarité annuelle' },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">{label} ({form.devise || 'FCFA'})</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={form[key] ?? 0}
+                    onChange={e => updateForm(key, e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 

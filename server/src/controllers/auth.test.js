@@ -46,6 +46,9 @@ vi.mock('../utils/prisma.js', () => ({
     },
   },
   rawPrisma: {
+    tenantConfig: {
+      findUnique: vi.fn().mockResolvedValue({ dureeSessionMinutes: 900 }),
+    },
     staff: {
       findFirst: mockStaffFindFirst,
       findMany: vi.fn().mockResolvedValue([]),
@@ -254,6 +257,25 @@ describe('Auth — login', () => {
         user: expect.objectContaining({ mustChangePassword: true })
       })
     )
+  })
+
+  it('la session (refresh token) dure 15 h par défaut', async () => {
+    const hash = await bcrypt.hash('Password1!', 10)
+    mockStaffFindFirst.mockResolvedValue({ ...staffBase, passwordHash: hash })
+    mockRefreshTokenCreate.mockResolvedValue({})
+    mockStaffUpdate.mockResolvedValue({})
+
+    const req = mockReq({ body: { email: 'staff@pharma.com', password: 'Password1!' } })
+    const res = mockRes()
+
+    await login(req, res)
+
+    const refreshCall = res.cookie.mock.calls.find(([name]) => name === 'refreshToken')
+    const fifteenHours = 15 * 60 * 60 * 1000
+    expect(refreshCall[2].maxAge).toBeGreaterThan(fifteenHours - 5000)
+    expect(refreshCall[2].maxAge).toBeLessThanOrEqual(fifteenHours)
+    const { expiresAt } = mockRefreshTokenCreate.mock.calls.at(-1)[0].data
+    expect(expiresAt.getTime() - Date.now()).toBeGreaterThan(fifteenHours - 5000)
   })
 
   it('les deux cookies sont posés avec httpOnly: true', async () => {

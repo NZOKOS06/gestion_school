@@ -31,6 +31,24 @@ router.post('/reinscription-lot',
   ctrl.reinscriptionLot
 );
 
+router.get('/frais-preview',
+  authenticate,
+  requireRole('directeur', 'directeur_etudes', 'secretaire', 'comptable'),
+  requireTenantMatch,
+  requireModule('inscriptions'),
+  ctrl.fraisPreview
+);
+
+// Tarif spécial (cas sociaux, remise) — motif obligatoire, tracé dans l'audit
+router.put('/:id/tarif',
+  authenticate,
+  requireRole('directeur', 'secretaire', 'comptable'),
+  requireTenantMatch,
+  requireModule('inscriptions'),
+  idParamValidator,
+  ctrl.updateTarif
+);
+
 router.post('/avec-eleve',
   authenticate,
   requireRole('directeur', 'directeur_etudes', 'secretaire'),
