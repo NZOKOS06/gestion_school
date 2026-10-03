@@ -70,7 +70,7 @@ export const getAll = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[PersonnelController] getAll error:', error);
+    log.error({ err: error }, 'getAll error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -106,7 +106,7 @@ export const getEnseignants = async (req, res) => {
 
     res.json(enseignants);
   } catch (error) {
-    console.error('[PersonnelController] getEnseignants error:', error);
+    log.error({ err: error }, 'getEnseignants error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -145,7 +145,7 @@ export const getById = async (req, res) => {
 
     res.json(staff);
   } catch (error) {
-    console.error('[PersonnelController] getById error:', error);
+    log.error({ err: error }, 'getById error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -224,13 +224,13 @@ export const create = async (req, res) => {
         tenantName: tenant?.nom
       });
     } catch (emailError) {
-      console.error('[PersonnelController] Failed to send welcome email:', emailError);
+      log.error({ err: emailError }, 'Failed to send welcome email');
       // L'email est non bloquant : le compte est créé même si l'envoi échoue
     }
 
     res.status(201).json({ ...staff, motDePasseProvisoire: tempPassword });
   } catch (error) {
-    console.error('[PersonnelController] create error:', error);
+    log.error({ err: error }, 'create error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -334,7 +334,7 @@ export const update = async (req, res) => {
 
     res.json(updated);
   } catch (error) {
-    console.error('[PersonnelController] update error:', error);
+    log.error({ err: error }, 'update error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -433,12 +433,12 @@ export const remove = async (req, res) => {
         deactivatedAt: new Date()
       });
     } catch (emailError) {
-      console.error('[PersonnelController] Failed to send deactivated email:', emailError);
+      log.error({ err: emailError }, 'Failed to send deactivated email');
     }
 
     res.json({ message: 'Staff désactivé' });
   } catch (error) {
-    console.error('[PersonnelController] remove error:', error);
+    log.error({ err: error }, 'remove error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -468,7 +468,7 @@ export const getMe = async (req, res) => {
 
     res.json(profile);
   } catch (error) {
-    console.error('[PersonnelController] getMe error:', error);
+    log.error({ err: error }, 'getMe error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

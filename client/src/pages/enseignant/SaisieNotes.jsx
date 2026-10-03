@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, Button, Badge, DataTable, Modal } from '../../components/ui';
-import { ClipboardEdit, Save, Plus } from 'lucide-react';
+import { ClipboardEdit, Save, Plus, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const TYPE_EVAL = {
@@ -354,7 +354,7 @@ const SaisieNotes = () => {
                 color: 'var(--color-danger, #ef4444)',
               }}
             >
-              <span>⛔</span>
+              <Lock className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
               <span>La saisie des notes est actuellement fermée par la direction de l'établissement.</span>
             </div>
           )}

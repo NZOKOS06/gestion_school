@@ -37,3 +37,10 @@ server/prisma/*.db-journal
 
 # Scratch / temp
 scratch/
+
+# Secrets de test, rapports et artefacts générés
+server/.env.test
+e2e/reports/
+server/preview-recu.pdf
+*_audit.txt
+audit_*.txt

@@ -339,7 +339,7 @@ const TenantAccessSection = ({ tenant }) => {
               )}
             </div>
             <div className="flex-1 space-y-2">
-              <p className="text-sm font-semibold text-green-900">📱 QR Code d'accès direct</p>
+              <p className="text-sm font-semibold text-green-900">QR Code d'accès direct</p>
               <p className="text-xs text-green-700">
                 Scannez ce QR code depuis n'importe où dans le monde pour accéder directement
                 à la page de connexion de l'établissement <strong>{tenant?.nom}</strong>.
@@ -368,7 +368,7 @@ const TenantAccessSection = ({ tenant }) => {
           className="w-full flex items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-slate-100"
         >
           <Smartphone className="h-4 w-4 text-slate-500" />
-          <span className="text-sm font-medium text-slate-700">📡 Accès réseau local (LAN)</span>
+          <span className="text-sm font-medium text-slate-700">Accès réseau local (LAN)</span>
           <ChevronDown
             className="h-4 w-4 text-slate-400 ml-auto transition-transform"
             style={{ transform: showLan ? 'rotate(180deg)' : 'rotate(0deg)' }}
@@ -564,8 +564,6 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
         get('/api/superadmin/stats')
       ]);
       // useAxios already returns response.data
-      console.log('Tenants response:', tenantsRes);
-      console.log('Stats response:', statsRes);
       
       // Handle {data: [...], pagination: {...}} structure
       const tenantsList = tenantsRes?.data || tenantsRes?.tenants || tenantsRes || [];
@@ -977,11 +975,11 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
             }}
             style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text }}
           >
-            <option value="dashboard">📊 Dashboard</option>
-            <option value="etablissements">🏪 Établissements</option>
-            <option value="creation">✨ Création</option>
-            <option value="groupes">🏫 Groupes</option>
-            <option value="audit">📋 Audit</option>
+            <option value="dashboard">Dashboard</option>
+            <option value="etablissements">Établissements</option>
+            <option value="creation">Création</option>
+            <option value="groupes">Groupes</option>
+            <option value="audit">Audit</option>
           </select>
           {/* Onglets desktop scrollables */}
           <div className="hidden md:block overflow-x-auto">
@@ -1662,7 +1660,7 @@ const SuperAdminPanel = ({ activeTab: controlledTab, setActiveTab: controlledSet
                   title="Cliquer pour afficher les détails des sessions actives"
                 >
                   <p className="text-xs text-green-700 font-medium flex items-center gap-1">
-                    🟢 Connectés (Live)
+                    Connectés (en direct)
                   </p>
                   <p className="text-xl font-bold text-green-900">{auditStats.activeSessionsCount || 0}</p>
                 </div>

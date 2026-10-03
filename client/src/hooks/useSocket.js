@@ -21,13 +21,6 @@ export const useSocket = () => {
 
     socketRef.current = socket;
 
-    socket.on('connect', () => {
-      console.log('[Socket] Connecté');
-    });
-
-    socket.on('disconnect', () => {
-      console.log('[Socket] Déconnecté');
-    });
 
     // Événements scolaires — Staff
     socket.on('nouvelleNote', (data) => {

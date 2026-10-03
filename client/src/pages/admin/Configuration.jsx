@@ -569,7 +569,7 @@ const Configuration = () => {
                 </button>
               </div>
               <p className="text-sm text-[var(--text-secondary)]">
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                Exemple de texte courant : les liens, titres et boutons de l'application reprendront ces couleurs.
               </p>
             </div>
           </div>

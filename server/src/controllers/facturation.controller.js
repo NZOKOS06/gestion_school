@@ -58,7 +58,7 @@ export const generer = async (req, res) => {
     });
   } catch (error) {
     log.error({ err: error, tenantId: req.tenantId }, 'Generer facturation error');
-    res.status(500).json({ error: error.message || 'Erreur lors de la génération de la facturation' });
+    res.status(500).json({ error: 'Erreur lors de la génération de la facturation' });
   }
 };
 

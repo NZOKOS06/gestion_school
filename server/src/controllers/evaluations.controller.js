@@ -413,7 +413,7 @@ export const importExcel = async (req, res) => {
       return res.status(403).json({ error: 'La saisie des notes est actuellement fermée par la direction.' });
     }
     log.error({ err: error, tenantId: req.tenantId, id: req.params.id }, 'Import Excel evaluation error');
-    res.status(500).json({ error: error.message || 'Erreur lors de l\'importation des notes Excel.' });
+    res.status(500).json({ error: 'Erreur lors de l\'importation des notes Excel.' });
   }
 };
 

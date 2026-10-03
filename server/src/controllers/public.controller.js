@@ -2,6 +2,9 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../utils/prisma.js';
 import { withCdnImages } from '../utils/httpCache.js';
 import { config } from '../config.js';
+import { createLogger } from '../utils/logger.js';
+
+const log = createLogger('public.controller');
 
 export const getActualites = async (req, res) => {
   try {
@@ -38,7 +41,7 @@ export const getActualites = async (req, res) => {
       pagination: { page: parseInt(page), limit: take, total, totalPages: pages }
     });
   } catch (error) {
-    console.error('[PublicController] getActualites error:', error);
+    log.error({ err: error }, 'getActualites error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -69,7 +72,7 @@ export const getInfosEcole = async (req, res) => {
       })
     }));
   } catch (error) {
-    console.error('[PublicController] getInfosEcole error:', error);
+    log.error({ err: error }, 'getInfosEcole error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -113,7 +116,7 @@ export const verifyBulletin = async (req, res) => {
       qrCodeHash: bulletin.qrCodeHash,
     });
   } catch (error) {
-    console.error('[PublicController] verifyBulletin error:', error);
+    log.error({ err: error }, 'verifyBulletin error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -261,7 +264,7 @@ export const getPortailParent = async (req, res) => {
       bulletins: eleve.bulletins || [],
     });
   } catch (error) {
-    console.error('[PublicController] getPortailParent error:', error);
+    log.error({ err: error }, 'getPortailParent error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

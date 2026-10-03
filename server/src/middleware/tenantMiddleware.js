@@ -1,6 +1,9 @@
 import { prisma, asyncLocalStorage } from '../utils/prisma.js';
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
+import { createLogger } from '../utils/logger.js';
+
+const log = createLogger('tenantMiddleware');
 
 const SUBDOMAIN_MODE = process.env.SUBDOMAIN_MODE === 'true';
 
@@ -94,7 +97,7 @@ export const tenantMiddleware = async (req, res, next) => {
     req.tenantId = tenant.id;
     asyncLocalStorage.run({ tenantId: tenant.id }, () => next());
   } catch (error) {
-    console.error('Tenant middleware error:', error);
+    log.error({ err: error }, 'Tenant middleware error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -112,7 +115,7 @@ export const optionalTenantMiddleware = async (req, res, next) => {
     // Pas de tenant — continuer sans (req.tenant et req.tenantId restent undefined)
     next();
   } catch (error) {
-    console.error('Optional tenant middleware error:', error);
+    log.error({ err: error }, 'Optional tenant middleware error');
     next();
   }
 };

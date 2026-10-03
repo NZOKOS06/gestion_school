@@ -100,7 +100,6 @@ export function initOfflineSyncEngine() {
   if (typeof window === 'undefined') return;
 
   const handleOnline = () => {
-    console.log('[OfflineSync] Réseau internet rétabli ! Démarrage de la synchronisation...');
     notifyListeners({ isOnline: true, isSyncing: false, pendingCount: null });
     // Petit délai de stabilisation réseau avant de vider la file
     setTimeout(() => {

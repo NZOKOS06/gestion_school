@@ -2,6 +2,9 @@ import jwt from 'jsonwebtoken';
 import { rawPrisma } from '../utils/prisma.js';
 import { config } from '../config.js';
 import { cacheGet, cacheSet, cacheDel, CacheKeys } from '../utils/cache.js';
+import { createLogger } from '../utils/logger.js';
+
+const log = createLogger('authMiddleware');
 
 const JWT_SECRET = config.jwtSecret;
 const AUTH_CACHE_TTL = 60; // secondes — réduit les hits DB sans stale trop long
@@ -185,7 +188,7 @@ export const authenticate = async (req, res, next) => {
       });
     }
 
-    console.error('Auth middleware error:', error);
+    log.error({ err: error }, 'Auth middleware error');
     res.status(500).json({ error: 'Internal server error' });
   }
 };

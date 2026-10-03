@@ -438,10 +438,6 @@ app.get('/api/health/bootstrap', authenticate, requireRole('super_admin'), async
   }
 });
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 app.get('/api/health/smtp', authenticate, requireRole('super_admin'), async (req, res) => {
   const result = await verifySmtpConnection();
   const configured = !!(appConfig.brevo.apiKey || (appConfig.smtp.host && appConfig.smtp.user && appConfig.smtp.pass));

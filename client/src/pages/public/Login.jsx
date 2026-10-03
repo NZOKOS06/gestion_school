@@ -6,6 +6,7 @@ import { useI18n } from '../../contexts/I18nContext';
 import {
   Mail,
   Lock,
+  AlertCircle,
   Eye,
   EyeOff,
   Loader2,
@@ -140,7 +141,7 @@ const Login = () => {
             {/* Titre & Accroche */}
             <div className="mb-8">
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary, #0f172a)' }}>
-                Bienvenue ! 👋
+                Bienvenue
               </h1>
               <p className="mt-2 text-sm sm:text-base leading-relaxed" style={{ color: 'var(--text-secondary, #64748b)' }}>
                 Connectez-vous pour accéder à votre espace de gestion, notes, bulletins et suivi scolaire.
@@ -158,7 +159,7 @@ const Login = () => {
                   color: '#dc2626',
                 }}
               >
-                <div className="mt-0.5 flex-shrink-0 font-bold">⚠️</div>
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
                 <div className="flex-1 font-medium">{error}</div>
               </div>
             )}
@@ -167,7 +168,7 @@ const Login = () => {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Champ Email / Identifiant */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-primary, #334155)' }}>
+                <label htmlFor="login-identifiant" className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-primary, #334155)' }}>
                   Adresse e-mail ou téléphone
                 </label>
                 <div className="relative group">
@@ -176,6 +177,7 @@ const Login = () => {
                   </div>
                   <input
                     data-testid="email-input"
+                    id="login-identifiant"
                     type="text"
                     inputMode="email"
                     autoComplete="username"
@@ -196,7 +198,7 @@ const Login = () => {
 
               {/* Champ Mot de passe */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-primary, #334155)' }}>
+                <label htmlFor="login-motdepasse" className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-primary, #334155)' }}>
                   Mot de passe
                 </label>
                 <div className="relative group">
@@ -205,6 +207,8 @@ const Login = () => {
                   </div>
                   <input
                     data-testid="password-input"
+                    id="login-motdepasse"
+                    autoComplete="current-password"
                     type={showPassword ? 'text' : 'password'}
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -223,6 +227,7 @@ const Login = () => {
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-colors hover:bg-slate-200/50"
                     style={{ color: 'var(--text-muted, #94a3b8)' }}
                     title={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
