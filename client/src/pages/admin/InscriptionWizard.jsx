@@ -140,6 +140,33 @@ export default function InscriptionWizard({
   // Tarif spécial (cas sociaux, remise) : montants libres + motif obligatoire
   const [tarifSpecial, setTarifSpecial] = useState(false);
   const [tarifCustom, setTarifCustom] = useState({ fraisInscription: '', fraisScolarite: '', motif: '' });
+
+  // Assistant remis à zéro à chaque ouverture : sinon le matricule et les saisies de l'inscription
+  // précédente restent en place et bloquent la suivante (matricule déjà utilisé, élève/tuteur préremplis)
+  useEffect(() => {
+    if (!open) return;
+    setStep(1);
+    setMode('nouveau');
+    setParentMode('nouveau');
+    setAccesParent(null);
+    setSaving(false);
+    setClasseId('');
+    setExistingEleveId('');
+    setExistingParentId('');
+    setEleve({
+      matricule: `GS-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`,
+      nom: '', prenom: '', dateNaissance: '', sexe: 'M', lieuNaissance: '', adresse: '',
+    });
+    setTuteur({ nom: '', prenom: '', telephone: '', email: '', lienParente: 'Père', adresse: '', activerEspaceParent: false });
+    setRegime('plein_temps');
+    setServicesChoisis([]);
+    setTarifServeur(null);
+    setTarifSpecial(false);
+    setTarifCustom({ fraisInscription: '', fraisScolarite: '', motif: '' });
+    const active = annees.find((x) => x.actif || x.statut === 'active') || annees[0];
+    setAnneeScolaireId(active?.id || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   useEffect(() => {
     setTarifCustom((t) => ({
       ...t,

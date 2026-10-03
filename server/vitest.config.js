@@ -46,6 +46,7 @@ export default defineConfig({
       'src/controllers/auth.test.js',
       'src/controllers/groupeEcole.test.js',
       'src/controllers/groupeAcces.test.js',
+      'src/controllers/loginTelephone.test.js',
       'src/utils/tenantBootstrap.test.js',
       'src/services/__tests__/vague1.test.js',
       'src/services/__tests__/vague3.test.js',

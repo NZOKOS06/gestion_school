@@ -168,7 +168,7 @@ const Login = () => {
               {/* Champ Email / Identifiant */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-primary, #334155)' }}>
-                  Adresse Email ou Identifiant
+                  Adresse e-mail ou téléphone
                 </label>
                 <div className="relative group">
                   <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors group-focus-within:text-blue-600" style={{ color: 'var(--text-muted, #94a3b8)' }}>
@@ -176,7 +176,10 @@ const Login = () => {
                   </div>
                   <input
                     data-testid="email-input"
-                    type="email"
+                    type="text"
+                    inputMode="email"
+                    autoComplete="username"
+                    autoCapitalize="none"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full rounded-xl pl-11 pr-4 h-12 text-sm transition-all outline-none border focus:ring-2"
@@ -185,7 +188,7 @@ const Login = () => {
                       borderColor: 'var(--border-subtle, #cbd5e1)',
                       color: 'var(--text-primary, #0f172a)',
                     }}
-                    placeholder="directeur@ecole.cg ou prenom.nom@domaine.com"
+                    placeholder="Adresse e-mail ou numéro de téléphone"
                     required
                   />
                 </div>
@@ -302,16 +305,7 @@ const Login = () => {
 
           {/* Pied de formulaire */}
           <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs" style={{ borderColor: 'var(--border-subtle, #f1f5f9)' }}>
-            <p style={{ color: 'var(--text-muted, #94a3b8)' }}>
-              Pas encore de compte ?{' '}
-              <Link
-                to="/register"
-                className="font-bold hover:underline"
-                style={{ color: primaryColor }}
-              >
-                Inscrivez votre enfant
-              </Link>
-            </p>
+            <span />
 
             <Link
               to="/super-admin/login"

@@ -174,7 +174,28 @@ export const login = async (req, res) => {
           },
           include: { tenant: { include: { config: true } } }
         });
-        if (parent) parentMatches = [parent];
+        if (parent) {
+          parentMatches = [parent];
+        } else if (identifiant && !identifiant.includes('@')) {
+          // Numéro saisi autrement que la fiche (espaces, +242, 0 initial…) : comparaison sur les chiffres
+          const chiffres = identifiant.replace(/\D/g, '');
+          if (chiffres.length >= 7) {
+            const fiches = await prisma.user.findMany({
+              where: { tenantId, telephone: { not: null } },
+              select: { id: true, telephone: true },
+            });
+            const ids = fiches
+              .filter((f) => {
+                const d = f.telephone.replace(/\D/g, '');
+                return d.length >= 7 && (d === chiffres || d.endsWith(chiffres) || chiffres.endsWith(d));
+              })
+              .map((f) => f.id);
+            if (ids.length === 1) {
+              const trouve = await prisma.user.findFirst({ where: { id: ids[0], tenantId }, include: { tenant: { include: { config: true } } } });
+              if (trouve) parentMatches = [trouve];
+            }
+          }
+        }
       } else {
         parentMatches = await prisma.user.findMany({
           where: { email },
