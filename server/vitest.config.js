@@ -45,6 +45,8 @@ export default defineConfig({
       'src/services/finance.smoke.test.js',
       'src/controllers/auth.test.js',
       'src/controllers/groupeEcole.test.js',
+      'src/controllers/groupeAcces.test.js',
+      'src/utils/tenantBootstrap.test.js',
       'src/services/__tests__/vague1.test.js',
       'src/services/__tests__/vague3.test.js',
       'src/services/__tests__/excelFormulaSanitizer.test.js',

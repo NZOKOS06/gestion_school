@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Building2, Share2, ArrowRightLeft } from 'lucide-react';
+import { Building2, Share2, ArrowRightLeft, KeyRound, Trash2 } from 'lucide-react';
 import { useAxios } from '../../hooks/useAxios';
 import { PageHeader, Button, Card, EmptyState } from '../../components/ui';
 
@@ -8,13 +8,15 @@ const fmt = (n) => `${Number(n || 0).toLocaleString('fr-FR')} FCFA`;
 
 /** Vue du directeur de groupe : consolidation, partage de tarifs, transfert d'élève entre sites. */
 const GroupeScolaire = () => {
-  const { get, post } = useAxios();
+  const { get, post, delete: del } = useAxios();
   const [groupe, setGroupe] = useState(undefined);
   const [stats, setStats] = useState(null);
   const [cibles, setCibles] = useState([]);
   const [transfert, setTransfert] = useState({ eleveId: '', cibleTenantId: '' });
   const [eleves, setEleves] = useState([]);
   const [recherche, setRecherche] = useState('');
+  const [acces, setAcces] = useState({ data: [], candidats: [], roles: [] });
+  const [nouvelAcces, setNouvelAcces] = useState({ staffId: '', role: 'secretaire' });
 
   const charger = useCallback(async () => {
     try {
@@ -23,6 +25,7 @@ const GroupeScolaire = () => {
       if (res?.data?.estDirecteurGroupe) {
         const s = await get('/api/groupe/stats', { silent: true });
         setStats(s);
+        setAcces(await get('/api/groupe/acces', { silent: true }));
       }
     } catch { setGroupe(null); }
   }, [get]);
@@ -61,6 +64,25 @@ const GroupeScolaire = () => {
       const res = await post('/api/groupe/partager-tarifs', { cibleTenantIds: cibles });
       const n = (res?.data || []).reduce((t, r) => t + r.classesMisesAJour, 0);
       toast.success(`${n} classe(s) mise(s) à jour`);
+    } catch { /* toast par useAxios */ }
+  };
+
+  const accorder = async () => {
+    if (!nouvelAcces.staffId) return toast.error('Choisissez une personne');
+    try {
+      await post('/api/groupe/acces', nouvelAcces);
+      toast.success('Accès accordé : la personne voit maintenant le sélecteur de site');
+      setNouvelAcces({ staffId: '', role: nouvelAcces.role });
+      setAcces(await get('/api/groupe/acces', { silent: true }));
+    } catch { /* toast par useAxios */ }
+  };
+
+  const retirer = async (id) => {
+    if (!window.confirm("Retirer l'accès aux autres sites à cette personne ?")) return;
+    try {
+      await del(`/api/groupe/acces/${id}`);
+      toast.success('Accès retiré');
+      setAcces(await get('/api/groupe/acces', { silent: true }));
     } catch { /* toast par useAxios */ }
   };
 
@@ -111,6 +133,38 @@ const GroupeScolaire = () => {
           ))}
         </div>
         <Button onClick={partager}>Partager les tarifs</Button>
+      </Card>
+
+      <Card className="space-y-3 p-4">
+        <h3 className="flex items-center gap-2 font-semibold"><KeyRound className="h-4 w-4" /> Accès aux autres sites</h3>
+        <p className="text-sm text-gray-500">
+          Vous avez accès à tous les sites du groupe (sélecteur de site en haut de l'écran). Autorisez ici d'autres personnes du groupe :
+          elles pourront naviguer entre les sites avec le rôle choisi.
+        </p>
+        {acces.data.length > 0 && (
+          <ul className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
+            {acces.data.map((a) => (
+              <li key={a.id} className="flex items-center justify-between gap-2 py-2">
+                <span>{a.staff.prenom} {a.staff.nom} <span className="text-gray-500">({a.staff.tenant?.nom}) · {a.role}</span></span>
+                <button onClick={() => retirer(a.id)} className="p-1 text-red-600" aria-label="Retirer l'accès"><Trash2 className="h-4 w-4" /></button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <select className="flex-1 rounded border p-2 text-sm dark:bg-gray-900" value={nouvelAcces.staffId}
+            onChange={(e) => setNouvelAcces((n) => ({ ...n, staffId: e.target.value }))}>
+            <option value="">— Choisir une personne —</option>
+            {acces.candidats.filter((c) => !acces.data.some((a) => a.staffId === c.id)).map((c) => (
+              <option key={c.id} value={c.id}>{c.prenom} {c.nom} ({c.tenant?.nom} · {c.role})</option>
+            ))}
+          </select>
+          <select className="rounded border p-2 text-sm dark:bg-gray-900" value={nouvelAcces.role}
+            onChange={(e) => setNouvelAcces((n) => ({ ...n, role: e.target.value }))}>
+            {acces.roles.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <Button onClick={accorder}>Autoriser</Button>
+        </div>
       </Card>
 
       <Card className="space-y-3 p-4">

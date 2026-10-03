@@ -24,6 +24,7 @@ import { useDensity } from '../../contexts/DensityContext';
 import CommandPalette from '../CommandPalette';
 import { buildBreadcrumbs, ROLE_DISPLAY_LABELS } from './navConfig';
 import { PwaNavButton } from '../PwaInstallPrompt';
+import SiteSwitcher from '../SiteSwitcher';
 
 const BOTTOM_NAV_SLOTS = 4;
 
@@ -408,6 +409,8 @@ const AppShell = ({
                 <AlignJustify className="h-4 w-4" />
               </button>
             )}
+
+            {user?.role !== 'parent' && user?.role !== 'super_admin' && <SiteSwitcher />}
 
             {/* Bouton PWA dans la barre de navigation */}
             <PwaNavButton />

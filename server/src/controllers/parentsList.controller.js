@@ -38,22 +38,26 @@ export const create = async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { nom, prenom, email, telephone } = req.body;
-    if (!nom?.trim() || !prenom?.trim() || !email?.trim()) {
-      return res.status(400).json({ error: 'Nom, prénom et email requis' });
+    const cleanTel = telephone?.trim() || null;
+    const cleanEmail = email?.trim().toLowerCase() || null;
+    if (!nom?.trim() || !prenom?.trim() || (!cleanEmail && !cleanTel)) {
+      return res.status(400).json({ error: 'Nom, prénom et téléphone (ou email) requis' });
     }
     const existing = await prisma.user.findFirst({
-      where: { tenantId, email: email.trim().toLowerCase() },
+      where: { tenantId, OR: [...(cleanEmail ? [{ email: cleanEmail }] : []), ...(cleanTel ? [{ telephone: cleanTel }] : [])] },
     });
     if (existing) {
-      return res.status(409).json({ error: 'Cet email est déjà utilisé' });
+      return res.status(409).json({ error: cleanEmail && existing.email === cleanEmail ? 'Cet email est déjà utilisé' : 'Ce numéro de téléphone est déjà utilisé' });
     }
+    // Sans email : identifiant technique dérivé du téléphone (même règle que l'assistant d'inscription)
+    const emailFinal = cleanEmail || `parent_${cleanTel.replace(/\D/g, '') || Date.now()}@${req.tenant?.slug || 'gestschool'}.cg`;
     const parent = await prisma.user.create({
       data: {
         tenantId,
         nom: nom.trim(),
         prenom: prenom.trim(),
-        email: email.trim().toLowerCase(),
-        telephone: telephone?.trim() || null,
+        email: emailFinal,
+        telephone: cleanTel,
         passwordHash: null,
         portailActif: false,
       },

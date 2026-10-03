@@ -40,7 +40,9 @@ export const setSites = async (req, res) => {
     const ids = Array.isArray(req.body.tenantIds) ? req.body.tenantIds : [];
     const groupe = await rawPrisma.groupeScolaire.findUnique({ where: { id: req.params.id } });
     if (!groupe) return res.status(404).json({ error: 'Groupe introuvable' });
+    const retires = await rawPrisma.tenant.findMany({ where: { groupeId: groupe.id, id: { notIn: ids } }, select: { id: true } });
     await rawPrisma.$transaction([
+      rawPrisma.staff.updateMany({ where: { tenantId: { in: retires.map((t) => t.id) }, origineStaffId: { not: null } }, data: { actif: false } }),
       rawPrisma.tenant.updateMany({ where: { groupeId: groupe.id, id: { notIn: ids } }, data: { groupeId: null } }),
       rawPrisma.tenant.updateMany({ where: { id: { in: ids } }, data: { groupeId: groupe.id } }),
     ]);
@@ -89,7 +91,14 @@ export const setDirecteur = async (req, res) => {
       const staff = await rawPrisma.staff.findFirst({ where: { id: staffId, role: 'directeur', tenant: { groupeId: req.params.id } }, select: { id: true } });
       if (!staff) return res.status(400).json({ error: "Le directeur de groupe doit être un directeur d'un site du groupe" });
     }
+    const avant = await rawPrisma.groupeScolaire.findUnique({ where: { id: req.params.id }, select: { directeurStaffId: true } });
     await rawPrisma.groupeScolaire.update({ where: { id: req.params.id }, data: { directeurStaffId: staffId } });
+    // L'ancien directeur de groupe perd l'accès aux autres sites (sauf autorisation individuelle)
+    const ancien = avant?.directeurStaffId;
+    if (ancien && ancien !== staffId) {
+      const autorise = await rawPrisma.groupeAcces.findFirst({ where: { groupeId: req.params.id, staffId: ancien } });
+      if (!autorise) await rawPrisma.staff.updateMany({ where: { origineStaffId: ancien }, data: { actif: false } });
+    }
     res.json({ message: 'Directeur de groupe mis à jour' });
   } catch (error) {
     log.error({ err: error }, 'setDirecteur');

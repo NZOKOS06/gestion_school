@@ -71,7 +71,7 @@ const generateTokens = (userId, role, tenantId, sessionExpiresAt) => {
   const refreshToken = jwt.sign(
     { userId, role, tenantId, type: 'refresh' },
     JWT_REFRESH_SECRET,
-    { expiresIn: remainingSec }
+    { expiresIn: remainingSec, jwtid: crypto.randomUUID() } // unique : deux ouvertures de session la même seconde ne collisionnent pas
   );
 
   return { accessToken, refreshToken };
@@ -81,7 +81,7 @@ const generateTokens = (userId, role, tenantId, sessionExpiresAt) => {
  * Émet le couple access/refresh, persiste le refresh token et pose les cookies.
  * `sessionExpiresAt` est conservé tel quel lors des rotations (session absolue).
  */
-const issueSession = async (res, { userId, role, tenantId, sessionExpiresAt }) => {
+export const issueSession = async (res, { userId, role, tenantId, sessionExpiresAt }) => {
   const expiresAt = sessionExpiresAt
     || new Date(Date.now() + (await resolveSessionMinutes(role, tenantId)) * 60 * 1000);
 

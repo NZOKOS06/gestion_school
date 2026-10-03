@@ -28,6 +28,7 @@ export const MATIERES_BASE_CONGO = [
  * @param {import('@prisma/client').PrismaClient} prismaClient - Client Prisma (rawPrisma ou prisma)
  */
 export async function bootstrapTenantReferentiel(tenantId, prismaClient) {
+  let premierPassage = false;
   try {
     if (!tenantId) return null;
 
@@ -109,9 +110,17 @@ export async function bootstrapTenantReferentiel(tenantId, prismaClient) {
       }
     }
 
-    // 4. Matières de base de l'école (si aucune matière n'existe)
+    // Matières et année de départ : semées UNE seule fois par école. Le marqueur est pris de façon
+    // atomique (deux appels simultanés ne dupliquent rien) et ce qui est supprimé ensuite n'est jamais recréé.
+    const prise = await prismaClient.tenantConfig.updateMany({
+      where: { tenantId, donneesInitialesAt: null },
+      data: { donneesInitialesAt: new Date() },
+    });
+    premierPassage = prise.count === 1;
+
+    // 4. Matières de base de l'école (premier passage, si aucune matière n'existe)
     const existingMatieresCount = await prismaClient.matiere.count({ where: { tenantId } });
-    if (existingMatieresCount === 0) {
+    if (premierPassage && existingMatieresCount === 0) {
       const tenantCycles = await getTenantCyclesConfig(tenantId, prismaClient);
 
       for (const m of MATIERES_BASE_CONGO) {
@@ -134,9 +143,11 @@ export async function bootstrapTenantReferentiel(tenantId, prismaClient) {
       }
     }
 
-    // 5. Année scolaire par défaut (2025-2026) si aucune année n'existe
+    // 5. Année scolaire de départ (celle en cours à la date du jour), premier passage seulement
     const existingAnnee = await prismaClient.anneeScolaire.findFirst({ where: { tenantId } });
-    if (!existingAnnee) {
+    if (premierPassage && !existingAnnee) {
+      const maintenant = new Date();
+      const debutAnnee = maintenant.getMonth() >= 7 ? maintenant.getFullYear() : maintenant.getFullYear() - 1;
       const tenantCycles = await getTenantCyclesConfig(tenantId, prismaClient);
       const isSecondaire = !tenantCycles || tenantCycles.includes('college') || tenantCycles.includes('lycee');
       const isPrimaire = !tenantCycles || tenantCycles.includes('primaire') || tenantCycles.includes('prescolaire');
@@ -144,9 +155,9 @@ export async function bootstrapTenantReferentiel(tenantId, prismaClient) {
       const nouvelleAnnee = await prismaClient.anneeScolaire.create({
         data: {
           tenantId,
-          libelle: '2025-2026',
-          dateDebut: new Date('2025-10-01'),
-          dateFin: new Date('2026-07-15'),
+          libelle: `${debutAnnee}-${debutAnnee + 1}`,
+          dateDebut: new Date(`${debutAnnee}-10-01`),
+          dateFin: new Date(`${debutAnnee + 1}-07-15`),
           actif: true,
           statut: 'active',
           referentielVersionId: refActuel.id,
@@ -166,6 +177,10 @@ export async function bootstrapTenantReferentiel(tenantId, prismaClient) {
     log.info({ tenantId }, 'Bootstrap tenant referentiel completed successfully');
     return { ok: true, referentielVersionId: refActuel.id };
   } catch (error) {
+    if (premierPassage) {
+      // Semis interrompu : on libère le marqueur pour qu'un prochain passage puisse le terminer
+      await prismaClient.tenantConfig.updateMany({ where: { tenantId }, data: { donneesInitialesAt: null } }).catch(() => {});
+    }
     log.error({ err: error, tenantId }, 'Failed to bootstrap tenant referentiel');
     return { ok: false, error: error.message };
   }

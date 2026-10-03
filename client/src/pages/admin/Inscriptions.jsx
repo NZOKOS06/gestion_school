@@ -168,15 +168,15 @@ const Inscriptions = () => {
   };
 
   const createParentQuick = async () => {
-    if (!parentForm.nom.trim() || !parentForm.prenom.trim() || !parentForm.email.trim()) {
-      toast.error('Nom, prénom et email requis');
+    if (!parentForm.nom.trim() || !parentForm.prenom.trim() || (!parentForm.email.trim() && !parentForm.telephone.trim())) {
+      toast.error('Nom, prénom et téléphone (ou email) requis');
       return;
     }
     try {
       const created = await post('/api/parents', {
         nom: parentForm.nom.trim(),
         prenom: parentForm.prenom.trim(),
-        email: parentForm.email.trim(),
+        email: parentForm.email.trim() || undefined,
         telephone: parentForm.telephone.trim() || undefined,
       });
       setParents((prev) => [...prev, created].sort((a, b) => a.nom.localeCompare(b.nom, 'fr')));
@@ -1165,7 +1165,7 @@ const Inscriptions = () => {
             </div>
           </div>
           <div>
-            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Email</label>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Email (facultatif si téléphone)</label>
             <input type="email" style={inputStyle} value={parentForm.email} onChange={(e) => setParentForm({ ...parentForm, email: e.target.value })} />
           </div>
           <div>

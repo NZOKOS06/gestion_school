@@ -133,6 +133,7 @@ export const authenticate = async (req, res, next) => {
           nom: staff.nom,
           prenom: staff.prenom,
           mustChangePassword: staff.mustChangePassword,
+          origineStaffId: staff.origineStaffId || null,
           ipWhitelist: ipListFromStaff(staff),
         };
         await cacheSet(CacheKeys.authUser(staff.role, staff.id), user, AUTH_CACHE_TTL);

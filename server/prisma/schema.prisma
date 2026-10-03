@@ -145,6 +145,7 @@ model TenantConfig {
   modulePaiements     Boolean @default(true)
   moduleEmploiDuTemps Boolean @default(false)
   moduleParents       Boolean @default(false)
+  donneesInitialesAt  DateTime? // matières et année de départ semées une seule fois (jamais recréées après suppression)
   moduleEleves        Boolean @default(true)
   moduleSanctions     Boolean @default(false)
   moduleBiblio        Boolean @default(false)
@@ -231,6 +232,7 @@ model Staff {
   heureArriveePrevue String?
   heureDepartPrevue  String?
   deviceBiometricId  String?
+  origineStaffId     String? // compte « miroir » créé sur un autre site du groupe pour un accès de groupe
   mustChangePassword Boolean   @default(true)
   actif              Boolean   @default(true)
   derniereConnexion  DateTime?
@@ -240,6 +242,7 @@ model Staff {
   updatedAt          DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accesGroupe GroupeAcces[]
 
   // Relations pédagogiques spécifiques
   enseignantClasses EnseignantClasse[]
@@ -1978,4 +1981,20 @@ model GroupeScolaire {
   directeurStaffId String? // directeur de groupe
   createdAt DateTime @default(now())
   sites     Tenant[]
+  acces     GroupeAcces[]
+}
+
+// Personnes autorisées par le directeur de groupe à naviguer entre les sites (rôle exercé sur les autres sites)
+model GroupeAcces {
+  id        String   @id @default(uuid())
+  groupeId  String
+  staffId   String
+  role      StaffRole
+  createdAt DateTime @default(now())
+
+  groupe GroupeScolaire @relation(fields: [groupeId], references: [id], onDelete: Cascade)
+  staff  Staff          @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([groupeId, staffId])
+  @@index([staffId])
 }
