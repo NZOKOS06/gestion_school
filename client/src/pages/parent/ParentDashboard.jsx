@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 const ParentDashboard = () => {
   const { get } = useAxios();
   const { user } = useAuth();
-  const { formatPrice } = useTenant();
+  const { formatPrice,isModuleActive } = useTenant();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
