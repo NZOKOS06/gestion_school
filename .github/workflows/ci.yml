@@ -64,7 +64,7 @@ jobs:
 
       - name: Run unit tests
         working-directory: server
-        run: npx prisma generate && npx vitest run --reporter=verbose
+        run: npx prisma generate && npx vitest run --reporter=verbose --pool=forks --maxWorkers=1 --minWorkers=1
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gestschool_test
           DATABASE_URL_TEST: postgresql://postgres:postgres@localhost:5432/gestschool_test
