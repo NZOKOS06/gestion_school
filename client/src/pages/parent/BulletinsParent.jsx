@@ -63,6 +63,7 @@ const BulletinsParent = () => {
           <p className="font-medium">{blocage.message}</p>
           <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
             Montant à régulariser : <strong>{formatPrice(blocage.montantDu)}</strong> :{' '}
+            <a href="/parent/facturation" style={{ color: 'var(--color-primary)' }}>voir la facturation</a>
           </p>
         </div>
       )}
