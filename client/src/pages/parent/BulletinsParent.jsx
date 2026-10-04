@@ -62,8 +62,7 @@ const BulletinsParent = () => {
         <div className="rounded-xl p-4 text-sm" style={{ background: 'color-mix(in srgb, var(--color-warning) 12%, transparent)', color: 'var(--text-primary)' }}>
           <p className="font-medium">{blocage.message}</p>
           <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
-            Montant à régulariser : <strong>{formatPrice(blocage.montantDu)}</strong> —{' '}
-            <a href="/parent/facturation" style={{ color: 'var(--color-primary)' }}>voir la facturation</a>
+            Montant à régulariser : <strong>{formatPrice(blocage.montantDu)}</strong> :{' '}
           </p>
         </div>
       )}
