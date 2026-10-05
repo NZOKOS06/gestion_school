@@ -1,13 +1,14 @@
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 const MAX_RETRIES = 3;
 
 export const axiosInstance = axios.create({
   baseURL: API_URL,
   withCredentials: true,
   timeout: 30000,
-  // NE PAS forcer Content-Type ici :
+  // Ne pas forcer Content-Type ici :
   // Axios le définit automatiquement selon le type de data.
 });
 
@@ -23,7 +24,7 @@ function getTenantSlug() {
     return null;
   }
 
-  // Mode sous-domaine
+  // 1. Mode sous-domaine
   if (import.meta.env.VITE_SUBDOMAIN_MODE === 'true') {
     const host = window.location.hostname;
     const parts = host.split('.');
@@ -41,7 +42,7 @@ function getTenantSlug() {
     }
   }
 
-  // Routes publiques : /e/:slug/... et /p/:slug/...
+  // 2. Routes publiques : /e/:slug/... et /p/:slug/...
   const pathMatch = pathname.match(/^\/(?:e|p)\/([^/]+)/);
 
   if (pathMatch?.[1]) {
@@ -52,7 +53,7 @@ function getTenantSlug() {
     return slug;
   }
 
-  // Paramètre URL : ?tenant=...
+  // 3. Paramètre URL : ?tenant=...
   const params = new URLSearchParams(window.location.search);
   const queryTenant = params.get('tenant');
 
@@ -62,14 +63,14 @@ function getTenantSlug() {
     return queryTenant;
   }
 
-  // Tenant déjà mémorisé
+  // 4. Tenant déjà mémorisé
   const storedTenant = localStorage.getItem('tenantSlug');
 
   if (storedTenant) {
     return storedTenant;
   }
 
-  // Tenant par défaut
+  // 5. Tenant par défaut
   return import.meta.env.VITE_DEFAULT_TENANT || 'demo';
 }
 
@@ -93,14 +94,17 @@ axiosInstance.interceptors.request.use(
 );
 
 function shouldRetry(error) {
-  if (!error.config || error.config.__retryCount >= MAX_RETRIES) {
+  if (
+    !error.config ||
+    error.config.__retryCount >= MAX_RETRIES
+  ) {
     return false;
   }
 
   const method = (error.config.method || 'get').toLowerCase();
 
-  // Ne jamais rejouer les uploads / mutations non-idempotentes
-  // lorsqu'une réponse HTTP a déjà été reçue.
+  // Ne jamais rejouer une mutation après réception
+  // d'une réponse HTTP.
   if (
     method !== 'get' &&
     method !== 'head' &&
@@ -109,7 +113,7 @@ function shouldRetry(error) {
     return false;
   }
 
-  // Réseau / timeout
+  // Erreur réseau / timeout
   if (!error.response) {
     return true;
   }
@@ -141,4 +145,3 @@ axiosInstance.interceptors.response.use(
 );
 
 export default axiosInstance;
-
